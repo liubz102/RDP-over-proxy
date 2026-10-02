@@ -63,6 +63,19 @@ func (s *SettingsStore) Load() (model.Settings, error) {
 	return result, err
 }
 
+// Peek reads settings.json without changing anything: an unreadable file is
+// not moved aside and the settings in effect stay as they are. A missing or
+// unreadable file gives the defaults. It is for the moment before the app
+// knows it is the only instance, when it must not touch the files of one
+// that is already running.
+func (s *SettingsStore) Peek() model.Settings {
+	loaded := model.DefaultSettings()
+	if found, err := ReadJSON(s.path, &loaded); err != nil || !found {
+		return model.DefaultSettings()
+	}
+	return loaded.Repair()
+}
+
 // Get returns the settings currently in effect.
 func (s *SettingsStore) Get() model.Settings {
 	s.mu.Lock()

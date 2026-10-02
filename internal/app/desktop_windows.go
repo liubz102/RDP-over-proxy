@@ -3,6 +3,12 @@
 package app
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"os"
+	"path/filepath"
+	"strings"
+
 	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"github.com/liubz102/RDP-over-proxy/internal/i18n"
@@ -14,15 +20,30 @@ import (
 // buildDirs: the desktop build uses the real data folders.
 func buildDirs(d store.Dirs) store.Dirs { return d }
 
-// singleInstance keeps one copy of the app running; launching it again brings
-// the existing window forward.
+// singleInstance keeps one copy of the app running per data folder;
+// launching it again brings the existing window forward.
 func singleInstance(show func()) *application.SingleInstanceOptions {
 	return &application.SingleInstanceOptions{
-		UniqueID: uniqueID,
+		UniqueID: instanceID(),
 		OnSecondInstanceLaunch: func(application.SecondInstanceData) {
 			show()
 		},
 	}
+}
+
+// instanceID is uniqueID, made specific to the data folder when
+// RDP_OVER_PROXY_HOME sets one: a development or test run keeps its own data
+// and must neither hand over to the user's running app nor be blocked by it.
+func instanceID() string {
+	home := os.Getenv(store.EnvHome)
+	if home == "" {
+		return uniqueID
+	}
+	if abs, err := filepath.Abs(home); err == nil {
+		home = abs
+	}
+	sum := sha256.Sum256([]byte(strings.ToLower(home)))
+	return uniqueID + ".home-" + hex.EncodeToString(sum[:6])
 }
 
 // preflight checks what Wails needs before it can show a window. Without the

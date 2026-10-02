@@ -83,7 +83,7 @@ func (t *tracker) get() error {
 }
 
 // trackedConn reports the outbound's error, when there is one, in place of
-// the bare end of the stream.
+// the bare end of the stream, labelled with a code (see classify).
 type trackedConn struct {
 	net.Conn
 	tracker *tracker
@@ -93,7 +93,7 @@ func (c *trackedConn) Read(b []byte) (int, error) {
 	n, err := c.Conn.Read(b)
 	if err != nil {
 		if cause := c.tracker.get(); cause != nil {
-			return n, cause
+			return n, classify(cause)
 		}
 	}
 	return n, err

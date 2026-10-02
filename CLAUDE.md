@@ -25,20 +25,23 @@
 | 路径 | 内容 |
 |---|---|
 | `main.go` | 入口；嵌入 `frontend/dist` 和 `build/appicon.png`；`version` 默认值 |
-| `internal/app` | Wails 应用、窗口、托盘、单实例、关闭缩到托盘。`desktop_windows.go` 和 `server.go` 用构建标签区分桌面版与 server 版 |
-| `internal/api` | 暴露给前端的服务（目前只有 `SettingsService`），以及事件 `settings:changed` |
+| `internal/app` | Wails 应用、窗口、托盘、单实例、关闭缩到托盘、启动与退出顺序。`desktop_windows.go` 和 `server.go` 用构建标签区分桌面版与 server 版；`platform_windows.go` 提供两版共用的 Windows 部件（DPAPI、凭据、mstsc） |
+| `internal/api` | 暴露给前端的服务（Settings、Profile、Proxy、Session、App）和它们共用的 `Core`；视图类型、事件、错误 JSON（`MarshalError`） |
 | `internal/model` | 数据结构（Settings、Proxy、Profile、Target）与校验，纯逻辑。Proxy / Profile 的校验返回 `FieldErrors`（字段 + 代码） |
 | `internal/loopback` | 由 profile ID 派生 `127.a.b.c` 回环地址，冲突时顺延 |
 | `internal/rdpfile` | 只读解析 .rdp：导入草稿、RD 网关判定 |
-| `internal/mstsc` | mstsc 启动参数（`Args`，纯函数）；启动 / 等待 / 关闭 / 结束 / 聚焦（`launch_windows.go`） |
+| `internal/mstsc` | mstsc 启动参数（`Args`，纯函数）；启动 / 等待 / 关闭 / 结束 / 聚焦（`launch_windows.go`）；`Servers` 注册表记忆（UsernameHint）；RD 网关检查（`DecideGateway` 纯函数 + `CheckGateway`） |
 | `internal/probe` | X.224 CR/CC 编解码、线路检查 `Check` |
 | `internal/route` | `Dialer` / `Provider` 接口、直连 |
 | `internal/engine` | 内嵌的 Xray 实例，也是应用实际使用的 `route.Provider`：outbound 引用计数、强制 tag 派发、错误原因回传、日志桥接 |
 | `internal/tunnel` | 回环入口：接受连接、经线路拨目标、双向拷贝、计数、报告 |
 | `internal/session` | 会话：纯 reducer（`session.go`、`reduce.go`），外壳是 actor（`actor.go`）和 `Manager`（`manager.go`） |
+| `internal/errcode` | 错误码：`New` / `Weak` / `Wrap`，`Of` 取最有用的代码；`Declare` / `All` 供翻译完整性测试 |
+| `internal/secret` | DPAPI 加密（`DPAPI`）；凭据管理器里 `TERMSRV/<回环地址>` 的密码（`Vault`） |
+| `internal/logging` | 日志文件（按大小轮转）、环形缓冲、脱敏、连续重复折叠、给 Wails 用的 slog 适配 |
 | `internal/testutil` | 测试共用：假 RDP 服务端；替身进程（`RunHelper` / `HelperCommand`）；`FreePort`。只能被 `_test.go` 引用 |
 | `internal/testutil/xraytest` | 测试用：进程内的 Xray SOCKS / HTTP 代理。单独成包，只有需要的测试才链接 Xray |
-| `internal/store` | 原子写 JSON；数据目录；`RDP_OVER_PROXY_HOME` |
+| `internal/store` | 原子写 JSON；数据目录；`RDP_OVER_PROXY_HOME`；设置；代理和连接的文件存储（`Data`） |
 | `internal/i18n` | Go 侧文案（托盘、原生对话框）、系统语言检测 |
 | `internal/winx` | Win32 调用：WebView2 检测、错误框、系统深色模式 |
 | `frontend/src` | `app/`（外壳、主题、首次语言选择）、`features/`、`components/`、`stores/`、`locales/` |
@@ -64,10 +67,10 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 - **重新生成绑定**：`wails3 generate bindings -clean=true -ts -i`
 - **浏览器预览界面**
   1. 运行 `wails3 task build:server DEV=true`。
-  2. 设置 `WAILS_SERVER_PORT=34115`，后台运行 `bin\RDP-over-proxy-server.exe`。
-  3. 在内置浏览器打开 `http://localhost:34115`。
+  2. 用内置浏览器工具 `preview_start` 启动 `.claude/launch.json` 里的 `preview` 配置：端口 34115，数据目录 `data\preview`（已被 git 忽略）。
+  3. 页面在 `http://localhost:34115`。
 
-  预览版的数据放在 `%APPDATA%\RDP-over-proxy-preview`。
+  没有界面的服务可以在页面里用 `fetch("/wails/runtime")` 按方法全名调用（`object: 0`，`args: {"call-id", methodName, args}`；取消用 `object: 10`）。不经过 launch.json 手动运行时，预览版的数据放在 `%APPDATA%\RDP-over-proxy-preview`。
 - **原生自测**：设置 `RDP_OVER_PROXY_HOME=<临时目录>` 后再启动 exe，避免用掉用户的首次启动体验。
 
 ## 硬性规则（用户的全局规则 + 本项目约定）
@@ -86,7 +89,9 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
    - 测试只用自己的端口，隧道用 port 0，绝不用 13389。
    - 只结束测试自己启动的 PID，绝不按进程名杀进程。
    - 不替用户打开真实的 mstsc 会话。
-   - 测试和自测的数据用 `RDP_OVER_PROXY_HOME` 隔离。
+   - 测试和自测的数据用 `RDP_OVER_PROXY_HOME` 隔离（它同时让单实例 ID 按数据目录区分，自测不会和用户正在用的实例互相干扰）。
+   - 不碰用户真实的凭据和 mstsc 注册表：凭据测试只用 `TERMSRV/rdp-over-proxy-test-<随机>.invalid`，注册表测试只用 `HKCU\Software\RDP-over-proxy-test`，测试结束都要清掉。
+   - 自测时不要往凭据管理器存密码，也不要调用 `Connect`（会启动 mstsc）。
 6. **隐私**：仓库和日志里不出现个人主机名、IP、凭据。测试数据只用 `example.com` 和 `192.0.2.x`。
 7. **`wails3 init`**：绝不加 `-git`，它会执行 git init 和 add。
 8. **先征得同意**：安装软件、移动用户的文件、碰真实凭据之前，先问用户。
@@ -122,3 +127,8 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 - **测试要看引擎日志时，先启动 `xraytest` 代理，再启动引擎**：创建 Xray 实例会顶掉日志桥接。
 - **测「代理不通」的用例要等约 1.5 秒**：这是 Xray 内部的重试，不是我们的超时。
 - **PowerShell 命令开头那行 PATH 设置里有 `C:\Program Files`，同一条命令里再写 `Remove-Item` 会被工具的安全检查拦下**：删除操作单独一条命令执行，或者改用 Bash。
+- **Wails 的单实例判断在 `application.New` 里**：第二个实例在那里直接 `os.Exit`。所以打开日志文件、载入数据、动凭据都必须放在 `application.New` 之后，服务用 `app.RegisterService` 注册（见 `app.Run`）。
+- **凭据管理器的域类型凭据只接受它认识的目标名前缀**（如 `TERMSRV/`）：`foo/bar` 这类名字会报「参数错误」。所以测试凭据也放在 `TERMSRV/` 下，用保留的 `.invalid` 主机名。
+- **Xray 的失败原因只有文本**：它的重试把原始错误格式化成文字。engine 的 `classify` 按文本归类，升级 Xray 时要跑 engine 测试确认文本没变。
+- **新增错误码、通知代码、会话日志键时，要在两份语言文件里加翻译**：`errors.<code>`、`notices.<code>`、`log.<key>`。`internal/app` 的测试会检查。用 `errcode.Wrap` 的代码要 `errcode.Declare`。
+- **Wails 运行时的 debug 日志带着服务调用的参数（也就是密码）**：`Binding call complete`、`Runtime call` 都会记 `args`。`logging.SlogHandler` 因此不收 Wails 的 debug、info 记录（任何级别），也不收服务方法返回的预期错误，载荷属性写成 `<omitted>`。改它时别放开。

@@ -1,6 +1,7 @@
 package engine_test
 
 import (
+	"bufio"
 	"errors"
 	"io"
 	"net"
@@ -14,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/liubz102/RDP-over-proxy/internal/engine"
+	"github.com/liubz102/RDP-over-proxy/internal/errcode"
 	"github.com/liubz102/RDP-over-proxy/internal/loopback"
 	"github.com/liubz102/RDP-over-proxy/internal/model"
 	"github.com/liubz102/RDP-over-proxy/internal/probe"
@@ -82,8 +84,19 @@ func TestOutboundFailuresCarryXraysReason(t *testing.T) {
 	wrongHTTP := httpProxy.Model("wh", httpo)
 	wrongHTTP.Secret = "wrong"
 	down := model.Proxy{ID: "down", Name: "Down", Kind: model.KindSocks, Server: "127.0.0.1", Port: testutil.FreePort(t)}
+	downHTTP := model.Proxy{ID: "downh", Name: "Down", Kind: model.KindHTTP, Server: "127.0.0.1", Port: testutil.FreePort(t)}
 
-	for _, p := range []model.Proxy{wrongSocks, wrongHTTP, down} {
+	cases := []struct {
+		proxy model.Proxy
+		code  string
+	}{
+		{wrongSocks, engine.CodeProxyAuth},
+		{wrongHTTP, engine.CodeProxyAuth},
+		{down, engine.CodeProxyUnreachable},
+		{downHTTP, engine.CodeProxyUnreachable},
+	}
+	for _, c := range cases {
+		p := c.proxy
 		_, err := probe.Check(t.Context(), acquire(t, e, p), srv.Addr)
 		if !errors.Is(err, probe.ErrNoAnswer) {
 			t.Fatalf("%s: err = %v, want ErrNoAnswer", p.ID, err)
@@ -93,8 +106,112 @@ func TestOutboundFailuresCarryXraysReason(t *testing.T) {
 		if msg := err.Error(); !strings.Contains(msg, "outbound") || strings.HasSuffix(msg, "(EOF)") {
 			t.Fatalf("%s: err = %q, want Xray's reason", p.ID, msg)
 		}
+		if got := errcode.Of(err); got != c.code {
+			t.Fatalf("%s: code %q, want %q (%v)", p.ID, got, c.code, err)
+		}
 		t.Logf("%s: %v", p.ID, err)
 	}
+}
+
+func TestProxyThatCannotReachTheTarget(t *testing.T) {
+	// A target port nothing listens on: the proxy is fine, the target is not.
+	target := "127.0.0.1:" + strconv.Itoa(testutil.FreePort(t))
+	e := startEngine(t, engine.Options{})
+
+	// Xray's own SOCKS and HTTP servers (v2rayN's local port is one) accept
+	// the request at once and drop the connection when the target turns out
+	// to be unreachable.
+	for i, o := range []xraytest.Options{{Protocol: model.KindSocks}, {Protocol: model.KindHTTP}} {
+		px := xraytest.Start(t, o)
+		_, err := probe.Check(t.Context(), acquire(t, e, px.Model("x"+strconv.Itoa(i), o)), target)
+		if got := errcode.Of(err); got != engine.CodeProxyDropped {
+			t.Fatalf("Xray %s server: code %q, want %q (%v)", o.Protocol, got, engine.CodeProxyDropped, err)
+		}
+	}
+
+	// Other servers answer the request with an error.
+	refusing := []model.Proxy{
+		{ID: "rs", Name: "Refusing SOCKS", Kind: model.KindSocks, Server: "127.0.0.1", Port: refusingProxy(t, socksRefusal)},
+		{ID: "rh", Name: "Refusing HTTP", Kind: model.KindHTTP, Server: "127.0.0.1", Port: refusingProxy(t, httpRefusal)},
+	}
+	for _, p := range refusing {
+		_, err := probe.Check(t.Context(), acquire(t, e, p), target)
+		if got := errcode.Of(err); got != engine.CodeProxyTargetFailed {
+			t.Fatalf("%s: code %q, want %q (%v)", p.Name, got, engine.CodeProxyTargetFailed, err)
+		}
+	}
+}
+
+// refusingProxy runs a proxy server that turns down every CONNECT with the
+// given handler, and returns its port.
+func refusingProxy(t *testing.T, serve func(net.Conn)) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				defer c.Close()
+				serve(c)
+			}()
+		}
+	}()
+	return ln.Addr().(*net.TCPAddr).Port
+}
+
+// socksRefusal speaks SOCKS5 without authentication and answers the CONNECT
+// with reply 5, "connection refused" (RFC 1928).
+func socksRefusal(c net.Conn) {
+	hello := make([]byte, 2)
+	if _, err := io.ReadFull(c, hello); err != nil {
+		return
+	}
+	if _, err := io.ReadFull(c, make([]byte, hello[1])); err != nil {
+		return
+	}
+	if _, err := c.Write([]byte{5, 0}); err != nil {
+		return
+	}
+	head := make([]byte, 4) // VER CMD RSV ATYP
+	if _, err := io.ReadFull(c, head); err != nil {
+		return
+	}
+	var addrLen int
+	switch head[3] {
+	case 1:
+		addrLen = 4
+	case 4:
+		addrLen = 16
+	case 3:
+		n := make([]byte, 1)
+		if _, err := io.ReadFull(c, n); err != nil {
+			return
+		}
+		addrLen = int(n[0])
+	}
+	if _, err := io.ReadFull(c, make([]byte, addrLen+2)); err != nil {
+		return
+	}
+	_, _ = c.Write([]byte{5, 5, 0, 1, 0, 0, 0, 0, 0, 0})
+	_, _ = io.Copy(io.Discard, c)
+}
+
+// httpRefusal answers a CONNECT with 502 Bad Gateway.
+func httpRefusal(c net.Conn) {
+	req, err := http.ReadRequest(bufio.NewReader(c))
+	if err != nil {
+		return
+	}
+	req.Body.Close()
+	_, _ = io.WriteString(c, "HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n")
+	_, _ = io.Copy(io.Discard, c)
 }
 
 func TestOutboundsAreSharedAndReleased(t *testing.T) {
@@ -229,7 +346,7 @@ func TestLogBridge(t *testing.T) {
 	px := xraytest.Start(t, o)
 	srv := testutil.NewRDPServer(t, testutil.RDPOptions{Answer: testutil.AnswerConfirm})
 	lines := make(chan string, 1024)
-	e := startEngine(t, engine.Options{Verbose: true, Log: func(level, msg string) {
+	e := startEngine(t, engine.Options{Verbose: func() bool { return true }, Log: func(level, msg string) {
 		select {
 		case lines <- level + " " + msg:
 		default:

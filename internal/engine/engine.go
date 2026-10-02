@@ -37,6 +37,7 @@ import (
 	_ "github.com/xtls/xray-core/proxy/socks"
 	_ "github.com/xtls/xray-core/transport/internet/tcp"
 
+	"github.com/liubz102/RDP-over-proxy/internal/errcode"
 	"github.com/liubz102/RDP-over-proxy/internal/model"
 	"github.com/liubz102/RDP-over-proxy/internal/route"
 )
@@ -61,16 +62,16 @@ var baseConfig = fmt.Sprintf(`{
 }`, uint32(connIdleMax), blackholeTag)
 
 // ErrClosed is returned by Acquire after Close.
-var ErrClosed = errors.New("the proxy engine has stopped")
+var ErrClosed = errcode.New("app.quitting", "the proxy engine has stopped")
 
 // Options configure the engine.
 type Options struct {
-	// Log receives Xray's own log lines: errors and warnings, and with
-	// Verbose also its informational and debug lines. Xray calls it from
-	// many goroutines at once; it must be safe for that and return quickly.
-	// Optional.
+	// Log receives Xray's own log lines: errors and warnings, and, while
+	// Verbose reports true, also its informational and debug lines. Xray
+	// calls both from many goroutines at once; they must be safe for that
+	// and return quickly. Optional.
 	Log     func(level, msg string)
-	Verbose bool
+	Verbose func() bool
 }
 
 // Engine is the running Xray instance.

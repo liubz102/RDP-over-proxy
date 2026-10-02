@@ -12,8 +12,9 @@ package loopback
 import (
 	"crypto/sha256"
 	"encoding/binary"
-	"errors"
 	"net/netip"
+
+	"github.com/liubz102/RDP-over-proxy/internal/errcode"
 )
 
 // The last three octets each run from 1 to 254. Leaving out 0 and 255 avoids
@@ -25,7 +26,7 @@ const (
 )
 
 // ErrExhausted is returned by Assign when every address in the range is taken.
-var ErrExhausted = errors.New("every loopback address in 127.1.1.1-127.254.254.254 is taken")
+var ErrExhausted = errcode.New("loopback.exhausted", "every loopback address in 127.1.1.1-127.254.254.254 is taken")
 
 // Valid reports whether a is a per-profile address: 127.a.b.c with a, b and
 // c each from 1 to 254.

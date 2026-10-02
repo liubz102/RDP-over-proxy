@@ -121,11 +121,16 @@ type State struct {
 	ExitCode int
 
 	// Conns counts the tunnel's open connections.
-	Conns         int
-	Upstream      Upstream
+	Conns    int
+	Upstream Upstream
+	// UpstreamError and UpstreamCode (see package errcode) are the latest
+	// reason a connection could not reach the target.
 	UpstreamError string
-	// TunnelError is set when the entrance stopped accepting connections.
+	UpstreamCode  string
+	// TunnelError and TunnelCode are set when the entrance stopped accepting
+	// connections.
 	TunnelError string
+	TunnelCode  string
 }
 
 // Phase derives the coarse stage from the step.
@@ -243,7 +248,9 @@ type (
 )
 
 // Log records a line in the session log. Msg is a stable key that the UI
-// translates; Args fill in its details.
+// translates; Args fill in its details. A line about an error has the
+// error's text under "error" and its code (see package errcode) under
+// "code".
 type Log struct {
 	Level Level
 	Msg   string
@@ -297,3 +304,11 @@ const (
 	// is ignored; the line exists to make such a bug visible.
 	MsgUnexpected = "session.unexpectedEvent"
 )
+
+// Messages lists every log message key above, for checking that the UI
+// translates each one.
+var Messages = []string{
+	MsgStarting, MsgListening, MsgCheckPassed, MsgClientStarted, MsgUpstreamOK, MsgUpstreamFailing,
+	MsgStepFailed, MsgCancelling, MsgClosing, MsgKilling, MsgClientExited, MsgTunnelFailed, MsgEnded,
+	MsgActionFailed, MsgUnexpected,
+}

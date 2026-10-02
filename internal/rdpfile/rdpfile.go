@@ -10,11 +10,11 @@ package rdpfile
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"strconv"
 	"strings"
 	"unicode/utf16"
 
+	"github.com/liubz102/RDP-over-proxy/internal/errcode"
 	"github.com/liubz102/RDP-over-proxy/internal/model"
 )
 
@@ -44,7 +44,7 @@ const (
 )
 
 // ErrNoAddress is returned by Target when the file names no computer.
-var ErrNoAddress = errors.New("the .rdp file has no \"full address\"")
+var ErrNoAddress = errcode.New("rdp.noAddress", "the .rdp file has no \"full address\"")
 
 // File is a parsed .rdp file.
 type File struct {

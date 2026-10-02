@@ -7,9 +7,9 @@ package route
 
 import (
 	"context"
-	"errors"
 	"net"
 
+	"github.com/liubz102/RDP-over-proxy/internal/errcode"
 	"github.com/liubz102/RDP-over-proxy/internal/model"
 )
 
@@ -27,7 +27,7 @@ type Provider interface {
 }
 
 // ErrUnsupported is returned for a proxy kind this build cannot use yet.
-var ErrUnsupported = errors.New("this kind of proxy is not supported yet")
+var ErrUnsupported = errcode.New("proxy.unsupported", "this kind of proxy is not supported yet")
 
 // Direct is the route for model.KindDirect: a plain TCP connection from this
 // computer. Go enables TCP keep-alive on it, so a dead peer is noticed even

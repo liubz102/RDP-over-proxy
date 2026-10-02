@@ -1,11 +1,11 @@
 package session
 
 import (
-	"errors"
 	"fmt"
 	"net/netip"
 	"sync"
 
+	"github.com/liubz102/RDP-over-proxy/internal/errcode"
 	"github.com/liubz102/RDP-over-proxy/internal/model"
 	"github.com/liubz102/RDP-over-proxy/internal/mstsc"
 	"github.com/liubz102/RDP-over-proxy/internal/route"
@@ -23,6 +23,10 @@ type Request struct {
 	// CheckFirst runs the route check before mstsc starts
 	// (Settings.CheckRouteBeforeConnect).
 	CheckFirst bool
+	// Password, when set, is for this session only: Options.Credentials
+	// stores it before mstsc starts and deletes it when the session ends.
+	// It is never logged.
+	Password string
 }
 
 // Options are what a Manager needs from the rest of the app.
@@ -30,11 +34,11 @@ type Options struct {
 	// Routes and Launch are required.
 	Routes route.Provider
 	Launch func(args []string) (Process, error)
-	// Preflight adds local checks before a session acquires anything (the RD
-	// Gateway check arrives in M4). Optional.
+	// Preflight adds local checks before a session acquires anything, such
+	// as the RD Gateway check. Optional.
 	Preflight func(Request) error
-	// Credentials gives a session what to sign in with (M4). Without it
-	// nothing is written and mstsc asks for the password itself.
+	// Credentials gives a session what to sign in with. Without it nothing
+	// is written and mstsc asks for the password itself.
 	Credentials func(Request) Credentials
 	// Changed receives every state of every session, and Log every log line.
 	// Calls are made one at a time and, for each profile, in order. They may
@@ -46,12 +50,12 @@ type Options struct {
 
 // Errors from Connect.
 var (
-	ErrQuitting = errors.New("the app is quitting")
+	ErrQuitting = errcode.New("app.quitting", "the app is quitting")
 	// ErrEnding: the profile's previous session is still being stopped.
-	ErrEnding = errors.New("the previous session of this connection is still ending")
+	ErrEnding = errcode.New("session.ending", "the previous session of this connection is still ending")
 	// ErrLoopbackDirect: a direct connection to this computer itself would
 	// connect the tunnel to itself.
-	ErrLoopbackDirect = errors.New("the target is this computer itself; without a proxy the tunnel would connect to itself")
+	ErrLoopbackDirect = errcode.New("session.loopbackDirect", "the target is this computer itself; without a proxy the tunnel would connect to itself")
 )
 
 // Manager runs at most one session per profile.
@@ -142,6 +146,16 @@ func (m *Manager) States() map[string]State {
 		out[id] = s
 	}
 	return out
+}
+
+// Active reports whether the profile has a session that has not ended,
+// including one that Connect has just started and that has not reported
+// yet.
+func (m *Manager) Active(profileID string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	st, reported := m.states[profileID]
+	return m.running[profileID] != nil && (!reported || st.Step != StepDone)
 }
 
 // Running counts the sessions that have not ended.

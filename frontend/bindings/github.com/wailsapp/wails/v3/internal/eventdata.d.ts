@@ -7,11 +7,21 @@ import type { Events } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import type * as api$0 from "../../../../liubz102/RDP-over-proxy/internal/api/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import type * as logging$0 from "../../../../liubz102/RDP-over-proxy/internal/logging/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import type * as model$0 from "../../../../liubz102/RDP-over-proxy/internal/model/models.js";
 
 declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
+            "app:notice": api$0.Notice;
+            "data:changed": api$0.DataView;
+            "session:log": logging$0.Line;
+            "sessions:changed": api$0.SessionView;
             "settings:changed": model$0.Settings;
         }
     }

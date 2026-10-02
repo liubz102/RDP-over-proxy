@@ -131,3 +131,27 @@ func TestLoadRepairsUnknownValues(t *testing.T) {
 		t.Fatalf("Load() = %+v, want every unknown value repaired to its default", got)
 	}
 }
+
+func TestPeekChangesNothing(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "settings.json")
+	if err := os.WriteFile(path, []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := NewSettingsStore(dir)
+	if got := s.Peek(); got != model.DefaultSettings() {
+		t.Fatalf("Peek of an unreadable file = %+v, want defaults", got)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal("Peek moved the unreadable file aside")
+	}
+	if err := os.WriteFile(path, []byte(`{"schema":1,"language":"en","theme":"dark"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Peek(); got.Language != model.LangEn || got.Theme != model.ThemeDark {
+		t.Fatalf("Peek = %+v", got)
+	}
+	if s.Get() != model.DefaultSettings() {
+		t.Fatal("Peek changed the settings in effect")
+	}
+}

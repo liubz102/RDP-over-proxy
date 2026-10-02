@@ -9,7 +9,7 @@ mstsc /v:127.a.b.c:13389 ──▶ tunnel (net.Listen on 127.a.b.c) ──▶ ro
                                                                   └─ engine: embedded Xray-core (one instance)
 ```
 
-Status markers: **[M0]** to **[M3]** are implemented; everything else is planned for the milestone shown. See [PROGRESS.md](PROGRESS.md).
+Status markers: **[M0]** to **[M4]** are implemented; everything else is planned for the milestone shown. See [PROGRESS.md](PROGRESS.md).
 
 ## Principles
 
@@ -24,39 +24,47 @@ Status markers: **[M0]** to **[M3]** are implemented; everything else is planned
 |---|---|---|
 | `main` | Embeds the frontend and icon; holds the default `version` (release builds override it with `-ldflags -X main.version=…`) | [M0] |
 | `internal/app` | Wails application, main window, tray, single instance, close-to-tray, startup error box. `desktop_windows.go` and `server.go` split the desktop build from the browser-preview build (`-tags server`) | [M0] |
-| `internal/api` | Services bound to the frontend; DTOs; events | [M0] `SettingsService`; more in M4 |
+| `internal/api` | Services bound to the frontend, their shared `Core`, views (DTOs), events, error JSON | [M4] |
 | `internal/model` | Settings [M0]; Proxy, Profile, Target, IDs and field-level validation [M1] | [M1] |
-| `internal/store` | Data folders, atomic JSON writes, settings load/repair [M0]; proxies and profiles (M4) | partly |
+| `internal/store` | Data folders, atomic JSON writes, settings load/repair [M0]; proxies and profiles (`Data`) [M4] | [M4] |
 | `internal/i18n` | Go-side strings (tray, native dialogs), system language detection | [M0] |
 | `internal/winx` | Win32 helpers: WebView2 detection, message box, dark-mode query [M0]; a process's main windows, WM_CLOSE, focus [M2] | [M2] |
 | `internal/loopback` | Derive and de-duplicate per-profile loopback addresses | [M1] |
 | `internal/rdpfile` | Read-only `.rdp` parsing (import, `Default.rdp` RD Gateway check) | [M1] |
-| `internal/mstsc` | Build mstsc arguments [M1]; start mstsc, wait, close, kill, focus [M2]; `UsernameHint`; gateway check against `Default.rdp` and policy (M4) | partly |
+| `internal/mstsc` | Build mstsc arguments [M1]; start mstsc, wait, close, kill, focus [M2]; per-server memory (`UsernameHint`, forget), RD Gateway check against `Default.rdp` and Group Policy [M4] | [M4] |
 | `internal/probe` | X.224 Connection Request/Confirm codec and `Check` [M1]; proxy latency test `Latency` [M3] | [M3] |
 | `internal/session` | Pure state-machine reducer [M1]; one actor goroutine per session, Manager [M2] | [M2] |
 | `internal/tunnel` | Loopback listener, per-connection upstream dial, two-way copy, byte counters, reports | [M2] |
 | `internal/route` | `Dialer` and `Provider` interfaces, the direct route [M2] | [M2] |
 | `internal/engine` | The single embedded Xray instance and the app's `route.Provider`: outbound registry with ref-counts; forced outbound tag per connection; Xray's failure reason per connection; log bridge [M3]. SOCKS / HTTP now, V2Ray family in M6 | partly |
-| `internal/secret` | DPAPI for secrets in JSON; `TERMSRV/<loopback>` credentials in Windows Credential Manager | M4 |
+| `internal/secret` | DPAPI for secrets in JSON; `TERMSRV/<loopback>` credentials in Windows Credential Manager | [M4] |
 | `internal/sharelink` | Share links (vmess, vless, trojan, ss, hysteria2, socks, http) ⇄ Xray outbound JSON | M6 |
 | `internal/diag` | Read-only environment report | M7 |
-| `internal/logging` | Log files, in-memory ring buffers, redaction, state-flip de-duplication | M4 |
+| `internal/logging` | Log file with size-based rotation, in-memory rings, redaction, repeat collapsing, slog bridge for the Wails runtime | [M4] |
+| `internal/errcode` | Stable error codes the UI translates; picks the most useful code in an error tree | [M4] |
 | `internal/testutil` | Fake RDP server [M1]; helper processes that stand in for mstsc [M2]; `xraytest`: in-process Xray SOCKS / HTTP proxy servers [M3] | [M3] |
 | `tools/notices` | Generates `THIRD_PARTY_NOTICES.md` | M9 |
 
 ## Data
 
-- `%APPDATA%\RDP-over-proxy\settings.json` [M0], `proxies\<id>.json`, `profiles\<id>.json` (M4)
-- `%LOCALAPPDATA%\RDP-over-proxy\WebView2\` [M0], `logs\` (M4)
+- `%APPDATA%\RDP-over-proxy\settings.json` [M0], `proxies\<id>.json`, `profiles\<id>.json` [M4]
+- `%LOCALAPPDATA%\RDP-over-proxy\WebView2\` [M0], `logs\app.log` [M4]
 - `RDP_OVER_PROXY_HOME=<dir>` puts everything under `<dir>\config` and `<dir>\local` (tests, development). The browser-preview build uses `…\RDP-over-proxy-preview`.
 
 Every file carries `"schema": 1`, a data-format number used for migrations (not the app version). Files are decoded on top of the defaults so fields added later get their default value.
 
+Loading proxies and profiles (`store.OpenData`) [M4] never stops the app; each problem becomes a notice:
+- The file name is the ID; an ID inside the file is ignored.
+- Invalid JSON is renamed to `<name>.corrupt` and left out. A file with a newer `schema`, or one that cannot be opened at all (held by another program, no access), is left untouched and left out.
+- Secrets that DPAPI cannot open (a file from another Windows user or computer) are cleared; the proxy still loads.
+- A missing, malformed or duplicate loopback address is replaced (the lower ID keeps a contested one) and saved at once.
+- Temporary files left by an interrupted atomic write are removed.
+
 **Settings** [M0]: `language` (`zh-CN` | `en`; empty until the first-run picker), `theme` (`system` | `light` | `dark`), `closeBehavior` (`tray` | `quit`), `localPort` (13389), `checkRouteBeforeConnect`, `testUrl`, `logLevel`.
 
-**Proxy** (model [M1], storage M4): `id`, `name`, `kind` (`direct` | `socks` | `http` | `shadowsocks` | `vmess` | `vless` | `trojan` | `hysteria2` | `xray`), `server`, `port`, `username`; `secret` and the full Xray `outbound` JSON (stored as JSON text) are DPAPI-sealed on disk; `summary` (non-secret display fields) arrives with the share-link parser in M6. `direct` is only the built-in entry `DirectProxyID = "direct"`, which every profile can pick and which is never stored.
+**Proxy** (model [M1], storage [M4]): `id`, `name`, `kind` (`direct` | `socks` | `http` | `shadowsocks` | `vmess` | `vless` | `trojan` | `hysteria2` | `xray`), `server`, `port`, `username`; `secret` and the full Xray `outbound` JSON (stored as JSON text) are DPAPI-sealed on disk; `summary` (non-secret display fields) arrives with the share-link parser in M6. `direct` is only the built-in entry `DirectProxyID = "direct"`, which every profile can pick and which is never stored.
 
-**Profile** (model [M1], storage M4): `id`, `name`, `group`, `target {host, port}`, `proxyId`, `loopback`, `username`, `rememberPassword`, `display {mode, width, height, multimon, span}`, `admin`. `display.mode` is `default` (no switch, follow `Default.rdp`), `fullscreen` (`/f`, plus `/multimon` or `/span`) or `window` (`/w /h`, 200–8192); the settings of the other modes are kept so switching back restores them. RDP passwords live only in Windows Credential Manager (`CRED_TYPE_GENERIC`, target `TERMSRV/<loopback>`).
+**Profile** (model [M1], storage [M4]): `id`, `name`, `group`, `target {host, port}`, `proxyId`, `loopback`, `username`, `rememberPassword`, `display {mode, width, height, multimon, span}`, `admin`. `display.mode` is `default` (no switch, follow `Default.rdp`), `fullscreen` (`/f`, plus `/multimon` or `/span`) or `window` (`/w /h`, 200–8192); the settings of the other modes are kept so switching back restores them. RDP passwords live only in Windows Credential Manager (`CRED_TYPE_GENERIC`, target `TERMSRV/<loopback>` without the port, as tools that pre-store mstsc passwords write it). A remembered password persists on this computer; a one-time password persists for the Windows logon session only and is deleted when its session ends. mstsc's own "Remember me" stores a domain-password credential under the same name; the app reports and deletes it but never writes one.
 
 IDs are 16 random lowercase hex digits and double as file names. `Validate` on a profile or proxy returns `model.FieldErrors`: every problem at once, each as a JSON field path (`target.host`) plus a code (`required`, `invalid`, `out_of_range`, `too_long`, `unsupported`, `conflict`) that the UI translates. Host names are ASCII (internationalized names in their `xn--` form); the last label cannot be all digits, so `10.0.0.256` is rejected rather than taken for a name.
 
@@ -69,11 +77,16 @@ Wails generates TypeScript bindings for exported service methods (`frontend/bind
 | Service | Methods | Status |
 |---|---|---|
 | `SettingsService` | `Get`, `Save`, `SystemLanguage`, `AppInfo` | [M0] |
-| `ProfileService` | CRUD, import `.rdp`, set/forget password, credential state | M4 |
-| `ProxyService` | CRUD, parse/import share links, export link, validate, latency test | M4 / M6 |
-| `SessionService` | `CheckRoute(ctx)`, `Connect(ctx)` (cancellable from JS), `Disconnect`, `Focus`, logs | M4 |
+| `ProfileService` | `List` (with password state), `Draft`, `Create(profile, password)`, `Update(profile, password)`, `Delete`, `ForgetPassword` | [M4]; `.rdp` import M7 |
+| `ProxyService` | `List` (no passwords), `Get`, `Create`, `Update(proxy, keepSecret)`, `Delete`, `Latency(ctx)` | [M4]; share links M6 |
+| `SessionService` | `Connect(profile, password)`, `Disconnect(profile, force)`, `Focus`, `States`, `Log`, `CheckRoute(ctx)` | [M4] |
+| `AppService` | `Notices`, `Dismiss`, `Log` | [M4] |
 
-Events: `settings:changed` [M0]; `sessions:changed`, `session:log`, `data:changed`, `app:toast` (M4).
+Methods that take a `context.Context` are cancellable from JavaScript (cancel the returned promise). `Connect` returns at once; progress arrives as events, and `Disconnect` is the way to stop.
+
+Events: `settings:changed` [M0]; `data:changed` (every profile and proxy), `sessions:changed` (one session's state), `session:log` (one log line), `app:notice` [M4].
+
+**Errors** [M4]: a service error reaches the frontend as the rejected call's `cause`: `{code, message, fields?, args?}`. The UI shows the translation of `errors.<code>` with `args` filled in, keeps `message` as the details, and marks `fields` (validation errors, code `validation`). A test in `internal/app` checks that every declared code, notice code and session log key has a translation in both catalogs.
 
 ## Session lifecycle (reducer [M1], actor M2)
 
@@ -81,7 +94,7 @@ Events: `settings:changed` [M0]; `sessions:changed`, `session:log`, `data:change
 
 | Step | Phase shown | Effect → event | Held afterwards |
 |---|---|---|---|
-| preflight | preparing | `Preflight` → `PreflightPassed` (RD Gateway settings) | — |
+| preflight | preparing | `Preflight` → `PreflightPassed` (no direct connection to this computer; RD Gateway check [M4]) | — |
 | route | preparing | `AcquireRoute` → `RouteReady` | route |
 | listen | preparing | `Listen` → `Listening{Addr}` (ready when Listen returns) | tunnel |
 | check (optional) | checking | `RunCheck` → `CheckPassed{Result}` | — |
@@ -110,8 +123,9 @@ Connecting a profile that already has a session focuses its window. Only "force"
   - Also provides `Stop(force)`, `Focus`, `States` (the latest state per profile, ended ones included) and `Running` (for "hide to tray while a session runs").
   - `Quit` force-stops every session and returns once each has given everything back.
   - The `Changed` and `Log` callbacks are delivered one at a time and in order, so an old session's last report always arrives before its successor's first.
-  - Preflight refuses a direct connection to a loopback target, which would connect the tunnel to itself; more checks plug in through `Options.Preflight` (RD Gateway, M4).
-  - Routes come from a `route.Provider`, credentials from `Options.Credentials` (M4).
+  - Preflight refuses a direct connection to a loopback target, which would connect the tunnel to itself; more checks plug in through `Options.Preflight` (the RD Gateway check [M4]).
+  - Routes come from a `route.Provider`, credentials from `Options.Credentials` [M4].
+  - `Active(profile)` is true from `Connect` until the session has ended, before its first report too; deleting a profile checks it.
 - **Tunnel**
   - `tunnel.Listen` is ready when it returns. Every accepted connection dials the target through the route and copies both ways with byte counters.
   - The first byte back from the target reports "upstream answered". A dial error, or the route closing the connection before any answer, reports "upstream failed". When mstsc or `Close` ends the connection, nothing is reported.
@@ -138,12 +152,45 @@ The app embeds Xray-core v1.260327.0 as a library: one instance per process, cre
   - Every connection is dispatched straight to its outbound with Xray's forced-outbound-tag context, so Xray's routing never decides anything. Domain targets are handed to the proxy unresolved.
   - `core.Dial` returns at once and Xray connects in the background. Each connection carries an error tracker; when the outbound fails, Xray submits its reason before ending the stream, and the connection's `Read` returns that reason in place of a bare EOF. The tunnel and the route check therefore report, for example, "server rejects account", "407 Proxy Authentication Required" or "connection refused".
   - The address is validated before it reaches Xray, which would panic on some malformed destinations.
-- **Logging**: Xray's logger is process-wide, and creating an instance installs Xray's own. `Start` replaces it with a bridge to `Options.Log`: errors and warnings always; info and debug only when verbose; access lines (one per connection, naming the target) never.
+- **Logging**: Xray's logger is process-wide, and creating an instance installs Xray's own. `Start` replaces it with a bridge to `Options.Log`: errors and warnings always; info and debug only while `Options.Verbose()` reports true (the app passes "the log level is debug"); access lines (one per connection, naming the target) never. Xray's start-up line, which it logs as a warning so that it shows by default, is passed on as information.
 - **Shutdown order**: `session.Manager.Quit` first (sessions release their routes), then `Engine.Close`.
 
 `probe.Latency` measures one HTTP GET of the test URL through any route: connecting, TLS for https, up to the response headers. Any HTTP status counts and redirects are not followed. There is no timeout; it is cancellable.
 
-Linking Xray adds about 23 MB to the executable (measured with production build flags: 9.9 MB → 32.8 MB for the app without its frontend assets).
+Linking Xray adds about 23 MB to the executable (measured with production build flags: 9.9 MB → 32.8 MB for the app without its frontend assets). The complete M4 build is 35.6 MB.
+
+## Services [M4]
+
+`internal/api.Core` is what the services share: the data, the settings, the `session.Manager`, the notices and each profile's latest session log. The app builds it with the real parts (`Deps`); tests pass stand-ins for Credential Manager, mstsc's registry memory and mstsc itself.
+
+- **Credentials** (`Options.Credentials`): before mstsc starts, the session writes the profile's user name as `UsernameHint` (`HKCU\Software\Microsoft\Terminal Server Client\Servers\<server>`) and, if the user gave a password for this connection only, stores it as a one-time credential. Whether mstsc keys `Servers` by address or by address:port is not documented, so the hint is written under both; deleting the profile removes the address with any port.
+- **One lock for the vault**: a session starting, a session ending and a profile being edited can touch the same credential at once, so every vault operation goes through one lock, and look-then-change steps (store a one-time password unless one is remembered, move a password to a new user name, delete only the one-time password) happen inside it. A one-time password never replaces a password the app remembers.
+- **Passwords and profile changes**:
+  - a new target (host or port) deletes every saved password of the profile, because they belong to the old computer;
+  - turning "remember password" off deletes the app's remembered password (mstsc's own stays);
+  - a new user name moves the app's remembered password to it;
+  - deleting a profile deletes its passwords and what mstsc remembers about its address; a profile that is connected, or whose session `Connect` has just started, cannot be deleted (the two calls exclude each other);
+  - a password given to `Connect` is saved as the remembered one when the profile remembers passwords, and used once otherwise.
+- **RD Gateway check** (`mstsc.CheckGateway`, run in preflight): `Default.rdp` from the Documents known folder plus the user's RD Gateway Group Policy (`HKCU\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services`: `UseProxy`, `AllowExplicitUseProxy`, `ProxyName`).
+  - `gatewayusagemethod` 1 ("always") stops the session with `gateway.used`.
+  - Values 2 and 3, or an enabled policy that is enforced or that `Default.rdp` defers to (`gatewayprofileusagemethod` 0), only add a warning to the session log: the policy uses the gateway when a direct connection fails, and mstsc always reaches the local tunnel directly.
+- **Notices**: problems found while loading, and failures of clean-up the user did not ask about (a password that could not be saved or deleted), become notices. They stay until dismissed; the frontend reads `AppService.Notices` at start and then listens to `app:notice`.
+- **Startup**: the settings are first only read (`SettingsStore.Peek`, for the UI language and log level). Then the Wails application is created, which settles single-instance (a second launch hands over to the first and exits there). Only then does the app load the settings for real (moving an unreadable file aside), open the log file, load the data, start the engine, remove one-time passwords a crash may have left, and register the services. `RDP_OVER_PROXY_HOME` also makes the single-instance ID specific to that folder, so development runs and the user's app do not interfere.
+- **Shutdown** (Wails `OnShutdown`): `Core.Quit` (every session gives everything back), then `Engine.Close`, then the log is closed.
+
+## Errors [M4]
+
+`internal/errcode` gives errors stable dotted codes (`proxy.auth`, `probe.notRdp`, `net.refused`, …). Packages create their sentinel errors with `errcode.New` or `errcode.Weak`; `errors.Is` keeps working. `errcode.Of` picks the most useful code in an error tree: the first strong code, else one recognised from a Winsock error, else the first weak code ("the connection closed before the target answered" is weak, so a more specific cause wins), else `unknown`.
+
+Xray reports why an outbound failed only as message text (its retry helper formats the errors it collected), so the engine labels them from the text, and the engine tests pin the texts with real proxies: `proxy.auth` (SOCKS5 account rejected, HTTP 407), `proxy.unreachable` (the proxy server could not be reached), `proxy.targetFailed` (the proxy answered that it could not reach the target), `proxy.dropped` (the proxy accepted, then closed before the target answered, which is what Xray-based servers such as v2rayN's local port do when the target is unreachable).
+
+## Logging [M4]
+
+- `%LOCALAPPDATA%\RDP-over-proxy\logs\app.log`, rotated by size: at most 2 MiB each, two older files kept.
+- The file is meant to be attachable to a bug report. Before a line is written, the user's profile folder becomes `%USERPROFILE%` (paths name the Windows account); the hosts, servers, RD Gateway, user names, connection, group and proxy names and proxy passwords the app knows become `<redacted>`; and every IP address except loopback and unspecified ones becomes `<ip>`. Names only ever join the set: a running session may still use a host the data no longer has. The in-memory rings (the app's and each session's) keep the details for the user's own screen.
+- Consecutive identical lines are written once; when a different line follows, a note says how often the previous one repeated.
+- The level comes from the settings and changes at once. Xray's info and debug lines are forwarded only at debug level.
+- Only the Wails runtime's warnings and errors are kept, at every level: some of its debug records carry the arguments of service calls, passwords included, and it logs every asset it serves. Its reports of errors that service methods returned are left out too (the UI gets them), and attributes that carry payloads (`args`, `result`, …) are written as `<omitted>`.
 
 ## Frontend structure
 

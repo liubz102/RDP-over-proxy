@@ -317,6 +317,25 @@ func TestConnectingARunningProfileFocusesIt(t *testing.T) {
 	}
 }
 
+func TestActiveFromConnectToTheEnd(t *testing.T) {
+	srv := testutil.NewRDPServer(t, testutil.RDPOptions{Answer: testutil.AnswerConfirm})
+	h := newHarness(t)
+	if h.m.Active("act") {
+		t.Fatal("Active before Connect")
+	}
+	connect(t, h, request(t, "act", srv))
+	if !h.m.Active("act") { // before the session has reported anything
+		t.Fatal("not Active right after Connect")
+	}
+	p := <-h.launcher.started
+	h.rec.wait("act", func(s State) bool { return s.Phase() == PhaseRunning })
+	p.exitWith(0)
+	h.rec.ended("act")
+	if h.m.Active("act") {
+		t.Fatal("Active after the session ended")
+	}
+}
+
 func TestStopAsksMstscToClose(t *testing.T) {
 	srv := testutil.NewRDPServer(t, testutil.RDPOptions{Answer: testutil.AnswerConfirm})
 	h := newHarness(t)

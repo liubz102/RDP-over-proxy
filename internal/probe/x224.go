@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/liubz102/RDP-over-proxy/internal/errcode"
 )
 
 // Protocols are the security protocols of RDP negotiation: a set of flags in
@@ -95,14 +97,14 @@ var (
 	// ErrNoAnswer: the connection ended before the server sent anything.
 	// Through a proxy this usually means the proxy could not reach the
 	// target and gave up.
-	ErrNoAnswer = errors.New("the connection closed before the target answered")
+	ErrNoAnswer = errcode.Weak("probe.noAnswer", "the connection closed before the target answered")
 	// ErrNotRDP: the server answered, but not with RDP (for example an HTTP
 	// error page from the wrong port).
-	ErrNotRDP = errors.New("the target did not answer with RDP")
+	ErrNotRDP = errcode.New("probe.notRdp", "the target did not answer with RDP")
 	// ErrTruncated: the answer stopped part-way through a packet.
-	ErrTruncated = errors.New("the target's answer was cut short")
+	ErrTruncated = errcode.New("probe.truncated", "the target's answer was cut short")
 	// ErrMalformed: the answer was RDP-shaped but broken.
-	ErrMalformed = errors.New("the target's answer is malformed")
+	ErrMalformed = errcode.New("probe.malformed", "the target's answer is malformed")
 )
 
 // Packet layout.

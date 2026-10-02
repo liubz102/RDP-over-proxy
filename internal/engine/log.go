@@ -2,19 +2,23 @@ package engine
 
 import (
 	"fmt"
+	"strings"
 
 	xlog "github.com/xtls/xray-core/common/log"
 )
 
 // registerLogBridge makes fn receive Xray's log lines. Xray's logger is
 // process-wide, and creating any Xray instance replaces it.
-func registerLogBridge(fn func(level, msg string), verbose bool) {
+func registerLogBridge(fn func(level, msg string), verbose func() bool) {
+	if verbose == nil {
+		verbose = func() bool { return false }
+	}
 	xlog.RegisterHandler(bridge{fn: fn, verbose: verbose})
 }
 
 type bridge struct {
 	fn      func(level, msg string)
-	verbose bool
+	verbose func() bool
 }
 
 // Handle implements log.Handler. Access lines (one per connection, naming
@@ -37,8 +41,14 @@ func (b bridge) Handle(msg xlog.Message) {
 	default:
 		return
 	}
-	if !b.verbose && (level == "info" || level == "debug") {
+	if (level == "info" || level == "debug") && !b.verbose() {
 		return
 	}
-	b.fn(level, fmt.Sprint(m.Content))
+	text := fmt.Sprint(m.Content)
+	// Xray announces its start, with its version, as a warning so that it
+	// shows at Xray's default log level. It is information, not a warning.
+	if level == "warn" && strings.HasPrefix(text, "core: Xray ") && strings.HasSuffix(text, " started") {
+		level = "info"
+	}
+	b.fn(level, text)
 }

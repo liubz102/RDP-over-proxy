@@ -210,7 +210,7 @@ func (a *actor) result(step Step, ok Event, err error) {
 // action logs the failure of an action that has no event of its own.
 func (a *actor) action(name string, err error) {
 	if err != nil {
-		a.deps.Log(logLine(LevelWarn, MsgActionFailed, map[string]any{"action": name, "error": err.Error()}))
+		a.deps.Log(logLine(LevelWarn, MsgActionFailed, withError(map[string]any{"action": name}, err)))
 	}
 }
 

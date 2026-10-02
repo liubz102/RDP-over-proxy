@@ -10,7 +10,6 @@ package tunnel
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -18,6 +17,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/liubz102/RDP-over-proxy/internal/errcode"
 	"github.com/liubz102/RDP-over-proxy/internal/route"
 )
 
@@ -42,7 +42,7 @@ type Reporter interface {
 
 // ErrNoAnswer is what UpstreamFailed reports when the route closed a
 // connection before the target sent anything back.
-var ErrNoAnswer = errors.New("the connection closed before the target answered")
+var ErrNoAnswer = errcode.Weak("tunnel.noAnswer", "the connection closed before the target answered")
 
 // copyBuffer is the size of each direction's copy buffer.
 const copyBuffer = 32 << 10

@@ -51,5 +51,115 @@
   "common": {
     "loading": "正在加载…",
     "loadFailed": "加载设置失败：{{message}}"
+  },
+  "errors": {
+    "unknown": "出现了问题。",
+    "cancelled": "已取消。",
+    "validation": "有些内容需要修改。",
+    "net": {
+      "refused": "连接被拒绝。请检查地址和端口，并确认对方的服务正在运行。",
+      "timeout": "连接超时。",
+      "unreachable": "网络或计算机不可达。",
+      "reset": "连接被对方重置。",
+      "dns": "找不到这个计算机名。",
+      "addressInUse": "本机的这个地址和端口已被其他程序占用。",
+      "accessDenied": "Windows 不允许本程序使用这个本地端口，它可能被 Hyper-V 或 WSL 保留了。请在「设置」里换一个本地端口。",
+      "addressNotAvailable": "这台电脑上没有这个地址。"
+    },
+    "probe": {
+      "noAnswer": "远程计算机应答之前，连接就被关闭了。",
+      "notRdp": "有程序应答了，但不是远程桌面服务。请检查端口。",
+      "truncated": "远程计算机的应答不完整。",
+      "malformed": "远程计算机的应答不是有效的远程桌面数据。"
+    },
+    "tunnel": {
+      "noAnswer": "远程计算机应答之前，连接就被关闭了。"
+    },
+    "proxy": {
+      "auth": "代理拒绝了用户名或密码。",
+      "unreachable": "连不上代理服务器。请确认它正在运行，并且地址和端口填写正确。",
+      "targetFailed": "代理连不上远程计算机。",
+      "dropped": "远程计算机应答之前，代理就关闭了连接。通常是代理（或它背后的服务器）连不上远程计算机。",
+      "failed": "代理报告了错误。",
+      "unsupported": "暂不支持这种代理。",
+      "inUse": "以下连接还在使用这个代理：{{profiles}}。"
+    },
+    "app": {
+      "quitting": "程序正在退出。"
+    },
+    "session": {
+      "ending": "这个连接的上一个会话还在结束中，请等它结束后再连接。",
+      "loopbackDirect": "目标就是这台电脑本身。不走代理的话，隧道会连回自己。",
+      "running": "这个连接正在使用中，请先断开。",
+      "none": "这个连接没有在运行。"
+    },
+    "loopback": {
+      "exhausted": "回环地址已经全部用完。"
+    },
+    "rdp": {
+      "noAddress": ".rdp 文件里没有写要连接哪台计算机。"
+    },
+    "store": {
+      "notFound": "找不到了，可能已被删除。",
+      "builtIn": "「直连」是内置项，不能修改。",
+      "writeFailed": "文件保存失败。"
+    },
+    "secret": {
+      "unreadable": "已保存的密码无法被当前 Windows 用户解密。"
+    },
+    "credential": {
+      "failed": "Windows 凭据管理器拒绝了这次操作。"
+    },
+    "gateway": {
+      "used": "远程桌面被设置为总是通过 RD 网关（{{server}}）连接，而网关连不到本程序的隧道。请在「远程桌面连接」里关闭 RD 网关：显示选项 → 高级 → 设置。"
+    },
+    "profile": {
+      "proxyMissing": "这个连接使用的代理已不存在，请重新选择。"
+    }
+  },
+  "notices": {
+    "store": {
+      "unreadable": "{{file}} 无法读取，已改名为 .corrupt 保留，没有载入。",
+      "newerSchema": "{{file}} 是更新版本的程序保存的，没有载入。",
+      "secretLost": "{{file}} 里的密码无法解密，这个文件可能来自其他 Windows 用户或电脑。请重新填写密码。",
+      "loopbackMoved": "{{file}} 原来的回环地址缺失或与其他连接冲突，已分配新的地址。",
+      "invalid": "{{file}} 里有需要修正的内容。",
+      "readFailed": "{{file}} 无法打开，可能正被其他程序占用。它没有载入，文件本身没有改动。"
+    },
+    "settings": {
+      "recovered": "设置文件无法读取，已改用默认设置。旧文件保留为 settings.json.corrupt。"
+    },
+    "log": {
+      "unavailable": "日志文件无法打开，日志只保留在内存中。"
+    },
+    "credential": {
+      "saveFailed": "「{{profile}}」的密码无法保存到 Windows 凭据管理器。",
+      "deleteFailed": "「{{profile}}」已保存的密码删除失败。"
+    },
+    "mstsc": {
+      "forgetFailed": "远程桌面为「{{profile}}」记住的信息清除失败。"
+    }
+  },
+  "log": {
+    "session": {
+      "starting": "正在连接 {{target}}…",
+      "listening": "隧道入口已在 {{addr}} 打开。",
+      "checkPassed": "线路检查通过，用时 {{elapsedMs}} 毫秒。",
+      "clientStarted": "远程桌面已启动（进程 {{pid}}）。",
+      "upstreamOk": "远程计算机已经通过线路应答。",
+      "upstreamFailing": "有连接未能到达远程计算机：{{error}}",
+      "stepFailed": "「{{step}}」步骤失败：{{error}}",
+      "cancelling": "正在取消…",
+      "closing": "正在请求远程桌面关闭…",
+      "killing": "正在结束远程桌面…",
+      "clientExited": "远程桌面已关闭（退出码 {{exitCode}}）。",
+      "tunnelFailed": "隧道入口停止接受连接：{{error}}",
+      "ended": "会话已结束（{{outcome}}）。",
+      "actionFailed": "操作「{{action}}」失败：{{error}}",
+      "unexpectedEvent": "忽略了「{{step}}」步骤中收到的意外事件 {{event}}。",
+      "gatewayMaybe": "如果无法直接连接，远程桌面可能会改走 RD 网关（{{server}}），而网关连不到本程序的隧道。",
+      "gatewayUnknown": "无法读取 RD 网关设置：{{error}}",
+      "hintFailed": "无法为远程桌面预填用户名：{{error}}"
+    }
   }
 }

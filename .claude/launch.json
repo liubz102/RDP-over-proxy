@@ -1,0 +1,15 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "preview",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "$env:WAILS_SERVER_PORT='34115'; $env:RDP_OVER_PROXY_HOME=(Join-Path (Get-Location) 'data\\preview'); & '.\\bin\\RDP-over-proxy-server.exe'"
+      ],
+      "port": 34115
+    }
+  ]
+}

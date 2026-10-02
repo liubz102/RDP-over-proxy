@@ -3,11 +3,13 @@ package session
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"slices"
 	"testing"
 	"time"
 
+	"github.com/liubz102/RDP-over-proxy/internal/errcode"
 	"github.com/liubz102/RDP-over-proxy/internal/probe"
 )
 
@@ -315,8 +317,26 @@ func TestUpstreamIsLoggedOnlyWhenItFlips(t *testing.T) {
 		t.Fatalf("UpstreamError = %q, want the latest reason", s.UpstreamError)
 	}
 	s, _ = Reduce(s, UpstreamAnswered{})
-	if s.UpstreamError != "" {
-		t.Fatalf("UpstreamError = %q after recovering", s.UpstreamError)
+	if s.UpstreamError != "" || s.UpstreamCode != "" {
+		t.Fatalf("UpstreamError = %q, UpstreamCode = %q after recovering", s.UpstreamError, s.UpstreamCode)
+	}
+}
+
+func TestErrorsCarryTheirCode(t *testing.T) {
+	s, _ := play(t, true, happyPath...)
+	cause := fmt.Errorf("%w (%w)", probe.ErrNoAnswer, errcode.Wrap("proxy.auth", errors.New("server rejects account")))
+	s, effects := Reduce(s, UpstreamFailed{Err: cause})
+	if s.UpstreamCode != "proxy.auth" {
+		t.Fatalf("UpstreamCode = %q, want the most specific code", s.UpstreamCode)
+	}
+	if l := effects[0].(Log); l.Args["code"] != "proxy.auth" || l.Args["error"] != cause.Error() {
+		t.Fatalf("log args %v", l.Args)
+	}
+
+	s, _ = play(t, true, happyPath[:3]...)
+	_, effects = Reduce(s, StepFailed{Step: StepCheck, Err: probe.ErrNotRDP})
+	if l := effects[0].(Log); l.Msg != MsgStepFailed || l.Args["code"] != "probe.notRdp" {
+		t.Fatalf("step failure logged as %+v", l)
 	}
 }
 

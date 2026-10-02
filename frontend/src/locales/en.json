@@ -51,5 +51,115 @@
   "common": {
     "loading": "Loading…",
     "loadFailed": "Couldn't load settings: {{message}}"
+  },
+  "errors": {
+    "unknown": "Something went wrong.",
+    "cancelled": "Cancelled.",
+    "validation": "Some fields need attention.",
+    "net": {
+      "refused": "The connection was refused. Check the address and port, and that the service is running.",
+      "timeout": "The connection timed out.",
+      "unreachable": "The network or the computer is unreachable.",
+      "reset": "The other side reset the connection.",
+      "dns": "The computer name couldn't be found.",
+      "addressInUse": "Another program is already using this local address and port.",
+      "accessDenied": "Windows won't let the app use this local port. Hyper-V or WSL may have reserved it; choose another local port in Settings.",
+      "addressNotAvailable": "This address isn't available on this computer."
+    },
+    "probe": {
+      "noAnswer": "The connection closed before the remote computer answered.",
+      "notRdp": "Something answered, but not a Remote Desktop server. Check the port.",
+      "truncated": "The remote computer's answer was cut short.",
+      "malformed": "The remote computer's answer isn't valid Remote Desktop data."
+    },
+    "tunnel": {
+      "noAnswer": "The connection closed before the remote computer answered."
+    },
+    "proxy": {
+      "auth": "The proxy rejected the user name or password.",
+      "unreachable": "Couldn't connect to the proxy server. Check that it's running and that its address and port are right.",
+      "targetFailed": "The proxy couldn't connect to the remote computer.",
+      "dropped": "The proxy closed the connection before the remote computer answered. Usually the proxy, or the server behind it, can't reach the remote computer.",
+      "failed": "The proxy reported an error.",
+      "unsupported": "This kind of proxy isn't supported yet.",
+      "inUse": "This proxy is still used by: {{profiles}}."
+    },
+    "app": {
+      "quitting": "The app is quitting."
+    },
+    "session": {
+      "ending": "The previous session of this connection is still ending. Connect again once it has ended.",
+      "loopbackDirect": "The remote computer is this computer itself. Without a proxy the tunnel would connect to itself.",
+      "running": "This connection is in use. Disconnect it first.",
+      "none": "This connection isn't running."
+    },
+    "loopback": {
+      "exhausted": "Every loopback address is taken."
+    },
+    "rdp": {
+      "noAddress": "The .rdp file doesn't say which computer to connect to."
+    },
+    "store": {
+      "notFound": "It no longer exists. It may have been deleted.",
+      "builtIn": "The direct connection is built in and can't be changed.",
+      "writeFailed": "The file couldn't be saved."
+    },
+    "secret": {
+      "unreadable": "A saved password can't be decrypted by this Windows user."
+    },
+    "credential": {
+      "failed": "Windows Credential Manager refused the change."
+    },
+    "gateway": {
+      "used": "Remote Desktop is set to always connect through an RD Gateway ({{server}}), which can't reach this app's tunnel. Turn the RD Gateway off in Remote Desktop Connection: Show Options → Advanced → Settings."
+    },
+    "profile": {
+      "proxyMissing": "This connection's proxy no longer exists. Choose another one."
+    }
+  },
+  "notices": {
+    "store": {
+      "unreadable": "{{file}} couldn't be read. It was renamed to .corrupt and left out.",
+      "newerSchema": "{{file}} was saved by a newer version of the app and was left out.",
+      "secretLost": "The password in {{file}} can't be decrypted; the file may come from another Windows user or computer. Enter the password again.",
+      "loopbackMoved": "{{file}} got a new loopback address because its old one was missing or used by another connection.",
+      "invalid": "{{file}} has values that need fixing.",
+      "readFailed": "{{file}} couldn't be opened, perhaps because another program is using it. It was left out and is unchanged."
+    },
+    "settings": {
+      "recovered": "The settings file couldn't be read, so the defaults are in use. The old file was kept as settings.json.corrupt."
+    },
+    "log": {
+      "unavailable": "The log file couldn't be opened. The log is kept in memory only."
+    },
+    "credential": {
+      "saveFailed": "The password for “{{profile}}” couldn't be saved in Windows Credential Manager.",
+      "deleteFailed": "The saved password for “{{profile}}” couldn't be deleted."
+    },
+    "mstsc": {
+      "forgetFailed": "What Remote Desktop remembers about “{{profile}}” couldn't be removed."
+    }
+  },
+  "log": {
+    "session": {
+      "starting": "Connecting to {{target}}…",
+      "listening": "Tunnel entrance open at {{addr}}.",
+      "checkPassed": "Route check passed in {{elapsedMs}} ms.",
+      "clientStarted": "Remote Desktop started (process {{pid}}).",
+      "upstreamOk": "The remote computer answered through the route.",
+      "upstreamFailing": "A connection couldn't reach the remote computer: {{error}}",
+      "stepFailed": "Step “{{step}}” failed: {{error}}",
+      "cancelling": "Cancelling…",
+      "closing": "Asking Remote Desktop to close…",
+      "killing": "Ending Remote Desktop…",
+      "clientExited": "Remote Desktop closed (exit code {{exitCode}}).",
+      "tunnelFailed": "The tunnel entrance stopped accepting connections: {{error}}",
+      "ended": "Session ended ({{outcome}}).",
+      "actionFailed": "Action “{{action}}” failed: {{error}}",
+      "unexpectedEvent": "Ignored an unexpected event {{event}} during step “{{step}}”.",
+      "gatewayMaybe": "If Remote Desktop can't connect directly, it may switch to an RD Gateway ({{server}}), which can't reach this app's tunnel.",
+      "gatewayUnknown": "Couldn't read the RD Gateway settings: {{error}}",
+      "hintFailed": "Couldn't pre-fill the user name for Remote Desktop: {{error}}"
+    }
   }
 }

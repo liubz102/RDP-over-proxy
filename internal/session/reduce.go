@@ -1,6 +1,10 @@
 package session
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/liubz102/RDP-over-proxy/internal/errcode"
+)
 
 // Start begins a session. checkFirst runs the route check before mstsc
 // starts (Settings.CheckRouteBeforeConnect).
@@ -84,7 +88,7 @@ func Reduce(s State, e Event) (State, []Effect) {
 		if !s.StopRequested {
 			s.Failure = &Failure{Step: e.Step, Err: e.Err}
 			effects = append(effects, logLine(LevelError, MsgStepFailed,
-				map[string]any{"step": string(e.Step), "error": errText(e.Err)}))
+				withError(map[string]any{"step": string(e.Step)}, e.Err)))
 		}
 		return s.finish(effects)
 
@@ -121,7 +125,7 @@ func Reduce(s State, e Event) (State, []Effect) {
 			return s, nil
 		}
 		s.Upstream = UpstreamOK
-		s.UpstreamError = ""
+		s.UpstreamError, s.UpstreamCode = "", ""
 		return s, []Effect{info(MsgUpstreamOK, nil)}
 
 	case UpstreamFailed:
@@ -129,19 +133,19 @@ func Reduce(s State, e Event) (State, []Effect) {
 			return s, nil
 		}
 		// Keep the latest reason for the UI, but log only the flip.
-		s.UpstreamError = errText(e.Err)
+		s.UpstreamError, s.UpstreamCode = errText(e.Err), errcode.Of(e.Err)
 		if s.Upstream == UpstreamFailing {
 			return s, nil
 		}
 		s.Upstream = UpstreamFailing
-		return s, []Effect{logLine(LevelWarn, MsgUpstreamFailing, map[string]any{"error": s.UpstreamError})}
+		return s, []Effect{logLine(LevelWarn, MsgUpstreamFailing, withError(nil, e.Err))}
 
 	case TunnelFailed:
 		if !s.TunnelOpen || s.TunnelError != "" {
 			return s, nil
 		}
-		s.TunnelError = errText(e.Err)
-		return s, []Effect{logLine(LevelError, MsgTunnelFailed, map[string]any{"error": s.TunnelError})}
+		s.TunnelError, s.TunnelCode = errText(e.Err), errcode.Of(e.Err)
+		return s, []Effect{logLine(LevelError, MsgTunnelFailed, withError(nil, e.Err))}
 	}
 	return s.unexpected(e)
 }
@@ -252,4 +256,14 @@ func errText(err error) string {
 		return ""
 	}
 	return err.Error()
+}
+
+// withError adds err's text and code to a log line's arguments.
+func withError(args map[string]any, err error) map[string]any {
+	if args == nil {
+		args = map[string]any{}
+	}
+	args["error"] = errText(err)
+	args["code"] = errcode.Of(err)
+	return args
 }
