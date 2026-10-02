@@ -232,6 +232,7 @@ type harness struct {
 	events   *events
 	launched chan *fakeProcess
 	gateway  mstsc.Gateway
+	quits    atomic.Int32 // AppService.Quit's calls of the app's quit
 }
 
 func newHarness(t *testing.T) *harness {
@@ -280,7 +281,7 @@ func newHarness(t *testing.T) *harness {
 	h.profiles = NewProfileService(h.core)
 	h.proxies = NewProxyService(h.core)
 	h.sessions = NewSessionService(h.core)
-	h.app = NewAppService(h.core)
+	h.app = NewAppService(h.core, func() { h.quits.Add(1) })
 	return h
 }
 
@@ -540,6 +541,11 @@ func TestSessionWithOneTimePassword(t *testing.T) {
 	if len(h.events.named(EventSessionLog)) != len(lines) {
 		t.Fatal("not every log line was sent to the frontend")
 	}
+	for i := 1; i < len(lines); i++ {
+		if lines[i].Seq <= lines[i-1].Seq {
+			t.Fatalf("log line %d has Seq %d after %d", i, lines[i].Seq, lines[i-1].Seq)
+		}
+	}
 	if states := h.sessions.States(); len(states) != 1 || states[0].Phase != "ended" {
 		t.Fatalf("States = %+v", states)
 	}
@@ -562,6 +568,43 @@ func TestConnectWithPasswordToRemember(t *testing.T) {
 	}
 }
 
+func TestQuitAsksWhileConnected(t *testing.T) {
+	srv := testutil.NewRDPServer(t, testutil.RDPOptions{Answer: testutil.AnswerConfirm})
+	h := newHarness(t)
+	p := h.profile(t, "PC", h.proxy(t, "Office").ID, srv.Addr, "")
+	if _, err := h.sessions.Connect(p.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+	proc := <-h.launched
+	h.events.session(p.ID, func(v SessionView) bool { return v.Phase == "running" })
+
+	if v := h.app.Quit(false); v.Connected != 1 || h.quits.Load() != 0 {
+		t.Fatalf("unconfirmed Quit while connected = %+v, quit called %d times", v, h.quits.Load())
+	}
+	if !h.core.AskToQuit() {
+		t.Fatal("AskToQuit did not ask")
+	}
+	if asks := h.events.named(EventQuitRequested); len(asks) != 1 || asks[0].(QuitView).Connected != 1 {
+		t.Fatalf("AskToQuit sent %+v", asks)
+	}
+	if h.core.AskToQuit() {
+		t.Fatal("asking again before an answer asked again; want the caller to quit")
+	}
+	h.app.KeepRunning()
+	if !h.core.AskToQuit() || len(h.events.named(EventQuitRequested)) != 2 {
+		t.Fatal("after KeepRunning, AskToQuit did not ask again")
+	}
+	if v := h.app.Quit(true); v.Connected != 0 || h.quits.Load() != 1 {
+		t.Fatalf("confirmed Quit = %+v, quit called %d times", v, h.quits.Load())
+	}
+
+	proc.Close()
+	h.events.session(p.ID, func(v SessionView) bool { return v.Phase == "ended" })
+	if v := h.app.Quit(false); v.Connected != 0 || h.quits.Load() != 2 {
+		t.Fatalf("Quit with nothing connected = %+v, quit called %d times", v, h.quits.Load())
+	}
+}
+
 func TestGatewayPreflight(t *testing.T) {
 	srv := testutil.NewRDPServer(t, testutil.RDPOptions{Answer: testutil.AnswerConfirm})
 	h := newHarness(t)
@@ -576,6 +619,17 @@ func TestGatewayPreflight(t *testing.T) {
 	if end.Failure == nil || end.Failure.Code != "gateway.used" || end.FailedStep != "preflight" ||
 		end.Failure.Args["server"] != "gw.example.com" {
 		t.Fatalf("ended: %+v failure %+v", end, end.Failure)
+	}
+	// The log line carries what the translated message needs.
+	var failed *logging.Line
+	for _, l := range h.sessions.Log(p.ID) {
+		if l.Msg == session.MsgStepFailed {
+			failed = &l
+		}
+	}
+	if failed == nil || failed.Args["code"] != "gateway.used" ||
+		failed.Args["errorArgs"].(map[string]string)["server"] != "gw.example.com" {
+		t.Fatalf("step failed line: %+v", failed)
 	}
 
 	h.gateway = mstsc.Gateway{Verdict: rdpfile.GatewayMaybeUsed, Server: "gw.example.com"}

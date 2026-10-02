@@ -34,10 +34,7 @@ func errorView(err error) *ErrorView {
 	if errors.As(err, &fields) {
 		v.Code, v.Fields = CodeValidation, fields
 	}
-	var a *argsError
-	if errors.As(err, &a) {
-		v.Args = a.args
-	}
+	v.Args = errcode.Args(err)
 	return v
 }
 
@@ -50,22 +47,6 @@ func MarshalError(err error) []byte {
 		return nil // Wails falls back to its own encoding
 	}
 	return b
-}
-
-// argsError attaches arguments for the UI's message to an error.
-type argsError struct {
-	err  error
-	args map[string]string
-}
-
-func (e *argsError) Error() string { return e.err.Error() }
-func (e *argsError) Unwrap() error { return e.err }
-
-func withArgs(err error, args map[string]string) error {
-	if err == nil {
-		return nil
-	}
-	return &argsError{err: err, args: args}
 }
 
 // Errors of the services themselves.

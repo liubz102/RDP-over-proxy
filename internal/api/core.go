@@ -5,6 +5,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -35,6 +36,10 @@ const (
 	// EventNotice carries a Notice: something the user should know about
 	// that no button press of theirs caused.
 	EventNotice = "app:notice"
+	// EventQuitRequested carries a QuitView: the user asked to quit from the
+	// tray while remote desktops are connected. The window asks them to
+	// confirm and then calls AppService.Quit.
+	EventQuitRequested = "app:quitRequested"
 )
 
 func init() {
@@ -42,6 +47,7 @@ func init() {
 	application.RegisterEvent[SessionView](EventSessionsChanged)
 	application.RegisterEvent[logging.Line](EventSessionLog)
 	application.RegisterEvent[Notice](EventNotice)
+	application.RegisterEvent[QuitView](EventQuitRequested)
 }
 
 // Session log keys the services add to the reducer's (session.Msg*).
@@ -125,8 +131,13 @@ type Core struct {
 
 	mu       sync.Mutex
 	logs     map[string]*logging.Ring // each profile's latest session log
+	logSeq   uint64                   // the last session line's Seq
 	notices  []Notice
 	noticeID int
+
+	// quitAsked: the window was asked to confirm quitting and has not
+	// answered yet (AskToQuit, AppService.KeepRunning).
+	quitAsked atomic.Bool
 }
 
 // sessionLogSize is how many lines of a session's log the UI can show.
@@ -172,6 +183,18 @@ func (c *Core) Start(problems []store.Problem) {
 
 // Running counts the sessions that have not ended.
 func (c *Core) Running() int { return c.manager.Running() }
+
+// AskToQuit asks the window to confirm quitting while sessions run (see
+// EventQuitRequested). It returns false, without asking, when the window
+// was asked before and has not answered: the page may be unable to (not
+// loaded, or broken), and the user asking again is taken as the answer.
+func (c *Core) AskToQuit() bool {
+	if c.quitAsked.Swap(true) {
+		return false
+	}
+	c.d.Emit(EventQuitRequested, QuitView{Connected: c.Running()})
+	return true
+}
 
 // Quit ends every session and waits until each has given back everything
 // it held. Call it before closing the engine.
@@ -320,8 +343,9 @@ func (c *Core) addSessionLine(profileID string, line logging.Line, fresh bool) {
 	line.Time = time.Now()
 	line.Source = logging.SourceSession
 	line.Profile = profileID
-	c.d.Log.Log(line)
 	c.mu.Lock()
+	c.logSeq++
+	line.Seq = c.logSeq
 	ring := c.logs[profileID]
 	if ring == nil {
 		ring = logging.NewRing(sessionLogSize)
@@ -330,6 +354,7 @@ func (c *Core) addSessionLine(profileID string, line logging.Line, fresh bool) {
 		ring.Clear()
 	}
 	c.mu.Unlock()
+	c.d.Log.Log(line)
 	ring.Add(line)
 	c.d.Emit(EventSessionLog, line)
 }
@@ -357,7 +382,7 @@ func (c *Core) preflight(req session.Request) error {
 	}
 	switch g.Verdict {
 	case rdpfile.GatewayUsed:
-		return withArgs(ErrGatewayUsed, args)
+		return errcode.WithArgs(ErrGatewayUsed, args)
 	case rdpfile.GatewayMaybeUsed:
 		lineArgs := map[string]any{}
 		for k, v := range args {

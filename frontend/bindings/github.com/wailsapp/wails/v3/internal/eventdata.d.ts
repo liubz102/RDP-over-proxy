@@ -19,6 +19,7 @@ declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
             "app:notice": api$0.Notice;
+            "app:quitRequested": api$0.QuitView;
             "data:changed": api$0.DataView;
             "session:log": logging$0.Line;
             "sessions:changed": api$0.SessionView;

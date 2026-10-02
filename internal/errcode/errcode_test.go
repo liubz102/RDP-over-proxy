@@ -55,3 +55,17 @@ func TestErrorsIsStillWorks(t *testing.T) {
 		t.Fatal("errors.Is does not find a sentinel")
 	}
 }
+
+func TestWithArgs(t *testing.T) {
+	sentinel := New("test.withArgs", "with args")
+	err := fmt.Errorf("preflight: %w", WithArgs(sentinel, map[string]string{"server": "gw.example.com"}))
+	if Of(err) != "test.withArgs" || !errors.Is(err, sentinel) {
+		t.Fatalf("Of = %q, Is = %v; want the arguments to be transparent", Of(err), errors.Is(err, sentinel))
+	}
+	if Args(err)["server"] != "gw.example.com" {
+		t.Fatalf("Args = %v", Args(err))
+	}
+	if Args(sentinel) != nil || WithArgs(nil, map[string]string{"a": "b"}) != nil {
+		t.Fatal("no arguments expected")
+	}
+}

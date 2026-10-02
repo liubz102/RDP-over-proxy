@@ -6,11 +6,32 @@ import (
 	"github.com/liubz102/RDP-over-proxy/internal/logging"
 )
 
-// AppService is about the app as a whole: notices and its own log.
-type AppService struct{ c *Core }
+// AppService is about the app as a whole: notices, its own log, quitting.
+type AppService struct {
+	c    *Core
+	quit func()
+}
 
-// NewAppService returns the service.
-func NewAppService(c *Core) *AppService { return &AppService{c: c} }
+// NewAppService returns the service. quit ends the app; it returns at once,
+// and the shutdown ends every session.
+func NewAppService(c *Core, quit func()) *AppService { return &AppService{c: c, quit: quit} }
+
+// Quit quits the app. Quitting ends every remote desktop, so while any is
+// connected an unconfirmed request only reports how many, and the UI asks
+// the user before calling again with confirmed.
+func (s *AppService) Quit(confirmed bool) QuitView {
+	if n := s.c.Running(); n > 0 && !confirmed {
+		return QuitView{Connected: n}
+	}
+	s.quit()
+	return QuitView{}
+}
+
+// KeepRunning answers a request to quit with "no": the user cancelled the
+// confirmation.
+func (s *AppService) KeepRunning() {
+	s.c.quitAsked.Store(false)
+}
 
 // Notices returns the notices not yet dismissed, oldest first. Notices that
 // arrive later come as EventNotice.

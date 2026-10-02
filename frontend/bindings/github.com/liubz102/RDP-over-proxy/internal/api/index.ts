@@ -24,5 +24,6 @@ export type {
     Notice,
     ProfileView,
     ProxyView,
+    QuitView,
     SessionView
 } from "./models.js";

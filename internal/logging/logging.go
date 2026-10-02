@@ -45,6 +45,9 @@ type Line struct {
 	Profile string         `json:"profile,omitempty"` // the profile ID of a session line
 	Msg     string         `json:"msg"`
 	Args    map[string]any `json:"args,omitempty"`
+	// Seq numbers session lines in the order they happened, across all
+	// profiles, so the UI can merge a log it read with lines it was sent.
+	Seq uint64 `json:"seq,omitempty"`
 }
 
 // Logger keeps the lines at or above its level: in the file, masked, and in

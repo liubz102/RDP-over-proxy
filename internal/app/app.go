@@ -156,7 +156,7 @@ func Run(opts Options) error {
 		application.NewServiceWithOptions(api.NewProfileService(core), withErrors),
 		application.NewServiceWithOptions(api.NewProxyService(core), withErrors),
 		application.NewServiceWithOptions(api.NewSessionService(core), withErrors),
-		application.NewServiceWithOptions(api.NewAppService(core), withErrors),
+		application.NewServiceWithOptions(api.NewAppService(core, sh.quitLater), withErrors),
 	} {
 		sh.app.RegisterService(svc)
 	}
@@ -234,7 +234,7 @@ func (s *shell) createTray(icon []byte, current model.Settings) {
 	s.menu = s.app.NewMenu()
 	s.showItem = s.menu.Add(i18n.T(lang, "tray.show")).OnClick(func(*application.Context) { s.showWindow() })
 	s.menu.AddSeparator()
-	s.quitItem = s.menu.Add(i18n.T(lang, "tray.quit")).OnClick(func(*application.Context) { s.quit() })
+	s.quitItem = s.menu.Add(i18n.T(lang, "tray.quit")).OnClick(func(*application.Context) { s.quitFromTray() })
 
 	s.tray = s.app.SystemTray.New()
 	s.tray.SetIcon(icon)
@@ -270,6 +270,26 @@ func (s *shell) showWindow() {
 	s.window.Show()
 	s.window.Focus()
 }
+
+// quitFromTray quits at once when no remote desktop is connected. Otherwise
+// quitting would end them, so the window comes forward and asks first; it
+// quits through AppService.Quit. Choosing Quit again while the question is
+// open quits, in case the page cannot show it.
+func (s *shell) quitFromTray() {
+	if s.core.Running() == 0 {
+		s.quit()
+		return
+	}
+	s.showWindow()
+	if !s.core.AskToQuit() {
+		s.quit()
+	}
+}
+
+// quitLater quits without holding up the service call that asked for it.
+// The shutdown waits for the calls in flight (the server build's HTTP
+// server) and runs on the main thread, so it must not run inside one.
+func (s *shell) quitLater() { go s.quit() }
 
 func (s *shell) quit() {
 	s.quitting.Store(true)

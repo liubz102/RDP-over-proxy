@@ -26,6 +26,9 @@ function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+/** The settings saves in flight, in order (see save). */
+let saving: Promise<void> = Promise.resolve();
+
 export const useSettings = create<SettingsState>((set, get) => ({
   status: "loading",
   loadError: null,
@@ -49,16 +52,24 @@ export const useSettings = create<SettingsState>((set, get) => ({
     }
   },
 
-  async save(patch) {
-    const current = get().settings;
-    if (!current) return;
-    try {
-      const saved = await SettingsService.Save({ ...current, ...patch });
-      applySettings(saved);
-      set({ saveError: null });
-    } catch (e) {
-      set({ saveError: errorMessage(e) });
-    }
+  save(patch) {
+    // Save sends the whole settings object, so saves go one at a time and
+    // each starts from what the one before stored; otherwise two quick
+    // changes (a text field losing focus as a switch is clicked) would each
+    // undo the other.
+    const run = async () => {
+      const current = get().settings;
+      if (!current) return;
+      try {
+        const saved = await SettingsService.Save({ ...current, ...patch });
+        applySettings(saved);
+        set({ saveError: null });
+      } catch (e) {
+        set({ saveError: errorMessage(e) });
+      }
+    };
+    saving = saving.then(run);
+    return saving;
   },
 }));
 

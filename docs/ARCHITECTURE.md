@@ -9,7 +9,7 @@ mstsc /v:127.a.b.c:13389 ──▶ tunnel (net.Listen on 127.a.b.c) ──▶ ro
                                                                   └─ engine: embedded Xray-core (one instance)
 ```
 
-Status markers: **[M0]** to **[M4]** are implemented; everything else is planned for the milestone shown. See [PROGRESS.md](PROGRESS.md).
+Status markers: **[M0]** to **[M5]** are implemented; everything else is planned for the milestone shown. See [PROGRESS.md](PROGRESS.md).
 
 ## Principles
 
@@ -80,11 +80,11 @@ Wails generates TypeScript bindings for exported service methods (`frontend/bind
 | `ProfileService` | `List` (with password state), `Draft`, `Create(profile, password)`, `Update(profile, password)`, `Delete`, `ForgetPassword` | [M4]; `.rdp` import M7 |
 | `ProxyService` | `List` (no passwords), `Get`, `Create`, `Update(proxy, keepSecret)`, `Delete`, `Latency(ctx)` | [M4]; share links M6 |
 | `SessionService` | `Connect(profile, password)`, `Disconnect(profile, force)`, `Focus`, `States`, `Log`, `CheckRoute(ctx)` | [M4] |
-| `AppService` | `Notices`, `Dismiss`, `Log` | [M4] |
+| `AppService` | `Notices`, `Dismiss`, `Log` [M4]; `Quit(confirmed)`, `KeepRunning` [M5] | [M5] |
 
 Methods that take a `context.Context` are cancellable from JavaScript (cancel the returned promise). `Connect` returns at once; progress arrives as events, and `Disconnect` is the way to stop.
 
-Events: `settings:changed` [M0]; `data:changed` (every profile and proxy), `sessions:changed` (one session's state), `session:log` (one log line), `app:notice` [M4].
+Events: `settings:changed` [M0]; `data:changed` (every profile and proxy), `sessions:changed` (one session's state), `session:log` (one log line), `app:notice` [M4]; `app:quitRequested` [M5].
 
 **Errors** [M4]: a service error reaches the frontend as the rejected call's `cause`: `{code, message, fields?, args?}`. The UI shows the translation of `errors.<code>` with `args` filled in, keeps `message` as the details, and marks `fields` (validation errors, code `validation`). A test in `internal/app` checks that every declared code, notice code and session log key has a translation in both catalogs.
 
@@ -172,13 +172,17 @@ Linking Xray adds about 23 MB to the executable (measured with production build 
   - deleting a profile deletes its passwords and what mstsc remembers about its address; a profile that is connected, or whose session `Connect` has just started, cannot be deleted (the two calls exclude each other);
   - a password given to `Connect` is saved as the remembered one when the profile remembers passwords, and used once otherwise.
 - **RD Gateway check** (`mstsc.CheckGateway`, run in preflight): `Default.rdp` from the Documents known folder plus the user's RD Gateway Group Policy (`HKCU\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services`: `UseProxy`, `AllowExplicitUseProxy`, `ProxyName`).
-  - `gatewayusagemethod` 1 ("always") stops the session with `gateway.used`.
+  - `gatewayprofileusagemethod` 0 ("Automatically detect RD Gateway server settings") means the administrator's settings apply: the file's own `gatewayusagemethod` and host are leftovers of the greyed-out explicit settings, often "always", and are ignored. Without an enabled policy there is then no gateway. A file without `gatewayprofileusagemethod` (hand-written) leaves open whether its usage applies, so "always" is only a warning there.
+  - With explicit settings (`gatewayprofileusagemethod` 1), `gatewayusagemethod` 1 ("always") stops the session with `gateway.used`.
   - Values 2 and 3, or an enabled policy that is enforced or that `Default.rdp` defers to (`gatewayprofileusagemethod` 0), only add a warning to the session log: the policy uses the gateway when a direct connection fails, and mstsc always reaches the local tunnel directly.
 - **Notices**: problems found while loading, and failures of clean-up the user did not ask about (a password that could not be saved or deleted), become notices. They stay until dismissed; the frontend reads `AppService.Notices` at start and then listens to `app:notice`.
 - **Startup**: the settings are first only read (`SettingsStore.Peek`, for the UI language and log level). Then the Wails application is created, which settles single-instance (a second launch hands over to the first and exits there). Only then does the app load the settings for real (moving an unreadable file aside), open the log file, load the data, start the engine, remove one-time passwords a crash may have left, and register the services. `RDP_OVER_PROXY_HOME` also makes the single-instance ID specific to that folder, so development runs and the user's app do not interfere.
 - **Shutdown** (Wails `OnShutdown`): `Core.Quit` (every session gives everything back), then `Engine.Close`, then the log is closed.
+- **Quitting** [M5] ends every remote desktop, so it asks first while any session has not ended. The window's Quit calls `AppService.Quit(false)`, which quits when nothing is connected and otherwise returns the count; the window asks and calls `Quit(true)`. The tray's Quit quits at once when nothing is connected; otherwise it brings the window forward and sends `app:quitRequested` (`Core.AskToQuit`), and the window asks the same question; cancelling calls `KeepRunning`. Choosing the tray's Quit again while that question is unanswered quits, in case the page cannot show it. `Quit` returns before the shutdown starts (`shell.quitLater`): the shutdown runs on the main thread and, in the server build, waits for the HTTP calls in flight, the asking call included.
 
 ## Errors [M4]
+
+`errcode.WithArgs` attaches the arguments of an error's translated message (the RD Gateway's name, the connections using a proxy); they reach the UI in `ErrorView.args` and, in session log lines, as `errorArgs`.
 
 `internal/errcode` gives errors stable dotted codes (`proxy.auth`, `probe.notRdp`, `net.refused`, …). Packages create their sentinel errors with `errcode.New` or `errcode.Weak`; `errors.Is` keeps working. `errcode.Of` picks the most useful code in an error tree: the first strong code, else one recognised from a Winsock error, else the first weak code ("the connection closed before the target answered" is weak, so a more specific cause wins), else `unknown`.
 
@@ -194,11 +198,19 @@ Xray reports why an outbound failed only as message text (its retry helper forma
 
 ## Frontend structure
 
-- `src/app` — shell, theme (follows Windows via `prefers-color-scheme`), first-run language picker [M0]
-- `src/features` — connections, proxies, settings [M0 settings], diagnostics
-- `src/components` — shared components [M0 `Page`, `EmptyState`]
-- `src/stores` — zustand stores fed by service calls and Go events [M0 settings]
-- `src/locales` — `zh-CN.json` and `en.json`; a test enforces identical keys [M0]
+- `src/app` — shell with sidebar (Quit at the bottom), theme (follows Windows via `prefers-color-scheme`), first-run language picker [M0]; notices bar and quit confirmation [M5]
+- `src/features/connections` [M5] — the list by group with each session's state and buttons (Connect / Cancel / Show window + Disconnect / End now); the profile editor; the password prompt; the route check; the session log drawer. `status.ts` maps a `SessionView` to the row's colour, text and buttons; `profileForm.ts` converts between the form and `model.Profile` (one address field takes `host`, `host:port`, `[IPv6]:port`).
+- `src/features/proxies` [M5] — the list (built-in Direct first) with latency tests that can be cancelled; the SOCKS5 / HTTP editor (`proxyForm.ts`; an empty password field keeps the saved one).
+- `src/features/settings` — appearance, close behaviour, about [M0]; local port, check-first, test URL, log level [M5]
+- `src/components` — `Page`, `EmptyState` [M0]; `Feedback`: toasts, `ErrorBar`, `ConfirmDialog` [M5]
+- `src/stores` — zustand stores fed by service calls and Go events: `settings` [M0]; `data` (profiles, proxies, sessions, session logs, notices, quit confirmation) [M5]. Replies and events travel separately: what an event changed while the first read was in flight is kept over the reply; session log lines carry a sequence number (`logging.Line.Seq`, given by `Core`) so a log read and the lines sent as events merge without duplicates; settings saves run one after another, each on top of the last stored settings.
+- `src/lib` [M5] — pure helpers with tests: address splitting, translating error / notice / log codes (`messages.ts`), session log merging (`sessionLog.ts`)
+- `src/locales` — `zh-CN.json` and `en.json`; a test enforces identical keys [M0]; another checks the keys the frontend builds from codes (phases, steps, outcomes, field errors) [M5]
+
+**Conventions** [M5]
+- Forms send what the user typed; the Go side validates and returns field paths, which each form maps to its fields (`formField`). The forms set `noValidate`, so the browser's required-field bubbles do not pre-empt those messages. The frontend only reports what the Go side cannot see, such as a port that is not a number.
+- Errors are shown as the translation of `errors.<code>`. The original English text is added as details only for codes where it can help (network, proxy, probe, tunnel, Credential Manager, DPAPI, unknown).
+- Before connecting, the password prompt appears only when the profile has a user name and neither the app nor mstsc has a password for it. It can change "remember" (saved to the profile first) or be skipped so that mstsc asks.
 
 ## Build
 

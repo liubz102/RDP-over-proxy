@@ -140,6 +140,17 @@ export interface ProxyView {
 }
 
 /**
+ * QuitView answers a request to quit, and comes with EventQuitRequested.
+ */
+export interface QuitView {
+    /**
+     * Connected counts the sessions that quitting would end. When it is
+     * above zero and the request was not confirmed, the app keeps running.
+     */
+    "connected": number;
+}
+
+/**
  * SessionView is a session's state as the UI shows it.
  */
 export interface SessionView {

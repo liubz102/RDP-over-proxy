@@ -109,6 +109,34 @@ func (e *Error) Unwrap() error { return e.err }
 // Code is the error's own code.
 func (e *Error) Code() string { return e.code }
 
+// argsError attaches arguments for the translated message to an error.
+type argsError struct {
+	err  error
+	args map[string]string
+}
+
+func (e *argsError) Error() string { return e.err.Error() }
+func (e *argsError) Unwrap() error { return e.err }
+
+// WithArgs attaches arguments that fill in the translated message of err's
+// code, such as the name of an RD Gateway. Codes and errors.Is see through
+// it. WithArgs(nil, …) is nil.
+func WithArgs(err error, args map[string]string) error {
+	if err == nil {
+		return nil
+	}
+	return &argsError{err: err, args: args}
+}
+
+// Args returns the arguments attached to err with WithArgs, or nil.
+func Args(err error) map[string]string {
+	var a *argsError
+	if errors.As(err, &a) {
+		return a.args
+	}
+	return nil
+}
+
 // Of returns the code that best describes err, or "" when err is nil.
 func Of(err error) string {
 	if err == nil {

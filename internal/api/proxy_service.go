@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/liubz102/RDP-over-proxy/internal/errcode"
 	"github.com/liubz102/RDP-over-proxy/internal/model"
 	"github.com/liubz102/RDP-over-proxy/internal/probe"
 	"github.com/liubz102/RDP-over-proxy/internal/store"
@@ -74,7 +75,7 @@ func (s *ProxyService) Delete(id string) error {
 			}
 		}
 		slices.Sort(names)
-		return withArgs(err, map[string]string{"profiles": strings.Join(names, ", ")})
+		return errcode.WithArgs(err, map[string]string{"profiles": strings.Join(names, ", ")})
 	}
 	if err != nil {
 		return err

@@ -1,12 +1,17 @@
-import { useState, type ReactElement } from "react";
-import { Button, Subtitle2, makeStyles, mergeClasses, tokens } from "@fluentui/react-components";
+import { useEffect, useState, type ReactElement } from "react";
+import { Button, MessageBar, MessageBarBody, Spinner, Subtitle2, makeStyles, mergeClasses, tokens } from "@fluentui/react-components";
 import {
   Desktop24Regular,
   DesktopFilled,
   Globe24Regular,
+  Power24Regular,
   Settings24Regular,
 } from "@fluentui/react-icons";
 import { useTranslation } from "react-i18next";
+import { AppToaster, useNotify } from "../components/Feedback";
+import { useData } from "../stores/data";
+import { Notices } from "./Notices";
+import { QuitDialog } from "./QuitDialog";
 import { ConnectionsPage } from "../features/connections/ConnectionsPage";
 import { ProxiesPage } from "../features/proxies/ProxiesPage";
 import { SettingsPage } from "../features/settings/SettingsPage";
@@ -70,12 +75,26 @@ const useStyles = makeStyles({
     overflowY: "auto",
     minHeight: 0,
   },
+  center: {
+    padding: "48px",
+    display: "flex",
+    justifyContent: "center",
+  },
 });
 
 export function Shell() {
   const styles = useStyles();
   const { t } = useTranslation();
   const [page, setPage] = useState<Page>("connections");
+  const notify = useNotify();
+  const status = useData((s) => s.status);
+  const loadError = useData((s) => s.loadError);
+  const load = useData((s) => s.load);
+  const quit = useData((s) => s.quit);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   const navItem = (id: Page, icon: ReactElement, label: string) => (
     <Button
@@ -100,12 +119,35 @@ export function Shell() {
         {navItem("proxies", <Globe24Regular />, t("nav.proxies"))}
         <div className={styles.spacer} />
         {navItem("settings", <Settings24Regular />, t("nav.settings"))}
+        <Button
+          appearance="subtle"
+          icon={<Power24Regular />}
+          className={styles.navItem}
+          onClick={() => quit().catch((e: unknown) => notify.error(e))}
+        >
+          {t("nav.quit")}
+        </Button>
       </nav>
       <main className={styles.content}>
-        {page === "connections" && <ConnectionsPage />}
-        {page === "proxies" && <ProxiesPage />}
+        <Notices />
+        {status === "loading" && (
+          <div className={styles.center}>
+            <Spinner label={t("common.loading")} />
+          </div>
+        )}
+        {status === "error" && (
+          <div className={styles.center}>
+            <MessageBar intent="error">
+              <MessageBarBody>{t("common.dataLoadFailed", { message: loadError })}</MessageBarBody>
+            </MessageBar>
+          </div>
+        )}
+        {status === "ready" && page === "connections" && <ConnectionsPage />}
+        {status === "ready" && page === "proxies" && <ProxiesPage />}
         {page === "settings" && <SettingsPage />}
       </main>
+      <QuitDialog />
+      <AppToaster />
     </div>
   );
 }

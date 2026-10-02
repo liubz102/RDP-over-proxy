@@ -258,12 +258,16 @@ func errText(err error) string {
 	return err.Error()
 }
 
-// withError adds err's text and code to a log line's arguments.
+// withError adds err's text and code to a log line's arguments, and the
+// arguments its translated message needs (errcode.WithArgs) as "errorArgs".
 func withError(args map[string]any, err error) map[string]any {
 	if args == nil {
 		args = map[string]any{}
 	}
 	args["error"] = errText(err)
 	args["code"] = errcode.Of(err)
+	if a := errcode.Args(err); a != nil {
+		args["errorArgs"] = a
+	}
 	return args
 }

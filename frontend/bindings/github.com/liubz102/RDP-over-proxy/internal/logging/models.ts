@@ -16,4 +16,10 @@ export interface Line {
     "profile"?: string;
     "msg": string;
     "args"?: { [_ in string]?: any } | null;
+
+    /**
+     * Seq numbers session lines in the order they happened, across all
+     * profiles, so the UI can merge a log it read with lines it was sent.
+     */
+    "seq"?: number;
 }

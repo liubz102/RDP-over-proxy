@@ -111,3 +111,10 @@ func sessionView(profileID string, s session.State) SessionView {
 	}
 	return v
 }
+
+// QuitView answers a request to quit, and comes with EventQuitRequested.
+type QuitView struct {
+	// Connected counts the sessions that quitting would end. When it is
+	// above zero and the request was not confirmed, the app keeps running.
+	Connected int `json:"connected"`
+}

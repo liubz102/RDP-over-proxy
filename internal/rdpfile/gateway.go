@@ -32,6 +32,10 @@ type Gateway struct {
 	// file then defers to the RD Gateway settings an administrator sets
 	// through Group Policy, if any; checking those is the caller's job.
 	AdminDefaults bool
+	// ProfileStated: the file has "gatewayprofileusagemethod". mstsc always
+	// writes it; without it, a hand-written file leaves open whether Usage
+	// applies.
+	ProfileStated bool
 }
 
 // GatewayVerdict says whether mstsc would route a connection through an RD
@@ -55,8 +59,9 @@ func (f *File) Gateway() Gateway {
 	if n, ok := f.Int(propGatewayUsage); ok {
 		g.Usage = GatewayUsage(n)
 	}
-	if n, ok := f.Int(propGatewayProfile); ok && n == 1 {
-		g.AdminDefaults = false
+	if n, ok := f.Int(propGatewayProfile); ok {
+		g.ProfileStated = true
+		g.AdminDefaults = n != 1
 	}
 	return g
 }
@@ -65,7 +70,20 @@ func (f *File) Gateway() Gateway {
 // to this app's tunnel through the RD Gateway. That would break it: the
 // gateway would try to reach 127.x.y.z on its own side. Group Policy is not
 // considered (see AdminDefaults).
+//
+// With the administrator's settings chosen ("Automatically detect RD Gateway
+// server settings" in mstsc), Usage and Host are what the greyed-out "Use
+// these RD Gateway server settings" would use, and mstsc ignores them; a
+// Default.rdp often keeps "always" there from earlier. When the file does
+// not say which settings apply, Usage may or may not count, so even
+// "always" is only a maybe.
 func (g Gateway) Verdict() GatewayVerdict {
+	if g.AdminDefaults && g.ProfileStated {
+		return GatewayNotUsed
+	}
+	if g.AdminDefaults && g.Usage == UsageAlways {
+		return GatewayMaybeUsed
+	}
 	switch g.Usage {
 	case UsageNone, UsageNoneBypassLocal:
 		return GatewayNotUsed

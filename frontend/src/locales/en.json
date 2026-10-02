@@ -16,17 +16,132 @@
   "nav": {
     "connections": "Connections",
     "proxies": "Proxies",
-    "settings": "Settings"
+    "settings": "Settings",
+    "quit": "Quit"
   },
   "connections": {
     "title": "Connections",
     "emptyTitle": "No connections yet",
-    "emptyBody": "Connection management is in development. Soon you'll add the computers you want to reach here and pick the proxy each one uses."
+    "emptyBody": "Add a computer to connect to, and choose the proxy it goes through. Proxies are added on the Proxies page; choose Direct when none is needed.",
+    "subtitle": "Each connection has its own local entrance address; Remote Desktop reaches the computer through it and the proxy.",
+    "add": "New connection",
+    "ungrouped": "No group",
+    "proxyMissing": "Proxy no longer exists",
+    "via": "via {{proxy}}",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "focus": "Show window",
+    "kill": "End now",
+    "checkRoute": "Check route",
+    "showLog": "Show session log",
+    "connectFailed": "Could not connect “{{name}}”",
+    "deleteFailed": "Could not delete “{{name}}”",
+    "deleteTitle": "Delete this connection?",
+    "deleteBody": "“{{name}}” will be deleted, together with its saved password and the user name and certificate trust Remote Desktop remembers for it.",
+    "form": {
+      "newTitle": "New connection",
+      "editTitle": "Edit connection",
+      "name": "Name",
+      "group": "Group",
+      "groupPlaceholder": "No group",
+      "address": "Computer",
+      "addressHint": "Computer name or IP address. If the port is not 3389, write address:port, such as pc.example.com:3390.",
+      "addressChanged": "After the computer changes, the password saved for the old address is deleted.",
+      "proxy": "Proxy",
+      "signIn": "Sign-in",
+      "username": "User name",
+      "usernameHint": "Fills in Remote Desktop's sign-in. DOMAIN\\user and user@domain both work.",
+      "remember": "Remember the password (in Windows Credential Manager)",
+      "password": "Password",
+      "passwordKeep": "Leave empty to keep the saved password; type one to replace it.",
+      "passwordHint": "Optional: you can enter it when connecting.",
+      "passwordSaved": "Saved",
+      "noRememberHint": "Without remembering, you are asked before each connection; the password is used for that connection only and deleted when it ends.",
+      "savedByMstsc": "Remote Desktop itself remembers a password for this connection (“Remember me” at sign-in).",
+      "savedByApp": "A password is saved for this connection.",
+      "forget": "Forget the saved password",
+      "forgotten": "The saved password was deleted.",
+      "display": "Display",
+      "modeDefault": "Use Remote Desktop's default settings",
+      "modeFullscreen": "Full screen",
+      "modeWindow": "Window",
+      "screens": "Monitors",
+      "screensOne": "One monitor",
+      "screensMultimon": "All monitors (one remote screen per monitor)",
+      "screensSpan": "Span all monitors (one large screen)",
+      "width": "Width",
+      "height": "Height",
+      "sizeHint": "Pixels, 200 to 8192.",
+      "displayHint": "Clipboard, drives, sound and the other settings come from Remote Desktop's defaults (Default.rdp in Documents): change them in Remote Desktop Connection and click Save.",
+      "admin": "Connect to the administrative session (/admin)"
+    },
+    "password": {
+      "title": "Connect to “{{name}}”",
+      "label": "Password for {{user}}",
+      "hint": "You can also leave it empty and let Remote Desktop ask for it.",
+      "skip": "Let Remote Desktop ask"
+    },
+    "check": {
+      "title": "Check the route to “{{name}}”",
+      "running": "Reaching the remote computer through the proxy…",
+      "passed": "The route works: the Remote Desktop service answered in {{ms}} ms (security protocol {{protocol}}).",
+      "passedNegotiation": "The route works: the Remote Desktop service answered in {{ms}} ms but refused the security protocols offered ({{reason}}). Remote Desktop may still connect.",
+      "failed": "The route does not work"
+    },
+    "log": {
+      "title": "Session log: {{name}}",
+      "phase": "State",
+      "entrance": "Local entrance",
+      "pid": "Remote Desktop process",
+      "conns": "Open connections",
+      "check": "Route check",
+      "empty": "This connection has not been used since the app started."
+    }
   },
   "proxies": {
     "title": "Proxies",
-    "emptyTitle": "No proxies yet",
-    "emptyBody": "Proxy management is in development. Soon you'll add SOCKS5, HTTP, VMess, VLESS, Trojan, Shadowsocks and Hysteria2 proxies here, or import them by pasting share links."
+    "emptyTitle": "No proxies of your own yet",
+    "emptyBody": "Add a SOCKS5 or HTTP proxy, such as the local port of v2rayN or Clash (often 127.0.0.1:10808 or 7890). VMess, VLESS, Trojan and share links are coming.",
+    "subtitle": "Connections can share a proxy, so switching servers is done in one place.",
+    "add": "Add proxy",
+    "direct": "Direct",
+    "directHint": "No proxy: connect to the remote computer directly",
+    "account": "account {{user}}",
+    "usedBy_one": "used by {{count}} connection",
+    "usedBy_other": "used by {{count}} connections",
+    "unused": "not used",
+    "latency": "Test",
+    "latencyMs": "{{ms}} ms",
+    "latencyHint": "Fetches the test URL from Settings through this proxy and measures the time.",
+    "deleteTitle": "Delete this proxy?",
+    "deleteBody": "“{{name}}” will be deleted.",
+    "kinds": {
+      "direct": "Direct",
+      "socks": "SOCKS5",
+      "http": "HTTP",
+      "shadowsocks": "Shadowsocks",
+      "vmess": "VMess",
+      "vless": "VLESS",
+      "trojan": "Trojan",
+      "hysteria2": "Hysteria2",
+      "xray": "Custom (Xray JSON)"
+    },
+    "form": {
+      "newTitle": "Add proxy",
+      "editTitle": "Edit proxy",
+      "kind": "Type",
+      "name": "Name",
+      "server": "Server",
+      "port": "Port",
+      "serverHint": "You can paste address:port.",
+      "username": "User name",
+      "password": "Password",
+      "passwordSaved": "Saved (leave empty to keep)",
+      "passwordCleared": "Cleared when saved",
+      "keepPassword": "Keep the saved password",
+      "clearPassword": "Clear the saved password",
+      "unsupportedKind": "This kind of proxy cannot be edited here yet."
+    }
   },
   "settings": {
     "title": "Settings",
@@ -46,11 +161,37 @@
     "version": "Version",
     "homepage": "Project page",
     "license": "License: MIT",
-    "saveFailed": "Couldn't save: {{message}}"
+    "saveFailed": "Couldn't save: {{message}}",
+    "connection": "Connections",
+    "localPort": "Local entrance port",
+    "localPortHint": "Each connection listens on this port at its own 127.x.y.z address. Applies to connections started afterwards.",
+    "portRange": "Enter a number from 1 to 65535.",
+    "checkFirst": "Check the route before starting Remote Desktop",
+    "checkFirstHint": "Makes sure the remote computer answers through the proxy first, so a broken route is explained at once instead of Remote Desktop waiting.",
+    "advanced": "Advanced",
+    "testUrl": "Test URL",
+    "testUrlHint": "Fetched through a proxy when you test it on the Proxies page.",
+    "urlInvalid": "Enter a URL starting with http:// or https://.",
+    "logLevel": "Log level",
+    "logLevelHint": "The log file is in %LOCALAPPDATA%\\RDP-over-proxy\\logs. Host names, IP addresses and user names are masked before they are written.",
+    "logLevels": {
+      "error": "Errors only",
+      "warn": "Warnings and errors",
+      "info": "Normal (recommended)",
+      "debug": "Detailed (for troubleshooting)"
+    }
   },
   "common": {
     "loading": "Loading…",
-    "loadFailed": "Couldn't load settings: {{message}}"
+    "loadFailed": "Couldn't load settings: {{message}}",
+    "dataLoadFailed": "Could not load the connections and proxies: {{message}}",
+    "cancel": "Cancel",
+    "close": "Close",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "more": "More",
+    "colon": ": "
   },
   "errors": {
     "unknown": "Something went wrong.",
@@ -161,5 +302,54 @@
       "gatewayUnknown": "Couldn't read the RD Gateway settings: {{error}}",
       "hintFailed": "Couldn't pre-fill the user name for Remote Desktop: {{error}}"
     }
+  },
+  "quit": {
+    "title": "Quit RDP over Proxy?",
+    "confirm": "Disconnect and quit",
+    "body_one": "{{count}} remote desktop is connected through this app. Quitting disconnects it.",
+    "body_other": "{{count}} remote desktops are connected through this app. Quitting disconnects all of them."
+  },
+  "fieldErrors": {
+    "required": "Required.",
+    "invalid": "Not valid.",
+    "out_of_range": "Out of range.",
+    "too_long": "Too long.",
+    "unsupported": "Not supported.",
+    "conflict": "Conflicts with another option.",
+    "requiredForPassword": "A user name is needed to save a password."
+  },
+  "phases": {
+    "preparing": "Preparing",
+    "checking": "Checking the route",
+    "launching": "Starting Remote Desktop",
+    "running": "Running",
+    "ending": "Disconnecting",
+    "ended": "Ended"
+  },
+  "status": {
+    "preparing": "Preparing…",
+    "checking": "Checking the route…",
+    "launching": "Starting Remote Desktop…",
+    "running": "Remote Desktop is open",
+    "connected": "Connected",
+    "upstreamFailing": "Cannot reach the remote computer",
+    "tunnelFailed": "The local entrance failed",
+    "ending": "Disconnecting…",
+    "failed": "Connection failed ({{step}})"
+  },
+  "steps": {
+    "preflight": "pre-check",
+    "route": "prepare the proxy",
+    "listen": "open the local entrance",
+    "check": "check the route",
+    "credential": "prepare the sign-in",
+    "launch": "start Remote Desktop",
+    "run": "run",
+    "done": "end"
+  },
+  "outcomes": {
+    "closed": "Remote Desktop closed",
+    "cancelled": "cancelled",
+    "failed": "failed"
   }
 }

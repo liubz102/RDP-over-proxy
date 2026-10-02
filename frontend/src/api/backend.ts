@@ -19,6 +19,7 @@ export type {
   Notice,
   ProfileView,
   ProxyView,
+  QuitView,
   SessionView,
 } from "../../bindings/github.com/liubz102/RDP-over-proxy/internal/api";
 export type { Line as LogLine } from "../../bindings/github.com/liubz102/RDP-over-proxy/internal/logging";
@@ -38,7 +39,14 @@ export const Events = {
   sessionsChanged: "sessions:changed",
   sessionLog: "session:log",
   notice: "app:notice",
+  quitRequested: "app:quitRequested",
 } as const;
+
+/** The built-in "no proxy" entry (model.DirectProxyID). */
+export const DIRECT_PROXY_ID = "direct";
+
+/** The standard Remote Desktop port (model.DefaultRDPPort). */
+export const RDP_PORT = 3389;
 
 /**
  * The structured error a rejected service call carries in its `cause`

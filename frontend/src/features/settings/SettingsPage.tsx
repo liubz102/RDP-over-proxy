@@ -1,10 +1,11 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Body1,
   Caption1,
   Card,
   Dropdown,
   Field,
+  Input,
   Link,
   MessageBar,
   MessageBarBody,
@@ -12,6 +13,7 @@ import {
   Radio,
   RadioGroup,
   Subtitle2,
+  Switch,
   makeStyles,
   tokens,
 } from "@fluentui/react-components";
@@ -34,6 +36,12 @@ const useStyles = makeStyles({
   dropdown: {
     minWidth: "240px",
   },
+  port: {
+    width: "120px",
+  },
+  url: {
+    maxWidth: "460px",
+  },
   about: {
     display: "grid",
     gridTemplateColumns: "max-content 1fr",
@@ -45,6 +53,46 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground3,
   },
 });
+
+/**
+ * A text setting: edited freely, saved when the field loses focus or Enter is
+ * pressed, so half-typed values are never stored.
+ */
+function TextSetting({
+  value,
+  className,
+  check,
+  onSave,
+}: {
+  value: string;
+  className?: string;
+  /** Returns a problem to show instead of saving. */
+  check?: (text: string) => string | undefined;
+  onSave: (text: string) => void;
+}) {
+  const [text, setText] = useState(value);
+  useEffect(() => setText(value), [value]);
+  const problem = check?.(text);
+  const commit = () => {
+    if (text !== value && !problem) onSave(text);
+  };
+  return (
+    <>
+      <Input
+        className={className}
+        value={text}
+        onChange={(_, d) => setText(d.value)}
+        onBlur={commit}
+        onKeyDown={(e) => e.key === "Enter" && commit()}
+      />
+      {problem && (
+        <Caption1 role="alert" style={{ color: tokens.colorStatusDangerForeground1 }}>
+          {problem}
+        </Caption1>
+      )}
+    </>
+  );
+}
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   const styles = useStyles();
@@ -109,6 +157,50 @@ export function SettingsPage() {
           </RadioGroup>
         </Field>
         <Caption1 className={styles.hint}>{t("settings.closeHint")}</Caption1>
+      </Section>
+
+      <Section title={t("settings.connection")}>
+        <Field label={t("settings.localPort")} hint={t("settings.localPortHint")}>
+          <TextSetting
+            className={styles.port}
+            value={String(settings.localPort)}
+            check={(text) =>
+              /^\d{1,5}$/.test(text.trim()) && Number(text) >= 1 && Number(text) <= 65535 ? undefined : t("settings.portRange")
+            }
+            onSave={(text) => void save({ localPort: Number(text) })}
+          />
+        </Field>
+        <Switch
+          checked={settings.checkRouteBeforeConnect}
+          label={t("settings.checkFirst")}
+          onChange={(_, d) => void save({ checkRouteBeforeConnect: d.checked })}
+        />
+        <Caption1 className={styles.hint}>{t("settings.checkFirstHint")}</Caption1>
+      </Section>
+
+      <Section title={t("settings.advanced")}>
+        <Field label={t("settings.testUrl")} hint={t("settings.testUrlHint")}>
+          <TextSetting
+            className={styles.url}
+            value={settings.testUrl}
+            check={(text) => (/^https?:\/\/\S+$/i.test(text.trim()) ? undefined : t("settings.urlInvalid"))}
+            onSave={(text) => void save({ testUrl: text.trim() })}
+          />
+        </Field>
+        <Field label={t("settings.logLevel")} hint={t("settings.logLevelHint")}>
+          <Dropdown
+            className={styles.dropdown}
+            value={t(`settings.logLevels.${settings.logLevel}`)}
+            selectedOptions={[settings.logLevel]}
+            onOptionSelect={(_, data) => data.optionValue && void save({ logLevel: data.optionValue })}
+          >
+            {["error", "warn", "info", "debug"].map((level) => (
+              <Option key={level} value={level}>
+                {t(`settings.logLevels.${level}`)}
+              </Option>
+            ))}
+          </Dropdown>
+        </Field>
       </Section>
 
       <Section title={t("settings.about")}>

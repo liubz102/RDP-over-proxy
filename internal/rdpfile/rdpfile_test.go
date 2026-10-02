@@ -47,7 +47,7 @@ func TestParseMstscSavedFile(t *testing.T) {
 	if draft != want {
 		t.Fatalf("Draft =\n %+v\nwant\n %+v", draft, want)
 	}
-	if g := f.Gateway(); g != (Gateway{Usage: UsageNoneBypassLocal, AdminDefaults: true}) || g.Verdict() != GatewayNotUsed {
+	if g := f.Gateway(); g != (Gateway{Usage: UsageNoneBypassLocal, AdminDefaults: true, ProfileStated: true}) || g.Verdict() != GatewayNotUsed {
 		t.Fatalf("Gateway = %+v (verdict %d), want the defaults mstsc writes", g, g.Verdict())
 	}
 	if v, ok := f.String("winposstr"); !ok || v != "0,1,262,57,1886,1003" {
@@ -77,7 +77,7 @@ func TestParseGatewayFile(t *testing.T) {
 		t.Error("Admin = false, want true")
 	}
 	g := f.Gateway()
-	if g != (Gateway{Host: "gateway.example.com", Usage: UsageAlways}) || g.Verdict() != GatewayUsed {
+	if g != (Gateway{Host: "gateway.example.com", Usage: UsageAlways, ProfileStated: true}) || g.Verdict() != GatewayUsed {
 		t.Errorf("Gateway = %+v (verdict %d)", g, g.Verdict())
 	}
 }
@@ -256,12 +256,21 @@ func TestGatewayVerdict(t *testing.T) {
 		want  GatewayVerdict
 	}{
 		{"", GatewayNotUsed},
-		{"gatewayusagemethod:i:0\ngatewayhostname:s:gw.example.com", GatewayNotUsed},
-		{"gatewayusagemethod:i:4", GatewayNotUsed},
-		{"gatewayusagemethod:i:1\ngatewayhostname:s:gw.example.com", GatewayUsed},
-		{"gatewayusagemethod:i:2\ngatewayhostname:s:gw.example.com", GatewayMaybeUsed},
-		{"gatewayusagemethod:i:3", GatewayMaybeUsed},
-		{"gatewayusagemethod:i:9", GatewayMaybeUsed},
+		// "Use these RD Gateway server settings": the file's own usage decides.
+		{"gatewayprofileusagemethod:i:1\ngatewayusagemethod:i:0\ngatewayhostname:s:gw.example.com", GatewayNotUsed},
+		{"gatewayprofileusagemethod:i:1\ngatewayusagemethod:i:4", GatewayNotUsed},
+		{"gatewayprofileusagemethod:i:1\ngatewayusagemethod:i:1\ngatewayhostname:s:gw.example.com", GatewayUsed},
+		{"gatewayprofileusagemethod:i:1\ngatewayusagemethod:i:2\ngatewayhostname:s:gw.example.com", GatewayMaybeUsed},
+		{"gatewayprofileusagemethod:i:1\ngatewayusagemethod:i:3", GatewayMaybeUsed},
+		{"gatewayprofileusagemethod:i:1\ngatewayusagemethod:i:9", GatewayMaybeUsed},
+		// "Automatically detect": the usage left over from the greyed-out
+		// settings does not count, not even "always" (as in a real Default.rdp).
+		{"gatewayusagemethod:i:1\ngatewayprofileusagemethod:i:0\ngatewayhostname:s:gw.example.com", GatewayNotUsed},
+		{"gatewayprofileusagemethod:i:0\ngatewayusagemethod:i:2", GatewayNotUsed},
+		// Not stated (a hand-written file): "always" may or may not count.
+		{"gatewayusagemethod:i:1\ngatewayhostname:s:gw.example.com", GatewayMaybeUsed},
+		{"gatewayusagemethod:i:0", GatewayNotUsed},
+		{"gatewayusagemethod:i:2", GatewayMaybeUsed},
 	}
 	for _, c := range cases {
 		if got := Parse([]byte(c.lines)).Gateway().Verdict(); got != c.want {
