@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<MsixPackagingToolTemplate
+    xmlns="http://schemas.microsoft.com/msix/packaging/msixpackagingtool/template/2022">
+    <Settings
+        AllowTelemetry="false"
+        ApplyACLsToPackageFiles="true"
+        GenerateCommandLineFile="true"
+        AllowPromptForPassword="false">
+    </Settings>
+    <Installer
+        Path="rdp-over-proxy.exe"
+        Arguments=""
+        InstallLocation="C:\Program Files\liubz102\RDP over Proxy">
+    </Installer>
+    <PackageInformation
+        PackageName="RDP over Proxy"
+        PackageDisplayName="RDP over Proxy"
+        PublisherName="CN=liubz102"
+        PublisherDisplayName="liubz102"
+        Version="0.1.0.0"
+        PackageDescription="Windows Remote Desktop (mstsc) through SOCKS5, HTTP, VMess, VLESS, Trojan, Shadowsocks and Hysteria2 proxies">
+        <Capabilities>
+            <Capability Name="runFullTrust" />
+            
+        </Capabilities>
+        <Applications>
+            <Application
+                Id="io.github.liubz102.rdp-over-proxy"
+                Description="Windows Remote Desktop (mstsc) through SOCKS5, HTTP, VMess, VLESS, Trojan, Shadowsocks and Hysteria2 proxies"
+                DisplayName="RDP over Proxy"
+                ExecutableName="rdp-over-proxy.exe"
+                EntryPoint="Windows.FullTrustApplication">
+                
+            </Application>
+        </Applications>
+        <Resources>
+            <Resource Language="en-us" />
+        </Resources>
+        <Dependencies>
+            <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.19041.0" />
+        </Dependencies>
+        <Properties>
+            <Framework>false</Framework>
+            <DisplayName>RDP over Proxy</DisplayName>
+            <PublisherDisplayName>liubz102</PublisherDisplayName>
+            <Description>Windows Remote Desktop (mstsc) through SOCKS5, HTTP, VMess, VLESS, Trojan, Shadowsocks and Hysteria2 proxies</Description>
+            <Logo>Assets\AppIcon.png</Logo>
+        </Properties>
+    </PackageInformation>
+    <SaveLocation PackagePath="rdp-over-proxy.msix" />
+    <PackageIntegrity>
+        <CertificatePath></CertificatePath>
+    </PackageIntegrity>
+</MsixPackagingToolTemplate>

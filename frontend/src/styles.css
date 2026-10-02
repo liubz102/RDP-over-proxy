@@ -1,0 +1,19 @@
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+}
+
+/*
+ * Size the app's FluentProvider here, not with a className on it: Fluent copies
+ * the provider's className onto every popup's portal node, and "height: 100%"
+ * there turns each dropdown into a full-window white sheet over the page.
+ */
+#root > .fui-FluentProvider {
+  height: 100%;
+}

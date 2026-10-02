@@ -1,0 +1,38 @@
+# Build output
+bin/
+build/bin/
+*.exe
+*.syso
+.task/
+
+# Frontend
+frontend/dist/
+frontend/node_modules/
+
+# The old script prototype. It stays on disk until the new app replaces it, but
+# never goes into git: it holds a renamed third-party v2ray.exe and personal
+# remote desktop targets.
+legacy/
+
+# Remote Desktop files can contain personal host names and user names.
+*.rdp
+!**/testdata/**/*.rdp
+
+# Data folders of development runs (see RDP_OVER_PROXY_HOME)
+data/
+
+# Test output
+*.test
+*.coverprofile
+coverage.*
+
+# Local tool settings
+.claude/settings.local.json
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+Desktop.ini
+.DS_Store

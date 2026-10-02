@@ -1,0 +1,46 @@
+version: '3'
+
+# RDP-over-proxy is Windows-only (it drives mstsc.exe, Credential Manager and DPAPI),
+# so only the common and windows task files from the Wails template are kept.
+
+vars:
+  APP_NAME: "RDP-over-proxy"
+  BIN_DIR: "bin"
+  PACKAGE_MANAGER: '{{.PACKAGE_MANAGER | default "npm"}}'
+  VITE_PORT: '{{.WAILS_VITE_PORT | default 9245}}'
+  GOOS: windows
+
+includes:
+  common: ./build/Taskfile.yml
+  windows: ./build/windows/Taskfile.yml
+
+tasks:
+  build:
+    summary: Builds the application
+    cmds:
+      - task: windows:build
+
+  package:
+    summary: Packages a production build of the application
+    cmds:
+      - task: windows:package
+
+  run:
+    summary: Runs the application
+    cmds:
+      - task: windows:run
+
+  dev:
+    summary: Runs the application in development mode
+    cmds:
+      - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
+
+  build:server:
+    summary: Builds the application in server mode (no GUI, HTTP server only) for checking the UI in a browser
+    cmds:
+      - task: common:build:server
+
+  run:server:
+    summary: Runs the application in server mode
+    cmds:
+      - task: common:run:server

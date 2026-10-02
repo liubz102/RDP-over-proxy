@@ -1,0 +1,56 @@
+name: 问题报告 / Bug report
+description: 程序出错或表现不符合预期 / Something doesn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！请不要在这里贴出真实的服务器地址、用户名或密码。
+        Thanks for the report! Please don't paste real server addresses, user names or passwords here.
+  - type: input
+    id: version
+    attributes:
+      label: 程序版本 / App version
+      description: 设置 → 关于 / Settings → About
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows 版本 / Windows version
+      description: 运行 winver 查看 / Run winver to see it
+      placeholder: "Windows 11 24H2 (26100.xxxx)"
+    validations:
+      required: true
+  - type: dropdown
+    id: proxy
+    attributes:
+      label: 代理类型 / Proxy type
+      options:
+        - 直连 / Direct
+        - SOCKS5
+        - HTTP
+        - VMess
+        - VLESS
+        - Trojan
+        - Shadowsocks
+        - Hysteria2
+        - 自定义 Xray 出站 / Custom Xray outbound
+        - 与代理无关 / Not proxy-related
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 发生了什么 / What happened
+      description: 请写出复现步骤 / Include the steps to reproduce it
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望的结果 / What you expected
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: 诊断信息 / Diagnostics
+      description: 如果有，请附上程序导出的诊断信息（会自动去掉密钥）。 / If available, attach the diagnostics the app exports (secrets are removed).

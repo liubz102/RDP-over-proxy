@@ -1,0 +1,55 @@
+{
+  "app": {
+    "name": "RDP over Proxy",
+    "tagline": "让远程桌面走代理"
+  },
+  "languageSetup": {
+    "title": "选择界面语言",
+    "label": "界面语言",
+    "continue": "继续",
+    "hint": "以后可以在「设置」里修改。"
+  },
+  "languageName": {
+    "zh-CN": "简体中文",
+    "en": "English"
+  },
+  "nav": {
+    "connections": "连接",
+    "proxies": "代理",
+    "settings": "设置"
+  },
+  "connections": {
+    "title": "连接",
+    "emptyTitle": "还没有连接",
+    "emptyBody": "连接管理正在开发中。之后可以在这里添加要远程的电脑，并选择走哪个代理。"
+  },
+  "proxies": {
+    "title": "代理",
+    "emptyTitle": "还没有代理",
+    "emptyBody": "代理管理正在开发中。之后可以在这里添加 SOCKS5、HTTP、VMess、VLESS、Trojan、Shadowsocks、Hysteria2 代理，或直接粘贴分享链接导入。"
+  },
+  "settings": {
+    "title": "设置",
+    "autosave": "更改会自动保存。",
+    "appearance": "外观",
+    "language": "语言",
+    "theme": "主题",
+    "themeSystem": "跟随系统",
+    "themeLight": "浅色",
+    "themeDark": "深色",
+    "behavior": "行为",
+    "closeBehavior": "关闭主窗口时",
+    "closeToTray": "缩小到托盘，在后台继续运行",
+    "closeQuit": "退出程序",
+    "closeHint": "有远程桌面正在通过代理连接时，总是缩小到托盘，以免连接中断。",
+    "about": "关于",
+    "version": "版本",
+    "homepage": "项目主页",
+    "license": "开源许可：MIT",
+    "saveFailed": "保存失败：{{message}}"
+  },
+  "common": {
+    "loading": "正在加载…",
+    "loadFailed": "加载设置失败：{{message}}"
+  }
+}

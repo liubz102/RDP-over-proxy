@@ -1,0 +1,19 @@
+{
+	"fixed": {
+		"file_version": "0.1.0",
+		"product_version": "0.1.0"
+	},
+	"info": {
+		"0409": {
+			"ProductVersion": "0.1.0",
+			"FileVersion": "0.1.0",
+			"CompanyName": "liubz102",
+			"FileDescription": "RDP over Proxy",
+			"InternalName": "RDP-over-proxy",
+			"OriginalFilename": "RDP-over-proxy.exe",
+			"LegalCopyright": "(c) 2026 liubz102",
+			"ProductName": "RDP over Proxy",
+			"Comments": "Windows Remote Desktop (mstsc) through SOCKS5, HTTP and V2Ray-family proxies. https://github.com/liubz102/RDP-over-proxy"
+		}
+	}
+}

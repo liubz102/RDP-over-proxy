@@ -1,0 +1,18 @@
+# Normalise text files to LF in the repository and in working copies.
+* text=auto eol=lf
+
+# Windows scripts need CRLF to run correctly under cmd.exe and PowerShell.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files: never touch line endings. .rdp files are UTF-16.
+*.ico binary
+*.png binary
+*.jpg binary
+*.rdp binary
+*.syso binary
+
+# Generated files: keep them out of diffs and language statistics.
+frontend/package-lock.json -diff linguist-generated
+frontend/bindings/** linguist-generated

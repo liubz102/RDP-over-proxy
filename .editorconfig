@@ -1,0 +1,24 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.go]
+indent_style = tab
+
+# Windows PowerShell 5.1 reads BOM-less scripts as the ANSI code page, which
+# garbles Chinese text; batch files need CRLF.
+[*.ps1]
+charset = utf-8-bom
+end_of_line = crlf
+
+[{*.bat,*.cmd}]
+end_of_line = crlf
+
+[*.md]
+trim_trailing_whitespace = false

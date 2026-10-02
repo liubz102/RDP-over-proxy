@@ -1,0 +1,55 @@
+{
+  "app": {
+    "name": "RDP over Proxy",
+    "tagline": "Remote Desktop through a proxy"
+  },
+  "languageSetup": {
+    "title": "Choose a display language",
+    "label": "Display language",
+    "continue": "Continue",
+    "hint": "You can change it later in Settings."
+  },
+  "languageName": {
+    "zh-CN": "简体中文",
+    "en": "English"
+  },
+  "nav": {
+    "connections": "Connections",
+    "proxies": "Proxies",
+    "settings": "Settings"
+  },
+  "connections": {
+    "title": "Connections",
+    "emptyTitle": "No connections yet",
+    "emptyBody": "Connection management is in development. Soon you'll add the computers you want to reach here and pick the proxy each one uses."
+  },
+  "proxies": {
+    "title": "Proxies",
+    "emptyTitle": "No proxies yet",
+    "emptyBody": "Proxy management is in development. Soon you'll add SOCKS5, HTTP, VMess, VLESS, Trojan, Shadowsocks and Hysteria2 proxies here, or import them by pasting share links."
+  },
+  "settings": {
+    "title": "Settings",
+    "autosave": "Changes are saved automatically.",
+    "appearance": "Appearance",
+    "language": "Language",
+    "theme": "Theme",
+    "themeSystem": "Use system setting",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "behavior": "Behavior",
+    "closeBehavior": "When the main window is closed",
+    "closeToTray": "Minimize to the tray and keep running",
+    "closeQuit": "Quit the app",
+    "closeHint": "While a remote desktop is connected through a proxy, the window always minimizes to the tray so the connection isn't cut.",
+    "about": "About",
+    "version": "Version",
+    "homepage": "Project page",
+    "license": "License: MIT",
+    "saveFailed": "Couldn't save: {{message}}"
+  },
+  "common": {
+    "loading": "Loading…",
+    "loadFailed": "Couldn't load settings: {{message}}"
+  }
+}
