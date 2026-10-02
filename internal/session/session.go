@@ -172,6 +172,10 @@ type (
 	}
 	// ClientExited: mstsc has exited.
 	ClientExited struct{ ExitCode int }
+	// NothingToClose: asked to close, mstsc had no window that could ask
+	// the user (it was connecting, asking for a password, or showing a
+	// dialog of its own). Only ending the process stops it then.
+	NothingToClose struct{}
 )
 
 // Requests from the user.
@@ -205,6 +209,7 @@ func (CredentialReady) isEvent()  {}
 func (ClientStarted) isEvent()    {}
 func (StepFailed) isEvent()       {}
 func (ClientExited) isEvent()     {}
+func (NothingToClose) isEvent()   {}
 func (Stop) isEvent()             {}
 func (Focus) isEvent()            {}
 func (ConnOpened) isEvent()       {}
@@ -231,7 +236,8 @@ type (
 	// CancelCheck aborts the route check in flight; the check then ends with
 	// StepFailed.
 	CancelCheck struct{}
-	// CloseClient asks mstsc to close (WM_CLOSE to its window).
+	// CloseClient asks mstsc to close (WM_CLOSE to its session window); when
+	// it has none, the actor reports NothingToClose.
 	CloseClient struct{}
 	// KillClient ends the mstsc process this session started; ClientExited
 	// follows.
@@ -294,9 +300,11 @@ const (
 	MsgCancelling      = "session.cancelling"
 	MsgClosing         = "session.closing"
 	MsgKilling         = "session.killing"
-	MsgClientExited    = "session.clientExited"
-	MsgTunnelFailed    = "session.tunnelFailed"
-	MsgEnded           = "session.ended"
+	// MsgNothingToClose: mstsc had no window to ask, so it is ended.
+	MsgNothingToClose = "session.nothingToClose"
+	MsgClientExited   = "session.clientExited"
+	MsgTunnelFailed   = "session.tunnelFailed"
+	MsgEnded          = "session.ended"
 	// MsgActionFailed: an action without a result event of its own (closing
 	// or focusing mstsc, cleaning up) failed. The session carries on.
 	MsgActionFailed = "session.actionFailed"
@@ -309,6 +317,6 @@ const (
 // translates each one.
 var Messages = []string{
 	MsgStarting, MsgListening, MsgCheckPassed, MsgClientStarted, MsgUpstreamOK, MsgUpstreamFailing,
-	MsgStepFailed, MsgCancelling, MsgClosing, MsgKilling, MsgClientExited, MsgTunnelFailed, MsgEnded,
+	MsgStepFailed, MsgCancelling, MsgClosing, MsgKilling, MsgNothingToClose, MsgClientExited, MsgTunnelFailed, MsgEnded,
 	MsgActionFailed, MsgUnexpected,
 }

@@ -24,9 +24,21 @@ func Path() (string, error) {
 	return filepath.Join(dir, "mstsc.exe"), nil
 }
 
+// SessionWindowClass is the window class of mstsc's remote session window:
+// the window that, asked to close, offers to disconnect the session. It has
+// been the same since Windows XP; tools that automate Remote Desktop rely on
+// it too. Until the connection is made mstsc shows other windows only (the
+// progress dialog, the credential prompt, the certificate warning).
+const SessionWindowClass = "TscShellContainerClass"
+
+// ErrNoWindow is returned when the process shows no window at all.
+var ErrNoWindow = errors.New("the process has no window")
+
 // Process is a program the app started.
 type Process struct {
 	cmd *exec.Cmd
+	// sessionClass is the class of the window Close asks to close.
+	sessionClass string
 
 	// handle is the app's own handle to the process. Windows does not reuse
 	// a process ID while a handle to the process is open, so holding it
@@ -42,11 +54,12 @@ func Launch(args []string) (*Process, error) {
 	if err != nil {
 		return nil, err
 	}
-	return Start(exec.Command(path, args...))
+	return Start(exec.Command(path, args...), SessionWindowClass)
 }
 
-// Start starts cmd. Launch uses it for mstsc; tests use it for a stand-in.
-func Start(cmd *exec.Cmd) (*Process, error) {
+// Start starts cmd, whose session window has the class sessionClass. Launch
+// uses it for mstsc; tests use it for a stand-in.
+func Start(cmd *exec.Cmd, sessionClass string) (*Process, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, err
 	}
@@ -58,7 +71,7 @@ func Start(cmd *exec.Cmd) (*Process, error) {
 		_ = cmd.Wait()
 		return nil, fmt.Errorf("open the started process: %w", err)
 	}
-	return &Process{cmd: cmd, handle: h}, nil
+	return &Process{cmd: cmd, sessionClass: sessionClass, handle: h}, nil
 }
 
 // PID is the process ID.
@@ -79,12 +92,50 @@ func (p *Process) Wait() (int, error) {
 	return -1, err
 }
 
-// Close asks the program to close its windows (WM_CLOSE). mstsc may ask the
-// user to confirm. Closing a process that has exited does nothing.
-func (p *Process) Close() error { return p.whileRunning(winx.CloseWindows) }
+// Close asks the remote session window to close, as its close button does;
+// mstsc then asks the user to confirm. It reports false when there is no
+// such window to ask: mstsc is still connecting or asking for a password, or
+// a dialog of its own is open over the window (a modal dialog disables it).
+// Closing those other windows instead can leave mstsc running with no
+// window at all, so then only Kill ends it. Once the process has exited,
+// Close does nothing and reports true: Wait reports the exit.
+func (p *Process) Close() (closing bool, err error) {
+	closing = true
+	err = p.whileRunning(func(pid int) error {
+		var asked bool
+		for _, w := range winx.MainWindows(pid) {
+			if winx.ClassName(w) != p.sessionClass || !winx.Enabled(w) {
+				continue
+			}
+			if err := winx.PostClose(w); err != nil {
+				return err
+			}
+			asked = true
+		}
+		closing = asked
+		return nil
+	})
+	return closing, err
+}
 
-// Focus brings the program's window to the front.
-func (p *Process) Focus() error { return p.whileRunning(winx.FocusWindow) }
+// Focus brings mstsc to the front: the remote session window if there is
+// one, otherwise whatever it shows, such as the credential prompt.
+func (p *Process) Focus() error {
+	return p.whileRunning(func(pid int) error {
+		ws := winx.MainWindows(pid)
+		if len(ws) == 0 {
+			return ErrNoWindow
+		}
+		target := ws[0]
+		for _, w := range ws {
+			if winx.ClassName(w) == p.sessionClass {
+				target = w
+				break
+			}
+		}
+		return winx.BringToFront(target)
+	})
+}
 
 // Kill ends the process: only this one, through the handle from starting it,
 // never by name. Killing a process that has exited is not an error.

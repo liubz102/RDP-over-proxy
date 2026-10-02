@@ -1,9 +1,6 @@
 package api
 
 import (
-	"errors"
-	"net"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -207,14 +204,6 @@ func (c *Core) server(p model.Profile) string {
 	return p.Loopback
 }
 
-// hintNames are the names mstsc may keep its memory of a profile's entrance
-// under (user name hint, certificate trust). Whether it adds the port is
-// not documented, so the app writes both; Servers.Forget removes the address
-// with any port.
-func hintNames(p model.Profile, port int) []string {
-	return []string{p.Loopback, net.JoinHostPort(p.Loopback, strconv.Itoa(port))}
-}
-
 // Notice is something the user should know about that no button press of
 // theirs caused, such as a file that could not be loaded. It stays until
 // dismissed.
@@ -399,7 +388,7 @@ func (c *Core) credentials(req session.Request) session.Credentials {
 		core:      c,
 		profileID: req.Profile.ID,
 		server:    c.server(req.Profile),
-		hints:     hintNames(req.Profile, req.Port),
+		hint:      req.Profile.Loopback,
 		user:      req.Profile.Username,
 		password:  req.Password,
 	}
@@ -411,19 +400,19 @@ type sessionCredentials struct {
 	core      *Core
 	profileID string
 	server    string
-	hints     []string
-	user      string
-	password  string
+	// hint is the name mstsc keeps its memory of the entrance under (user
+	// name hint, certificate trust): the address without the port, as seen
+	// on a real machine. Servers.Forget also removes the address with any
+	// port, which earlier builds wrote as well.
+	hint     string
+	user     string
+	password string
 }
 
 func (s *sessionCredentials) Prepare() (oneTime bool, err error) {
 	if s.user != "" {
 		// Only a convenience: mstsc asks for the user name if it is missing.
-		var errs []error
-		for _, name := range s.hints {
-			errs = append(errs, s.core.d.Servers.SetUsernameHint(name, s.user))
-		}
-		if err := errors.Join(errs...); err != nil {
+		if err := s.core.d.Servers.SetUsernameHint(s.hint, s.user); err != nil {
 			s.core.addSessionLine(s.profileID, logging.Line{Level: logging.LevelWarn, Msg: MsgHintFailed,
 				Args: map[string]any{"error": err.Error(), "code": errcode.Of(err)}}, false)
 		}

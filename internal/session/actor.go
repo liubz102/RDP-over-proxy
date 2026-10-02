@@ -16,8 +16,10 @@ type Process interface {
 	// Wait blocks until the process exits and returns its exit code. The
 	// session calls it once.
 	Wait() (exitCode int, err error)
-	// Close asks mstsc to close (WM_CLOSE to its windows).
-	Close() error
+	// Close asks mstsc to close (WM_CLOSE to its session window), which
+	// may ask the user to confirm. closing is false when there was no window
+	// that could ask; only Kill ends mstsc then.
+	Close() (closing bool, err error)
 	// Kill ends the process. Killing a process that has already exited is
 	// not an error.
 	Kill() error
@@ -182,7 +184,11 @@ func (a *actor) perform(effects []Effect) {
 			}()
 
 		case CloseClient:
-			a.action("close", a.proc.Close())
+			closing, err := a.proc.Close()
+			a.action("close", err)
+			if err == nil && !closing {
+				a.post(NothingToClose{})
+			}
 		case KillClient:
 			a.action("kill", a.proc.Kill())
 		case FocusClient:

@@ -138,11 +138,11 @@ type fakeProcess struct {
 	once sync.Once
 }
 
-func (p *fakeProcess) PID() int           { return p.pid }
-func (p *fakeProcess) Wait() (int, error) { return <-p.exit, nil }
-func (p *fakeProcess) Close() error       { p.once.Do(func() { p.exit <- 0 }); return nil }
-func (p *fakeProcess) Kill() error        { p.once.Do(func() { p.exit <- 1 }); return nil }
-func (p *fakeProcess) Focus() error       { return nil }
+func (p *fakeProcess) PID() int             { return p.pid }
+func (p *fakeProcess) Wait() (int, error)   { return <-p.exit, nil }
+func (p *fakeProcess) Close() (bool, error) { p.once.Do(func() { p.exit <- 0 }); return true, nil }
+func (p *fakeProcess) Kill() error          { p.once.Do(func() { p.exit <- 1 }); return nil }
+func (p *fakeProcess) Focus() error         { return nil }
 
 // anyRoute reaches every target directly, whatever the proxy: it stands in
 // for the Xray engine.
@@ -509,8 +509,8 @@ func TestSessionWithOneTimePassword(t *testing.T) {
 	if c, ok := h.vault.get(p.Loopback); !ok || !c.oneTime || c.password != "one time" {
 		t.Fatalf("while running, the vault holds %+v %v", c, ok)
 	}
-	withPort := net.JoinHostPort(p.Loopback, strconv.Itoa(h.settings.Get().LocalPort))
-	if h.servers.hints[p.Loopback] != `EXAMPLE\alice` || h.servers.hints[withPort] != `EXAMPLE\alice` {
+	// mstsc keeps its memory under the address without the port.
+	if h.servers.hints[p.Loopback] != `EXAMPLE\alice` || len(h.servers.hints) != 1 {
 		t.Fatalf("user name hints = %q", h.servers.hints)
 	}
 	if err := h.profiles.Delete(p.ID); errcode.Of(err) != "session.running" {

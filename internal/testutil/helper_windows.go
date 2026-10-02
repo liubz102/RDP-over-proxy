@@ -20,14 +20,25 @@ const EnvHelper = "RDP_OVER_PROXY_TEST_HELPER"
 
 // Helper roles.
 const (
-	// HelperWindow opens a window, prints "ready" once it exists, and exits
-	// with code 0 when the window is closed. The window is a tool window
-	// (no taskbar button), shown far off-screen without being activated, so
-	// it never takes the focus or appears in front of the person at the desk.
+	// HelperWindow opens a window of class HelperWindowClass, standing in
+	// for mstsc's session window. It prints "ready" once the window exists
+	// and exits with code 0 when the window is closed. The window is a tool
+	// window (no taskbar button), shown far off-screen without being
+	// activated, so it never takes the focus or appears in front of the
+	// person at the desk.
 	HelperWindow = "window"
+	// HelperDisabledWindow is HelperWindow with its window disabled, as
+	// mstsc's session window is while a dialog of its own is open.
+	HelperDisabledWindow = "disabled-window"
+	// HelperOtherWindow is HelperWindow with a window of another class,
+	// standing in for mstsc's credential prompt.
+	HelperOtherWindow = "other-window"
 	// HelperBlock has no window and runs until its standard input closes.
 	HelperBlock = "block"
 )
+
+// HelperWindowClass is the class of HelperWindow's window.
+const HelperWindowClass = "RDPOverProxyTestHelper"
 
 // RunHelper plays the role EnvHelper names, if any, and exits. Call it first
 // thing in TestMain.
@@ -36,7 +47,11 @@ func RunHelper() {
 	case "":
 		return
 	case HelperWindow:
-		os.Exit(windowHelper())
+		os.Exit(windowHelper(HelperWindowClass, false))
+	case HelperDisabledWindow:
+		os.Exit(windowHelper(HelperWindowClass, true))
+	case HelperOtherWindow:
+		os.Exit(windowHelper(otherWindowClass, false))
 	case HelperBlock:
 		_, _ = io.Copy(io.Discard, os.Stdin)
 		os.Exit(0)
@@ -67,13 +82,13 @@ func HelperCommand(t testing.TB, role string) *exec.Cmd {
 }
 
 const (
-	wmDestroy         = 0x0002
-	wsPopup           = 0x80000000
-	wsExToolWindow    = 0x00000080
-	wsExNoActivate    = 0x08000000
-	swShowNoActivate  = 4
-	offscreen         = -32000
-	helperWindowClass = "RDPOverProxyTestHelper"
+	wmDestroy        = 0x0002
+	wsPopup          = 0x80000000
+	wsExToolWindow   = 0x00000080
+	wsExNoActivate   = 0x08000000
+	swShowNoActivate = 4
+	offscreen        = -32000
+	otherWindowClass = "RDPOverProxyTestPrompt"
 )
 
 type wndClassEx struct {
@@ -101,7 +116,7 @@ type msg struct {
 	private uint32
 }
 
-func windowHelper() int {
+func windowHelper(class string, disabled bool) int {
 	runtime.LockOSThread() // a window belongs to the thread that created it
 
 	user32 := windows.NewLazySystemDLL("user32.dll")
@@ -110,6 +125,7 @@ func windowHelper() int {
 		registerClassEx  = user32.NewProc("RegisterClassExW")
 		createWindowEx   = user32.NewProc("CreateWindowExW")
 		showWindow       = user32.NewProc("ShowWindow")
+		enableWindow     = user32.NewProc("EnableWindow")
 		defWindowProc    = user32.NewProc("DefWindowProcW")
 		getMessage       = user32.NewProc("GetMessageW")
 		translateMessage = user32.NewProc("TranslateMessage")
@@ -119,7 +135,7 @@ func windowHelper() int {
 	)
 
 	instance, _, _ := getModuleHandle.Call(0)
-	className := windows.StringToUTF16Ptr(helperWindowClass)
+	className := windows.StringToUTF16Ptr(class)
 	wndProc := windows.NewCallback(func(hwnd, message, wParam, lParam uintptr) uintptr {
 		if message == wmDestroy {
 			postQuitMessage.Call(0)
@@ -140,6 +156,9 @@ func windowHelper() int {
 	if hwnd == 0 {
 		fmt.Fprintln(os.Stderr, "CreateWindowEx:", err)
 		return 2
+	}
+	if disabled {
+		enableWindow.Call(hwnd, 0)
 	}
 	showWindow.Call(hwnd, swShowNoActivate)
 	fmt.Println("ready")

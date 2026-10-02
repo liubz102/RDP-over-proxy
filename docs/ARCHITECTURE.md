@@ -28,7 +28,7 @@ Status markers: **[M0]** to **[M5]** are implemented; everything else is planned
 | `internal/model` | Settings [M0]; Proxy, Profile, Target, IDs and field-level validation [M1] | [M1] |
 | `internal/store` | Data folders, atomic JSON writes, settings load/repair [M0]; proxies and profiles (`Data`) [M4] | [M4] |
 | `internal/i18n` | Go-side strings (tray, native dialogs), system language detection | [M0] |
-| `internal/winx` | Win32 helpers: WebView2 detection, message box, dark-mode query [M0]; a process's main windows, WM_CLOSE, focus [M2] | [M2] |
+| `internal/winx` | Win32 helpers: WebView2 detection, message box, dark-mode query [M0]; a process's main windows, their class and enabled state, WM_CLOSE, bringing a window to the front [M2, M5] | [M5] |
 | `internal/loopback` | Derive and de-duplicate per-profile loopback addresses | [M1] |
 | `internal/rdpfile` | Read-only `.rdp` parsing (import, `Default.rdp` RD Gateway check) | [M1] |
 | `internal/mstsc` | Build mstsc arguments [M1]; start mstsc, wait, close, kill, focus [M2]; per-server memory (`UsernameHint`, forget), RD Gateway check against `Default.rdp` and Group Policy [M4] | [M4] |
@@ -106,7 +106,7 @@ Events: `settings:changed` [M0]; `data:changed` (every profile and proxy), `sess
 The route is acquired before listening so the tunnel starts with its dialer; listening comes before the check so an address conflict shows at once; the password is written only after the route has proved itself.
 
 - **Stop before mstsc runs** (phase "ending"): the step in flight finishes — the route check is aborted with `CancelCheck`, the other steps are quick — and then everything held is given back; outcome `cancelled`. If mstsc was starting, it has no window to close yet, so it is killed and the session waits for it to exit.
-- **Stop while running**: `CloseClient` posts WM_CLOSE. mstsc may ask the user to confirm, and they may decline, so the session stays "running" until mstsc exits. `Stop{Force}` kills the process (phase "ending") and waits for `ClientExited`; outcome `closed`.
+- **Stop while running**: `CloseClient` posts WM_CLOSE to mstsc's remote session window. mstsc asks the user to confirm, and they may decline, so the session stays "running" until mstsc exits. When there is no session window that could ask (mstsc is still connecting or asking for a password, or a dialog of its own disables the window), the actor reports `NothingToClose` and the session kills mstsc [M5]: closing the credential prompt instead left mstsc running with no window at all (seen on a real machine). `Stop{Force}` kills the process (phase "ending") and waits for `ClientExited`; outcome `closed`.
 - **A failing step** ends the session at once with `Failure{Step, Err}` and outcome `failed`, unless the user had already asked to stop (then it is `cancelled`).
 - **Tunnel reports**: connection count; the upstream state (unknown / ok / failing) is logged only when it flips, while the latest error is kept for display.
 - Every log line is a stable message key plus arguments, translated by the UI. Events that don't fit the current step are ignored with a warning line; events after the end are ignored.
@@ -133,7 +133,8 @@ Connecting a profile that already has a session focuses its window. Only "force"
   - `Close` cancels dials in flight, closes every connection and waits for all goroutines.
 - **mstsc process** (`mstsc.Launch`)
   - Starts `%SystemRoot%\System32\mstsc.exe`, never one found on PATH.
-  - The app keeps its own handle to the process. Windows does not reuse a PID while a handle is open, so closing (WM_CLOSE to the visible, unowned top-level windows) and focusing can never reach a later process that got the same PID.
+  - The app keeps its own handle to the process. Windows does not reuse a PID while a handle is open, so closing and focusing can never reach a later process that got the same PID.
+  - Close [M5] posts WM_CLOSE only to the remote session window: a visible, unowned, enabled top-level window of class `TscShellContainerClass` (the class mstsc has used since Windows XP). It reports whether there was one. Focus brings that window forward, or else whatever mstsc shows (the credential prompt).
   - Kill uses `TerminateProcess` on that handle. Close, focus and kill do nothing once the process has exited.
 
 Tests never start mstsc. Session tests run a real tunnel against the fake RDP server, and the test itself plays mstsc. Launcher tests start a copy of the test binary as a stand-in: either a 1×1 tool window far off-screen, shown without activation, or a windowless process that waits until killed.
@@ -163,7 +164,7 @@ Linking Xray adds about 23 MB to the executable (measured with production build 
 
 `internal/api.Core` is what the services share: the data, the settings, the `session.Manager`, the notices and each profile's latest session log. The app builds it with the real parts (`Deps`); tests pass stand-ins for Credential Manager, mstsc's registry memory and mstsc itself.
 
-- **Credentials** (`Options.Credentials`): before mstsc starts, the session writes the profile's user name as `UsernameHint` (`HKCU\Software\Microsoft\Terminal Server Client\Servers\<server>`) and, if the user gave a password for this connection only, stores it as a one-time credential. Whether mstsc keys `Servers` by address or by address:port is not documented, so the hint is written under both; deleting the profile removes the address with any port.
+- **Credentials** (`Options.Credentials`): before mstsc starts, the session writes the profile's user name as `UsernameHint` (`HKCU\Software\Microsoft\Terminal Server Client\Servers\<server>`) and, if the user gave a password for this connection only, stores it as a one-time credential. mstsc keys `Servers` by the address without the port (seen on a real machine [M5]: its own entries, `CertHash` included, have no port although it connected to `127.x.y.z:13389`), so the hint goes there only; deleting the profile removes the address with any port, which earlier builds also wrote.
 - **One lock for the vault**: a session starting, a session ending and a profile being edited can touch the same credential at once, so every vault operation goes through one lock, and look-then-change steps (store a one-time password unless one is remembered, move a password to a new user name, delete only the one-time password) happen inside it. A one-time password never replaces a password the app remembers.
 - **Passwords and profile changes**:
   - a new target (host or port) deletes every saved password of the profile, because they belong to the old computer;

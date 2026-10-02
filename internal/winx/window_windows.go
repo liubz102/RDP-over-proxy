@@ -10,14 +10,11 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// ErrNoWindow is returned when a process has no main window, for example
-// because it is still starting.
-var ErrNoWindow = errors.New("the process has no window")
-
 var (
 	user32                  = windows.NewLazySystemDLL("user32.dll")
 	procGetWindow           = user32.NewProc("GetWindow")
 	procIsIconic            = user32.NewProc("IsIconic")
+	procIsWindowEnabled     = user32.NewProc("IsWindowEnabled")
 	procPostMessageW        = user32.NewProc("PostMessageW")
 	procSetForegroundWindow = user32.NewProc("SetForegroundWindow")
 	procShowWindow          = user32.NewProc("ShowWindow")
@@ -58,30 +55,38 @@ func MainWindows(pid int) []windows.HWND {
 	return found
 }
 
-// CloseWindows asks each of the process's main windows to close, as its
-// close button does. The program may ask the user to confirm.
-func CloseWindows(pid int) error {
-	ws := MainWindows(pid)
-	if len(ws) == 0 {
-		return ErrNoWindow
+// ClassName is the window's class name, such as "TscShellContainerClass";
+// "" when it cannot be read.
+func ClassName(hwnd windows.HWND) string {
+	buf := make([]uint16, 256)
+	n, err := windows.GetClassName(hwnd, &buf[0], int32(len(buf)))
+	if err != nil {
+		return ""
 	}
-	for _, w := range ws {
-		if r, _, err := procPostMessageW.Call(uintptr(w), wmClose, 0, 0); r == 0 {
-			return fmt.Errorf("PostMessage(WM_CLOSE): %w", err)
-		}
+	return windows.UTF16ToString(buf[:n])
+}
+
+// Enabled reports whether the window accepts input. A window is disabled
+// while a modal dialog it owns is open.
+func Enabled(hwnd windows.HWND) bool {
+	r, _, _ := procIsWindowEnabled.Call(uintptr(hwnd))
+	return r != 0
+}
+
+// PostClose asks the window to close, as its close button does. The program
+// may ask the user to confirm.
+func PostClose(hwnd windows.HWND) error {
+	if r, _, err := procPostMessageW.Call(uintptr(hwnd), wmClose, 0, 0); r == 0 {
+		return fmt.Errorf("PostMessage(WM_CLOSE): %w", err)
 	}
 	return nil
 }
 
-// FocusWindow brings the process's main window to the front, restoring it
-// first if it is minimized. Windows only allows this while the calling app
-// is in the foreground, which it is when the user has just clicked in it.
-func FocusWindow(pid int) error {
-	ws := MainWindows(pid)
-	if len(ws) == 0 {
-		return ErrNoWindow
-	}
-	w := uintptr(ws[0])
+// BringToFront brings the window to the front, restoring it first if it is
+// minimized. Windows only allows this while the calling app is in the
+// foreground, which it is when the user has just clicked in it.
+func BringToFront(hwnd windows.HWND) error {
+	w := uintptr(hwnd)
 	if minimized, _, _ := procIsIconic.Call(w); minimized != 0 {
 		procShowWindow.Call(w, swRestore)
 	}

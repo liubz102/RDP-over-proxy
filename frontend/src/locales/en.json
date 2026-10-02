@@ -293,6 +293,7 @@
       "cancelling": "Cancelling…",
       "closing": "Asking Remote Desktop to close…",
       "killing": "Ending Remote Desktop…",
+      "nothingToClose": "Remote Desktop had no session window to close (it was connecting, asking for a password, or showing a dialog of its own), so it is ended. If you had signed in, the session on the remote computer stays.",
       "clientExited": "Remote Desktop closed (exit code {{exitCode}}).",
       "tunnelFailed": "The tunnel entrance stopped accepting connections: {{error}}",
       "ended": "Session ended ({{outcome}}).",

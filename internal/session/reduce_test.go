@@ -271,6 +271,32 @@ func TestStopWhileRunning(t *testing.T) {
 	}
 }
 
+func TestNothingToCloseEndsMstsc(t *testing.T) {
+	s, _ := play(t, true, happyPath...)
+	s, effects := Reduce(s, Stop{})
+	assertActions(t, effects, CloseClient{})
+
+	// mstsc had no window that could ask the user: end it.
+	s, effects = Reduce(s, NothingToClose{})
+	assertActions(t, effects, KillClient{})
+	if s.Phase() != PhaseEnding || !slices.Contains(logs(effects), MsgNothingToClose) {
+		t.Fatalf("phase %s, log %q", s.Phase(), logs(effects))
+	}
+	// A second report, or a stop meanwhile, kills nothing more.
+	s, effects = Reduce(s, NothingToClose{})
+	assertActions(t, effects)
+	s, effects = Reduce(s, Stop{})
+	assertActions(t, effects)
+
+	s, _ = Reduce(s, ClientExited{ExitCode: 1})
+	if s.Outcome != OutcomeClosed {
+		t.Fatalf("outcome %s", s.Outcome)
+	}
+	if _, effects = Reduce(s, NothingToClose{}); len(effects) != 0 {
+		t.Fatalf("after the end: %#v", effects)
+	}
+}
+
 func TestStopTwiceBeforeMstscRuns(t *testing.T) {
 	s, _ := play(t, true, happyPath[:3]...)
 	s, _ = Reduce(s, Stop{})

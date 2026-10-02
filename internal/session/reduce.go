@@ -102,6 +102,15 @@ func Reduce(s State, e Event) (State, []Effect) {
 	case Stop:
 		return s.stop(e.Force)
 
+	case NothingToClose:
+		// The user asked to disconnect, and nothing can ask them to confirm:
+		// end mstsc. The remote session stays, as after any disconnection.
+		if s.Step != StepRun || s.Killing {
+			return s, nil
+		}
+		s.Killing = true
+		return s, []Effect{info(MsgNothingToClose, nil), KillClient{}}
+
 	case Focus:
 		if s.Step == StepRun && !s.Killing {
 			return s, []Effect{FocusClient{}}

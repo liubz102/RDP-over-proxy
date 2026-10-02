@@ -35,15 +35,17 @@ func TestPathIsInTheSystemFolder(t *testing.T) {
 	}
 }
 
-// startWindow starts the window helper and waits until its window exists.
-func startWindow(t *testing.T) *mstsc.Process {
+// startWindow starts a window helper (testutil.HelperWindow and the like)
+// and waits until its window exists. The helper's session window class
+// stands in for mstsc's.
+func startWindow(t *testing.T, role string) *mstsc.Process {
 	t.Helper()
-	cmd := testutil.HelperCommand(t, testutil.HelperWindow)
+	cmd := testutil.HelperCommand(t, role)
 	out, err := cmd.StdoutPipe()
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := mstsc.Start(cmd)
+	p, err := mstsc.Start(cmd, testutil.HelperWindowClass)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,20 +57,20 @@ func startWindow(t *testing.T) *mstsc.Process {
 }
 
 func TestCloseAsksTheWindowToClose(t *testing.T) {
-	p := startWindow(t)
-	if got := winx.MainWindows(p.PID()); len(got) != 1 {
-		t.Fatalf("found %d main windows of the helper, want 1", len(got))
+	p := startWindow(t, testutil.HelperWindow)
+	if got := winx.MainWindows(p.PID()); len(got) != 1 || winx.ClassName(got[0]) != testutil.HelperWindowClass {
+		t.Fatalf("found %d main windows of the helper, want 1 of its class", len(got))
 	}
-	if err := p.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
+	if closing, err := p.Close(); err != nil || !closing {
+		t.Fatalf("Close = %v, %v", closing, err)
 	}
 	code, err := p.Wait()
 	if err != nil || code != 0 {
 		t.Fatalf("Wait = %d, %v; want a clean exit after WM_CLOSE", code, err)
 	}
 	// Once it has exited, closing and killing do nothing.
-	if err := p.Close(); err != nil {
-		t.Errorf("Close after exit: %v", err)
+	if closing, err := p.Close(); err != nil || !closing {
+		t.Errorf("Close after exit = %v, %v; want true: the exit is on its way", closing, err)
 	}
 	if err := p.Kill(); err != nil {
 		t.Errorf("Kill after exit: %v", err)
@@ -87,7 +89,7 @@ func startBlocking(t *testing.T) *mstsc.Process {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { stdin.Close() })
-	p, err := mstsc.Start(cmd)
+	p, err := mstsc.Start(cmd, testutil.HelperWindowClass)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,12 +110,32 @@ func TestKill(t *testing.T) {
 	}
 }
 
+// Only the session window is asked to close. Closing what mstsc shows
+// before it (the credential prompt) can leave it running with no window.
+func TestCloseLeavesOtherWindowsAlone(t *testing.T) {
+	for _, role := range []string{testutil.HelperOtherWindow, testutil.HelperDisabledWindow} {
+		p := startWindow(t, role)
+		if closing, err := p.Close(); err != nil || closing {
+			t.Errorf("%s: Close = %v, %v; want false, nothing to ask", role, closing, err)
+		}
+		if got := winx.MainWindows(p.PID()); len(got) != 1 {
+			t.Errorf("%s: the window is gone after Close", role)
+		}
+		if err := p.Kill(); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := p.Wait(); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestCloseAndFocusWithoutAWindow(t *testing.T) {
 	p := startBlocking(t)
-	if err := p.Close(); !errors.Is(err, winx.ErrNoWindow) {
-		t.Errorf("Close = %v, want ErrNoWindow", err)
+	if closing, err := p.Close(); err != nil || closing {
+		t.Errorf("Close = %v, %v; want false, nothing to ask", closing, err)
 	}
-	if err := p.Focus(); !errors.Is(err, winx.ErrNoWindow) {
+	if err := p.Focus(); !errors.Is(err, mstsc.ErrNoWindow) {
 		t.Errorf("Focus = %v, want ErrNoWindow", err)
 	}
 	if err := p.Kill(); err != nil {
@@ -127,7 +149,7 @@ func TestCloseAndFocusWithoutAWindow(t *testing.T) {
 func TestStartFailure(t *testing.T) {
 	cmd := testutil.HelperCommand(t, testutil.HelperBlock)
 	cmd.Path = filepath.Join(t.TempDir(), "missing.exe")
-	if _, err := mstsc.Start(cmd); err == nil {
+	if _, err := mstsc.Start(cmd, testutil.HelperWindowClass); err == nil {
 		t.Fatal("starting a missing program should fail")
 	}
 }

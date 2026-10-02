@@ -29,6 +29,7 @@ type fakeProcess struct {
 	exit         chan int
 	once         sync.Once
 	declineClose atomic.Bool // Close does nothing, like a user answering "no" in mstsc
+	noWindow     atomic.Bool // Close finds no window to ask, like mstsc asking for a password
 	closes       atomic.Int32
 	kills        atomic.Int32
 	focuses      atomic.Int32
@@ -39,12 +40,15 @@ func (p *fakeProcess) Wait() (int, error) { return <-p.exit, nil }
 func (p *fakeProcess) exitWith(code int)  { p.once.Do(func() { p.exit <- code }) }
 func (p *fakeProcess) Kill() error        { p.kills.Add(1); p.exitWith(1); return nil }
 func (p *fakeProcess) Focus() error       { p.focuses.Add(1); return nil }
-func (p *fakeProcess) Close() error {
+func (p *fakeProcess) Close() (bool, error) {
+	if p.noWindow.Load() {
+		return false, nil
+	}
 	p.closes.Add(1)
 	if !p.declineClose.Load() {
 		p.exitWith(0)
 	}
-	return nil
+	return true, nil
 }
 
 type launcher struct {
@@ -356,6 +360,26 @@ func TestStopAsksMstscToClose(t *testing.T) {
 	}
 	if h.m.Stop("stop", false) {
 		t.Fatal("Stop reported a session after it ended")
+	}
+}
+
+func TestStopWithNoWindowToAskEndsMstsc(t *testing.T) {
+	srv := testutil.NewRDPServer(t, testutil.RDPOptions{Answer: testutil.AnswerConfirm})
+	h := newHarness(t)
+	connect(t, h, request(t, "prompt", srv))
+	p := <-h.launcher.started
+	p.noWindow.Store(true)
+	h.rec.wait("prompt", func(s State) bool { return s.Phase() == PhaseRunning })
+
+	// mstsc is asking for a password: nothing can ask the user to confirm,
+	// so a plain stop ends it.
+	h.m.Stop("prompt", false)
+	end := h.rec.ended("prompt")
+	if end.Outcome != OutcomeClosed || p.kills.Load() != 1 {
+		t.Fatalf("outcome %s, kills %d", end.Outcome, p.kills.Load())
+	}
+	if !slices.Contains(h.rec.logKeys("prompt"), MsgNothingToClose) {
+		t.Fatalf("log %q does not say why mstsc was ended", h.rec.logKeys("prompt"))
 	}
 }
 

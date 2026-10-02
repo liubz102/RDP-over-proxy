@@ -293,6 +293,7 @@
       "cancelling": "正在取消…",
       "closing": "正在请求远程桌面关闭…",
       "killing": "正在结束远程桌面…",
+      "nothingToClose": "远程桌面没有可以关闭的会话窗口（正在连接、在询问密码，或开着它自己的对话框），所以直接结束它。已经登录的话，远程计算机上的会话会保留。",
       "clientExited": "远程桌面已关闭（退出码 {{exitCode}}）。",
       "tunnelFailed": "隧道入口停止接受连接：{{error}}",
       "ended": "会话已结束（{{outcome}}）。",
