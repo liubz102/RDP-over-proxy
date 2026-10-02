@@ -18,7 +18,7 @@
 | wails3 CLI | v3.0.0-beta.27 | `%USERPROFILE%\go\bin\wails3.exe` |
 | React / Fluent UI v9 / i18next / zustand | 19.3 / 9.74 / 26 / 5 | |
 | TypeScript | 6.0.x | 暂不用 7.x（原生重写版，生态未跟上） |
-| Xray-core（M3 起） | v1.260327.0 | 最后一个稳定的 module tag，之后的版本都是预发布 |
+| Xray-core | v1.260327.0 | 最后一个稳定的 module tag，之后的版本都是预发布。它要求 Go ≥ 1.26，所以 `go.mod` 的 `go` 指令是 1.26 |
 
 ## 目录地图
 
@@ -32,10 +32,12 @@
 | `internal/rdpfile` | 只读解析 .rdp：导入草稿、RD 网关判定 |
 | `internal/mstsc` | mstsc 启动参数（`Args`，纯函数）；启动 / 等待 / 关闭 / 结束 / 聚焦（`launch_windows.go`） |
 | `internal/probe` | X.224 CR/CC 编解码、线路检查 `Check` |
-| `internal/route` | `Dialer` / `Provider` 接口、直连；Xray 引擎 M3 接入 |
+| `internal/route` | `Dialer` / `Provider` 接口、直连 |
+| `internal/engine` | 内嵌的 Xray 实例，也是应用实际使用的 `route.Provider`：outbound 引用计数、强制 tag 派发、错误原因回传、日志桥接 |
 | `internal/tunnel` | 回环入口：接受连接、经线路拨目标、双向拷贝、计数、报告 |
 | `internal/session` | 会话：纯 reducer（`session.go`、`reduce.go`），外壳是 actor（`actor.go`）和 `Manager`（`manager.go`） |
-| `internal/testutil` | 测试共用：假 RDP 服务端；替身进程（`RunHelper` / `HelperCommand`）。只能被 `_test.go` 引用 |
+| `internal/testutil` | 测试共用：假 RDP 服务端；替身进程（`RunHelper` / `HelperCommand`）；`FreePort`。只能被 `_test.go` 引用 |
+| `internal/testutil/xraytest` | 测试用：进程内的 Xray SOCKS / HTTP 代理。单独成包，只有需要的测试才链接 Xray |
 | `internal/store` | 原子写 JSON；数据目录；`RDP_OVER_PROXY_HOME` |
 | `internal/i18n` | Go 侧文案（托盘、原生对话框）、系统语言检测 |
 | `internal/winx` | Win32 调用：WebView2 检测、错误框、系统深色模式 |
@@ -112,3 +114,11 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 - **`windows.NewCallback` 创建的回调释放不掉，数量也有上限**：只能在包级变量里创建一次（见 `winx` 的 `enumCallback`），不要在函数里每次新建。
 - **用替身进程的测试包必须有 `TestMain`，并且第一行调用 `testutil.RunHelper()`**：否则子进程会把整套测试再跑一遍。`HelperCommand` 带了 `-test.run=^$` 作为兜底。
 - **会话 / 隧道的回调里不能阻塞**：`tunnel.Reporter` 的方法不能等任何东西，因为 `Close` 要等它们返回；`Manager` 的 `Changed` / `Log` 回调里不能调 `Quit`。
+- **Xray 的几个行为**（engine 已经处理，改动 engine 时要记得）：
+  - 日志处理器是进程级全局的：每次 `core.New` 都会注册 Xray 自己的那个，所以 engine 在 `core.New` 之后才注册桥接。
+  - 第一个加入的 outbound 会成为默认出站：所以 base 配置里先放 blackhole。
+  - `RemoveHandler` 只是把 outbound 从表里删掉，不会关闭它：要自己调 `Close`。
+  - `Dispatch` 遇到非法目标会 panic：拨号前必须先校验地址。
+- **测试要看引擎日志时，先启动 `xraytest` 代理，再启动引擎**：创建 Xray 实例会顶掉日志桥接。
+- **测「代理不通」的用例要等约 1.5 秒**：这是 Xray 内部的重试，不是我们的超时。
+- **PowerShell 命令开头那行 PATH 设置里有 `C:\Program Files`，同一条命令里再写 `Remove-Item` 会被工具的安全检查拦下**：删除操作单独一条命令执行，或者改用 Bash。

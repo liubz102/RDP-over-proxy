@@ -9,7 +9,7 @@
 | M0 | 起步：环境、脚手架、仓库文件、界面外壳 | ✅ 完成，待用户验收 | — |
 | M1 | 领域核心：model、loopback、rdpfile 解析、mstsc 参数组装、X.224 编解码、状态机、假 RDP 服务端 | ✅ 完成（纯逻辑，无界面变化） | — |
 | M2 | 运行时（直连代理）：tunnel、启动器、会话 actor 和 Manager、清理 | ✅ 完成（尚未接入界面，M4 接入） | — |
-| M3 | Xray 引擎 + SOCKS / HTTP | 未开始 | |
+| M3 | Xray 引擎 + SOCKS / HTTP | ✅ 完成（尚未接入界面，M4 接入） | — |
 | M4 | 存储与服务：store、DPAPI、TERMSRV 凭据、UsernameHint、错误码、全部服务与事件 | 未开始 | |
 | M5 | 界面 v1，与原型功能对等（用户实连验证） | 未开始 | |
 | M6 | v2ray 系协议：分享链接、各协议表单、自定义 JSON、测速 | 未开始 | |
@@ -100,6 +100,33 @@
   - 一种是屏幕外 1×1 的工具窗口，不激活、没有任务栏按钮，用来验证 WM_CLOSE 能让它退出。
   - 另一种没有窗口，一直运行到被结束，用来验证 Kill。
 
+## M3 完成情况
+
+同样尚未接入界面（M4 接入）。
+
+- **引入 Xray-core v1.260327.0**
+  - 它要求 Go ≥ 1.26，`go get` 因此把 `go.mod` 的 `go` 指令从 1.25.0 改成了 1.26。这是对工具链的最低要求，不是应用版本号。
+  - exe 体积约增加 23 MB（正式构建参数，不含前端资源：9.9 MB → 32.8 MB）。按 M0 的 11 MB 估算，接入后约 34 MB；M4 接入后实测。
+- **`engine`**
+  - 每个进程只有一个 Xray 实例，没有 inbound；默认出站是 blackhole，没有带 tag 的连接一律丢弃。
+  - outbound 按「代理 ID + 配置摘要」做引用计数：同一代理的多个会话共用一个；修改代理后，新会话用新的 outbound，旧会话继续用旧的直到结束；最后一个使用者释放时，outbound 被移除并关闭。
+  - 每个连接用强制 tag 直接交给对应 outbound，不经过 Xray 的路由。
+  - 每个连接都挂一个错误 tracker：出站失败时，Xray 给出的原因经由 `Read` 带回给隧道和线路检查。实测能拿到「SOCKS 账号被拒」「HTTP 407」「代理端口拒绝连接」这样的具体原因。
+  - 拨号前先校验地址，因为非法地址会让 Xray panic。
+  - `connIdle` 调到最大，属于已登记例外。
+  - 日志桥接：错误和警告总是转发；info / debug 只在详细模式下转发；每条连接的访问日志不转发，因为里面有目标地址。
+  - 直连不经过 Xray。
+  - V2Ray 系协议虽然已经被链接进来，但在 M6 写好测试之前一律拒绝（`ErrUnsupported`）。
+- **`probe.Latency`**：经线路发一次 HTTP GET，从连接一直算到响应头；任何 HTTP 状态都算通，不跟随重定向，可取消，不设超时。
+- **`testutil/xraytest`**
+  - 在测试进程里跑真实的 Xray SOCKS / HTTP 代理，可带账号。
+  - 单独成包，这样只有需要 Xray 的测试才会链接它。
+  - 端口用 `FreePort` 获取（已登记例外），因为 Xray inbound 没法监听 port 0 后再报告实际端口。
+- **端到端测试**
+  - 隧道 → 引擎 → SOCKS → 假 RDP：数据双向回显。
+  - 完整会话（Manager + 引擎 + SOCKS 认证）：先做线路检查，会话结束后 outbound 被释放。
+- **`route.DirectOnly` 已删除**：它是 M2 时的过渡实现，现在 engine 统一处理包括直连在内的所有类型。
+
 ## 验证记录
 
 | 日期 | 范围 | 结果 |
@@ -114,6 +141,10 @@
 | 2026-10-02 | M2：测试结束后检查残留进程 | 没有残留 |
 | 2026-10-02 | M2：数据竞争 | 跑不了 `-race`，改为人工逐个检查跨 goroutine 访问的字段，未发现问题 |
 | 2026-10-02 | M2：全仓搜索 sleep、定时器、超时、deadline | 一处都没有 |
+| 2026-10-02 | M3：`go build`、`go vet ./...`（含 `-tags server`）、`gofmt`、`go mod tidy -diff` | 通过 |
+| 2026-10-02 | M3：`go test ./...` 全量；engine、probe 各跑 20 次 | 全部通过。engine 跑一遍约 4 秒，主要花在「代理端口不通」这类用例上：Xray 内部会重试约 1.5 秒 |
+| 2026-10-02 | M3：exe 体积 | 用临时程序分别链接「app」和「app + engine」，按正式构建参数编译后比较；临时目录用完已删除 |
+| 2026-10-02 | M3：全仓搜索 sleep、定时器、超时 | 只有两处已登记的例外：`connIdle` 和 `FreePort`，都写了注释 |
 | 2026-10-02 | 前端 `tsc` / `vitest` | 无错误 / 2 项通过 |
 | 2026-10-02 | `wails3 build` | 成功，exe 约 11 MB，版本信息 RDP over Proxy 0.1.0 |
 | 2026-10-02 | 浏览器预览（server 模式） | 通过，见下 |
@@ -129,16 +160,32 @@
 - 单实例：第二个实例启动后自己退出，第一个继续运行。
 - 关闭窗口后进程仍在、窗口已隐藏。
 
-## 下一步（M3 Xray 引擎 + SOCKS / HTTP）
+## 下一步（M4 存储与服务）
 
-1. **引入 Xray-core**：版本锁定为 v1.260327.0。引入后记录 exe 体积的变化。
-2. **`engine`**
-   - 进程内只有一个 Xray 实例。outbound 按代理做引用计数，每个连接强制指定 outbound tag。
-   - `core.Dial` 是异步的：把 `TrackedConnectionError` 事件作为「上游失败」的详细原因；目标地址非法时它会 panic，所以拨号前必须先校验。
-   - `connIdle` 调到最大，这是已登记的例外。还要把 Xray 的日志桥接过来。
-3. **`route.Engine`**：先支持 SOCKS / HTTP（由字段生成 outbound），v2ray 系在 M6 接入。
-4. **`probe`**：代理测速，经代理请求 `testUrl`。
-5. **`testutil`**：进程内的 Xray SOCKS / HTTP 服务端，用于端到端测试「隧道 → 引擎 → SOCKS → 假 RDP」。
+1. **`store`**
+   - 存 `proxies\<id>.json` 和 `profiles\<id>.json`：先填默认值再解码，带 schema，损坏的文件改名保留，原子写入。
+   - 新建连接时用 `loopback.Assign` 分配回环地址，查重范围是所有已有连接。
+   - 拒绝把 ID `direct` 存成文件。
+   - 修改目标地址（主机或端口）时，删除该连接已保存的密码（用户已选 a）。
+2. **`secret`**
+   - 代理的 `secret` 和 `outbound` 在文件里用 DPAPI 加密（当前用户范围）。
+   - mstsc 的密码放在 Windows 凭据管理器，目标名 `TERMSRV/<回环地址>`。
+   - **要实测**：mstsc 读取的凭据类型是 GENERIC 还是 DOMAIN_PASSWORD；带端口时目标名带不带端口。
+3. **`mstsc`（续）**
+   - `UsernameHint`：写入 `HKCU\Software\Microsoft\Terminal Server Client\Servers\<地址>`。
+   - RD 网关检查：读「文档」文件夹里的 `Default.rdp`（按已知文件夹定位），再结合组策略。
+4. **`logging`**：日志文件、内存环形缓冲、脱敏。
+5. **错误码**：把各包的错误映射成稳定的代码供界面翻译。
+   - 包括 `probe.Err*`、`tunnel.ErrNoAnswer`，以及 Xray 给出的常见原因（账号被拒、407、拒绝连接）。
+   - 还有 `ErrLoopbackDirect`、`ErrEnding`、监听地址被占用。
+6. **服务与事件**
+   - `ProfileService`、`ProxyService`、`SessionService`（连接、断开、聚焦、线路检查、测速）。
+   - 事件：`sessions:changed`、`session:log`、`data:changed`、`app:toast`。
+7. **接入 app**
+   - 启动时启动 engine 和 Manager。
+   - 退出时先调 `Manager.Quit`，再关 engine。
+   - 有会话在运行时，关闭窗口一律缩到托盘。
+   - 重新生成前端绑定，并实测 exe 体积。
 
 ## 决策记录
 
@@ -169,11 +216,20 @@
 | 2026-10-02 | 启动 mstsc 后自己持有进程句柄 | PID 可能被复用；持有句柄期间 Windows 不会复用这个 PID，可以保证关闭、聚焦、结束只作用于自己启动的进程 | 只记 PID |
 | 2026-10-02 | 测试用测试二进制自身扮演 mstsc（屏幕外不激活的窗口，或无窗口进程） | 不打开真实 mstsc，也不打扰桌面，同时能真实验证 WM_CLOSE 和 Kill 的链路 | 只做纯 mock，不验证 Windows 消息链路 |
 | 2026-10-02 | 修改连接的目标地址（主机或端口）后，自动删除该连接已保存的密码，回环地址不变（M4 实现） | 用户拍板。密码按回环地址保存，不删的话会被递给新的电脑 | 保留密码；换新的回环地址（会连带清掉证书信任和用户名提示） |
+| 2026-10-02 | 每个连接用强制 outbound tag 直接派发，不配置 Xray 路由 | 每个会话该走哪个代理是确定的，不需要规则匹配；路由配置出错也不会让流量走错代理 | 为每个代理写一条路由规则 |
+| 2026-10-02 | outbound 按「代理 ID + 配置摘要」做引用计数 | 修改代理时，正在使用的会话不受影响，新会话立即用新设置 | 按代理 ID 计数（修改后会改到正在运行的会话） |
+| 2026-10-02 | 出站失败的原因通过 Xray 的 error tracker 经 `Read` 带回 | Xray 先提交原因再结束连接，时序有保证；界面可以显示具体原因，而不只是「连接被关闭」 | 只报 EOF；解析 Xray 的日志 |
+| 2026-10-02 | 默认不设置 `SkipDNSResolve` | 尊重 outbound 自己的 `targetStrategy`（自定义 JSON 时可能有意设置）；没设置时域名照样交给代理去解析 | 一律跳过本地解析 |
+| 2026-10-02 | Xray 测试服务器单独放在 `testutil/xraytest` 包 | 只有需要的测试才链接 Xray，其他测试编译得快 | 放进 `testutil` |
+| 2026-10-02 | V2Ray 系协议在 M6 写好测试之前一律拒绝 | 代码路径虽然相同，但没测过的组合不放出去 | M3 就放开 |
 
 ## 已知问题
 
 - **应用图标**：仍是 Wails 默认图标，M8 时换。
 - **前端体积**：bundle 约 646 KB，是 Fluent UI 全量引入造成的，暂不处理。
+- **exe 体积**：引入 Xray 后预计约 34 MB。`infra/conf` 会把 Xray 几乎所有协议和传输都链接进来，精选 import 也省不了多少。
+- **Xray 的日志处理器是进程级全局的**：每创建一个 Xray 实例都会把它替换掉。应用里只有一个实例，没有问题；但测试要检查引擎日志时，必须先启动 `xraytest` 代理，再启动引擎。
+- **代理端口不通时，要等 Xray 内部重试约 1.5 秒才会报错**：这是 Xray 自己的行为，不是本程序的超时。
 - **标题栏颜色**：只跟随系统主题，不随应用内的主题设置变化。Wails 运行时能否修改标题栏主题，还待查。
 - **托盘右键菜单**：在 Wails v3 beta 上可能弹不出来（#6161），目前用左键打开窗口代替。
 - **`-race`**：本机没有 gcc，无法运行数据竞争检测。打算在 M9 完善 CI 时，在 GitHub 的 Windows runner（自带 MinGW）上加跑。

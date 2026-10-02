@@ -9,7 +9,7 @@ mstsc /v:127.a.b.c:13389 ──▶ tunnel (net.Listen on 127.a.b.c) ──▶ ro
                                                                   └─ engine: embedded Xray-core (one instance)
 ```
 
-Status markers: **[M0]**, **[M1]** and **[M2]** are implemented; everything else is planned for the milestone shown. See [PROGRESS.md](PROGRESS.md).
+Status markers: **[M0]** to **[M3]** are implemented; everything else is planned for the milestone shown. See [PROGRESS.md](PROGRESS.md).
 
 ## Principles
 
@@ -32,16 +32,16 @@ Status markers: **[M0]**, **[M1]** and **[M2]** are implemented; everything else
 | `internal/loopback` | Derive and de-duplicate per-profile loopback addresses | [M1] |
 | `internal/rdpfile` | Read-only `.rdp` parsing (import, `Default.rdp` RD Gateway check) | [M1] |
 | `internal/mstsc` | Build mstsc arguments [M1]; start mstsc, wait, close, kill, focus [M2]; `UsernameHint`; gateway check against `Default.rdp` and policy (M4) | partly |
-| `internal/probe` | X.224 Connection Request/Confirm codec and `Check` [M1]; proxy latency test (M3) | partly |
+| `internal/probe` | X.224 Connection Request/Confirm codec and `Check` [M1]; proxy latency test `Latency` [M3] | [M3] |
 | `internal/session` | Pure state-machine reducer [M1]; one actor goroutine per session, Manager [M2] | [M2] |
 | `internal/tunnel` | Loopback listener, per-connection upstream dial, two-way copy, byte counters, reports | [M2] |
-| `internal/route` | `Dialer` and `Provider` interfaces, the direct route [M2]; the engine route (M3) | partly |
-| `internal/engine` | The single embedded Xray instance; outbound registry with ref-counts; forced outbound tag per connection; connection error events; log bridge | M3 |
+| `internal/route` | `Dialer` and `Provider` interfaces, the direct route [M2] | [M2] |
+| `internal/engine` | The single embedded Xray instance and the app's `route.Provider`: outbound registry with ref-counts; forced outbound tag per connection; Xray's failure reason per connection; log bridge [M3]. SOCKS / HTTP now, V2Ray family in M6 | partly |
 | `internal/secret` | DPAPI for secrets in JSON; `TERMSRV/<loopback>` credentials in Windows Credential Manager | M4 |
 | `internal/sharelink` | Share links (vmess, vless, trojan, ss, hysteria2, socks, http) ⇄ Xray outbound JSON | M6 |
 | `internal/diag` | Read-only environment report | M7 |
 | `internal/logging` | Log files, in-memory ring buffers, redaction, state-flip de-duplication | M4 |
-| `internal/testutil` | Fake RDP server [M1]; helper processes that stand in for mstsc [M2]; in-process Xray servers (M3) | partly |
+| `internal/testutil` | Fake RDP server [M1]; helper processes that stand in for mstsc [M2]; `xraytest`: in-process Xray SOCKS / HTTP proxy servers [M3] | [M3] |
 | `tools/notices` | Generates `THIRD_PARTY_NOTICES.md` | M9 |
 
 ## Data
@@ -123,6 +123,27 @@ Connecting a profile that already has a session focuses its window. Only "force"
   - Kill uses `TerminateProcess` on that handle. Close, focus and kill do nothing once the process has exited.
 
 Tests never start mstsc. Session tests run a real tunnel against the fake RDP server, and the test itself plays mstsc. Launcher tests start a copy of the test binary as a stand-in: either a 1×1 tool window far off-screen, shown without activation, or a windowless process that waits until killed.
+
+## Proxy engine [M3]
+
+The app embeds Xray-core v1.260327.0 as a library: one instance per process, created by `engine.Start` and used as the sessions' `route.Provider`.
+
+- **Base configuration**: no inbounds; one `blackhole` outbound, added first so that it is Xray's default and a connection without a tag goes nowhere; policy level 0 with `connIdle` at its maximum (registered exception: the default 300 s would cut an idle remote desktop).
+- **Outbounds**
+  - `Acquire(proxy)` turns the proxy into an Xray outbound object (JSON; SOCKS / HTTP are generated from the fields; the V2Ray family arrives in M6) and builds it with Xray's own config code. It is added under a tag of its own.
+  - Outbounds are shared by reference count, keyed by proxy ID plus a digest of the outbound. Editing a proxy therefore gives new sessions a new outbound while running sessions keep the old one.
+  - The last release removes the outbound from Xray and closes it; Xray's `RemoveHandler` alone would only forget it.
+  - The direct entry bypasses Xray entirely (`route.Direct`).
+- **Dialing**
+  - Every connection is dispatched straight to its outbound with Xray's forced-outbound-tag context, so Xray's routing never decides anything. Domain targets are handed to the proxy unresolved.
+  - `core.Dial` returns at once and Xray connects in the background. Each connection carries an error tracker; when the outbound fails, Xray submits its reason before ending the stream, and the connection's `Read` returns that reason in place of a bare EOF. The tunnel and the route check therefore report, for example, "server rejects account", "407 Proxy Authentication Required" or "connection refused".
+  - The address is validated before it reaches Xray, which would panic on some malformed destinations.
+- **Logging**: Xray's logger is process-wide, and creating an instance installs Xray's own. `Start` replaces it with a bridge to `Options.Log`: errors and warnings always; info and debug only when verbose; access lines (one per connection, naming the target) never.
+- **Shutdown order**: `session.Manager.Quit` first (sessions release their routes), then `Engine.Close`.
+
+`probe.Latency` measures one HTTP GET of the test URL through any route: connecting, TLS for https, up to the response headers. Any HTTP status counts and redirects are not followed. There is no timeout; it is cancellable.
+
+Linking Xray adds about 23 MB to the executable (measured with production build flags: 9.9 MB → 32.8 MB for the app without its frontend assets).
 
 ## Frontend structure
 
