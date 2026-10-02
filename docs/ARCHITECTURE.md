@@ -9,7 +9,7 @@ mstsc /v:127.a.b.c:13389 ──▶ tunnel (net.Listen on 127.a.b.c) ──▶ ro
                                                                   └─ engine: embedded Xray-core (one instance)
 ```
 
-Status markers: **[M0]** is implemented; everything else is planned for the milestone shown. See [PROGRESS.md](PROGRESS.md).
+Status markers: **[M0]**, **[M1]** and **[M2]** are implemented; everything else is planned for the milestone shown. See [PROGRESS.md](PROGRESS.md).
 
 ## Principles
 
@@ -25,23 +25,23 @@ Status markers: **[M0]** is implemented; everything else is planned for the mile
 | `main` | Embeds the frontend and icon; holds the default `version` (release builds override it with `-ldflags -X main.version=…`) | [M0] |
 | `internal/app` | Wails application, main window, tray, single instance, close-to-tray, startup error box. `desktop_windows.go` and `server.go` split the desktop build from the browser-preview build (`-tags server`) | [M0] |
 | `internal/api` | Services bound to the frontend; DTOs; events | [M0] `SettingsService`; more in M4 |
-| `internal/model` | Settings [M0]; Proxy, Profile and validation (M1) | partly |
+| `internal/model` | Settings [M0]; Proxy, Profile, Target, IDs and field-level validation [M1] | [M1] |
 | `internal/store` | Data folders, atomic JSON writes, settings load/repair [M0]; proxies and profiles (M4) | partly |
 | `internal/i18n` | Go-side strings (tray, native dialogs), system language detection | [M0] |
-| `internal/winx` | Win32 helpers: WebView2 detection, message box, dark-mode query [M0]; focus a window by PID, WM_CLOSE (M2) | partly |
-| `internal/loopback` | Derive and de-duplicate per-profile loopback addresses | M1 |
-| `internal/rdpfile` | Read-only `.rdp` parsing (import, `Default.rdp` RD Gateway check) | M1 |
-| `internal/mstsc` | Build mstsc arguments; `UsernameHint`; gateway check against `Default.rdp` and policy | M1 / M4 |
-| `internal/probe` | X.224 Connection Request/Confirm codec, `CheckRDP`, proxy latency test | M1 / M3 |
-| `internal/session` | Pure state-machine reducer, one actor goroutine per session, Manager | M1 / M2 |
-| `internal/tunnel` | Loopback listener, per-connection upstream dial, two-way copy, byte counters, events | M2 |
-| `internal/route` | `Dialer` interface: direct or engine | M3 |
+| `internal/winx` | Win32 helpers: WebView2 detection, message box, dark-mode query [M0]; a process's main windows, WM_CLOSE, focus [M2] | [M2] |
+| `internal/loopback` | Derive and de-duplicate per-profile loopback addresses | [M1] |
+| `internal/rdpfile` | Read-only `.rdp` parsing (import, `Default.rdp` RD Gateway check) | [M1] |
+| `internal/mstsc` | Build mstsc arguments [M1]; start mstsc, wait, close, kill, focus [M2]; `UsernameHint`; gateway check against `Default.rdp` and policy (M4) | partly |
+| `internal/probe` | X.224 Connection Request/Confirm codec and `Check` [M1]; proxy latency test (M3) | partly |
+| `internal/session` | Pure state-machine reducer [M1]; one actor goroutine per session, Manager [M2] | [M2] |
+| `internal/tunnel` | Loopback listener, per-connection upstream dial, two-way copy, byte counters, reports | [M2] |
+| `internal/route` | `Dialer` and `Provider` interfaces, the direct route [M2]; the engine route (M3) | partly |
 | `internal/engine` | The single embedded Xray instance; outbound registry with ref-counts; forced outbound tag per connection; connection error events; log bridge | M3 |
 | `internal/secret` | DPAPI for secrets in JSON; `TERMSRV/<loopback>` credentials in Windows Credential Manager | M4 |
 | `internal/sharelink` | Share links (vmess, vless, trojan, ss, hysteria2, socks, http) ⇄ Xray outbound JSON | M6 |
 | `internal/diag` | Read-only environment report | M7 |
 | `internal/logging` | Log files, in-memory ring buffers, redaction, state-flip de-duplication | M4 |
-| `internal/testutil` | Fake RDP server, in-process Xray servers | M1 / M3 |
+| `internal/testutil` | Fake RDP server [M1]; helper processes that stand in for mstsc [M2]; in-process Xray servers (M3) | partly |
 | `tools/notices` | Generates `THIRD_PARTY_NOTICES.md` | M9 |
 
 ## Data
@@ -54,9 +54,13 @@ Every file carries `"schema": 1`, a data-format number used for migrations (not 
 
 **Settings** [M0]: `language` (`zh-CN` | `en`; empty until the first-run picker), `theme` (`system` | `light` | `dark`), `closeBehavior` (`tray` | `quit`), `localPort` (13389), `checkRouteBeforeConnect`, `testUrl`, `logLevel`.
 
-**Proxy** (M1/M4): `id`, `name`, `kind` (`direct` | `socks` | `http` | `shadowsocks` | `vmess` | `vless` | `trojan` | `hysteria2` | `xray`), `server`, `port`, `username`; `secret` and the full Xray `outbound` JSON are DPAPI-sealed; `summary` holds non-secret display fields.
+**Proxy** (model [M1], storage M4): `id`, `name`, `kind` (`direct` | `socks` | `http` | `shadowsocks` | `vmess` | `vless` | `trojan` | `hysteria2` | `xray`), `server`, `port`, `username`; `secret` and the full Xray `outbound` JSON (stored as JSON text) are DPAPI-sealed on disk; `summary` (non-secret display fields) arrives with the share-link parser in M6. `direct` is only the built-in entry `DirectProxyID = "direct"`, which every profile can pick and which is never stored.
 
-**Profile** (M1/M4): `id`, `name`, `group`, `target {host, port}`, `proxyId`, `loopback`, `username`, `rememberPassword`, `display {mode, width, height, multimon, span}`, `admin`. RDP passwords live only in Windows Credential Manager (`CRED_TYPE_GENERIC`, target `TERMSRV/<loopback>`).
+**Profile** (model [M1], storage M4): `id`, `name`, `group`, `target {host, port}`, `proxyId`, `loopback`, `username`, `rememberPassword`, `display {mode, width, height, multimon, span}`, `admin`. `display.mode` is `default` (no switch, follow `Default.rdp`), `fullscreen` (`/f`, plus `/multimon` or `/span`) or `window` (`/w /h`, 200–8192); the settings of the other modes are kept so switching back restores them. RDP passwords live only in Windows Credential Manager (`CRED_TYPE_GENERIC`, target `TERMSRV/<loopback>`).
+
+IDs are 16 random lowercase hex digits and double as file names. `Validate` on a profile or proxy returns `model.FieldErrors`: every problem at once, each as a JSON field path (`target.host`) plus a code (`required`, `invalid`, `out_of_range`, `too_long`, `unsupported`, `conflict`) that the UI translates. Host names are ASCII (internationalized names in their `xn--` form); the last label cannot be all digits, so `10.0.0.256` is rejected rather than taken for a name.
+
+**Loopback addresses** [M1]: SHA-256 of the profile ID picks a position among the 254³ addresses `127.(1-254).(1-254).(1-254)`; if it is taken, the next free address after it is used (the search covers the range once, so it always ends). The address is stored with the profile, so later changes to the derivation never move existing profiles.
 
 ## Frontend ⇄ Go
 
@@ -71,15 +75,54 @@ Wails generates TypeScript bindings for exported service methods (`frontend/bind
 
 Events: `settings:changed` [M0]; `sessions:changed`, `session:log`, `data:changed`, `app:toast` (M4).
 
-## Session lifecycle (M1–M2)
+## Session lifecycle (reducer [M1], actor M2)
 
-1. **Checking** (optional, cancellable): an X.224 Connection Request goes through the proxy to the target; the Connection Confirm reports latency and the security protocols the target accepts.
-2. **Preparing**: RD Gateway check; acquire the route; listen on the loopback (ready when Listen returns); write the credential or `UsernameHint` as configured.
-3. **Launching**: `mstsc /v:<loopback>:<port>` plus display flags.
-4. **Running**: count connections; the upstream state flips between unknown, ok and failing, and is logged only on a flip.
-5. **Ending** (mstsc exited): close the listener, cancel connections, delete a one-time credential, release the route.
+`internal/session` is a pure state machine: `Reduce(state, event)` returns the next state and the effects to perform. The actor (M2) performs them and feeds the outcomes back as events. One step runs at a time, and every step ends in exactly one event: its own success event or `StepFailed`.
 
-Connecting a profile that already has a session focuses its window. Disconnect posts WM_CLOSE; only "force" or quitting the app terminates the process, and only the PID the app started.
+| Step | Phase shown | Effect → event | Held afterwards |
+|---|---|---|---|
+| preflight | preparing | `Preflight` → `PreflightPassed` (RD Gateway settings) | — |
+| route | preparing | `AcquireRoute` → `RouteReady` | route |
+| listen | preparing | `Listen` → `Listening{Addr}` (ready when Listen returns) | tunnel |
+| check (optional) | checking | `RunCheck` → `CheckPassed{Result}` | — |
+| credential | launching | `PrepareCredential` → `CredentialReady{OneTime}` (password or `UsernameHint`) | one-time credential |
+| launch | launching | `LaunchClient` → `ClientStarted{PID}` (`mstsc /v:<loopback>:<port>` + display switches) | mstsc |
+| run | running | until `ClientExited` | |
+| done | ended | `DeleteCredential`, `CloseTunnel`, `ReleaseRoute` — only what is held, in that order | nothing |
+
+The route is acquired before listening so the tunnel starts with its dialer; listening comes before the check so an address conflict shows at once; the password is written only after the route has proved itself.
+
+- **Stop before mstsc runs** (phase "ending"): the step in flight finishes — the route check is aborted with `CancelCheck`, the other steps are quick — and then everything held is given back; outcome `cancelled`. If mstsc was starting, it has no window to close yet, so it is killed and the session waits for it to exit.
+- **Stop while running**: `CloseClient` posts WM_CLOSE. mstsc may ask the user to confirm, and they may decline, so the session stays "running" until mstsc exits. `Stop{Force}` kills the process (phase "ending") and waits for `ClientExited`; outcome `closed`.
+- **A failing step** ends the session at once with `Failure{Step, Err}` and outcome `failed`, unless the user had already asked to stop (then it is `cancelled`).
+- **Tunnel reports**: connection count; the upstream state (unknown / ok / failing) is logged only when it flips, while the latest error is kept for display.
+- Every log line is a stable message key plus arguments, translated by the UI. Events that don't fit the current step are ignored with a warning line; events after the end are ignored.
+
+**Route check** (`probe.Check`): sends an X.224 Connection Request offering what mstsc offers (`SSL|HYBRID|HYBRID_EX`), with no cookie and no user name, and reads the Connection Confirm. Any well-formed confirm, including a negotiation failure, proves the route and the RDP server; the result carries the elapsed time and the selected protocol. Errors distinguish "closed before answering" (typical of a proxy that could not reach the target), "not RDP" (with the first bytes seen), "truncated" and "malformed". There is no timeout; cancelling the context aborts it.
+
+Connecting a profile that already has a session focuses its window. Only "force" or quitting the app terminates mstsc, and only the PID the app started.
+
+## Runtime [M2]
+
+- **Actor** (`session/actor.go`): one goroutine per session. It performs the effects in order. Each step's result goes back as an event into the session's mailbox, an unbounded queue that never blocks a sender. So the tunnel, the route check and the process-exit waiter can report at any moment, even while the actor is busy closing them. Effects run before the new state is published, so a published "ended" means everything has already been given back. The route check and the wait for mstsc's exit run in their own goroutines; everything else is quick and runs inline.
+- **Manager** (`session/manager.go`)
+  - Runs at most one session per profile. `Connect` validates the request, then either starts a session or, if one is running, focuses mstsc. If the previous session is still ending, it returns `ErrEnding`.
+  - Also provides `Stop(force)`, `Focus`, `States` (the latest state per profile, ended ones included) and `Running` (for "hide to tray while a session runs").
+  - `Quit` force-stops every session and returns once each has given everything back.
+  - The `Changed` and `Log` callbacks are delivered one at a time and in order, so an old session's last report always arrives before its successor's first.
+  - Preflight refuses a direct connection to a loopback target, which would connect the tunnel to itself; more checks plug in through `Options.Preflight` (RD Gateway, M4).
+  - Routes come from a `route.Provider`, credentials from `Options.Credentials` (M4).
+- **Tunnel**
+  - `tunnel.Listen` is ready when it returns. Every accepted connection dials the target through the route and copies both ways with byte counters.
+  - The first byte back from the target reports "upstream answered". A dial error, or the route closing the connection before any answer, reports "upstream failed". When mstsc or `Close` ends the connection, nothing is reported.
+  - When either direction ends, both are closed. RDP does not half-close, and keeping a half-closed connection would need a timeout.
+  - `Close` cancels dials in flight, closes every connection and waits for all goroutines.
+- **mstsc process** (`mstsc.Launch`)
+  - Starts `%SystemRoot%\System32\mstsc.exe`, never one found on PATH.
+  - The app keeps its own handle to the process. Windows does not reuse a PID while a handle is open, so closing (WM_CLOSE to the visible, unowned top-level windows) and focusing can never reach a later process that got the same PID.
+  - Kill uses `TerminateProcess` on that handle. Close, focus and kill do nothing once the process has exited.
+
+Tests never start mstsc. Session tests run a real tunnel against the fake RDP server, and the test itself plays mstsc. Launcher tests start a copy of the test binary as a stand-in: either a 1×1 tool window far off-screen, shown without activation, or a windowless process that waits until killed.
 
 ## Frontend structure
 

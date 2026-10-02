@@ -27,7 +27,15 @@
 | `main.go` | 入口；嵌入 `frontend/dist` 和 `build/appicon.png`；`version` 默认值 |
 | `internal/app` | Wails 应用、窗口、托盘、单实例、关闭缩到托盘。`desktop_windows.go` 和 `server.go` 用构建标签区分桌面版与 server 版 |
 | `internal/api` | 暴露给前端的服务（目前只有 `SettingsService`），以及事件 `settings:changed` |
-| `internal/model` | 数据结构与校验，纯逻辑 |
+| `internal/model` | 数据结构（Settings、Proxy、Profile、Target）与校验，纯逻辑。Proxy / Profile 的校验返回 `FieldErrors`（字段 + 代码） |
+| `internal/loopback` | 由 profile ID 派生 `127.a.b.c` 回环地址，冲突时顺延 |
+| `internal/rdpfile` | 只读解析 .rdp：导入草稿、RD 网关判定 |
+| `internal/mstsc` | mstsc 启动参数（`Args`，纯函数）；启动 / 等待 / 关闭 / 结束 / 聚焦（`launch_windows.go`） |
+| `internal/probe` | X.224 CR/CC 编解码、线路检查 `Check` |
+| `internal/route` | `Dialer` / `Provider` 接口、直连；Xray 引擎 M3 接入 |
+| `internal/tunnel` | 回环入口：接受连接、经线路拨目标、双向拷贝、计数、报告 |
+| `internal/session` | 会话：纯 reducer（`session.go`、`reduce.go`），外壳是 actor（`actor.go`）和 `Manager`（`manager.go`） |
+| `internal/testutil` | 测试共用：假 RDP 服务端；替身进程（`RunHelper` / `HelperCommand`）。只能被 `_test.go` 引用 |
 | `internal/store` | 原子写 JSON；数据目录；`RDP_OVER_PROXY_HOME` |
 | `internal/i18n` | Go 侧文案（托盘、原生对话框）、系统语言检测 |
 | `internal/winx` | Win32 调用：WebView2 检测、错误框、系统深色模式 |
@@ -97,3 +105,10 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 - **读取 JSON 配置时先用默认值填好结构体再解码**（见 `store.SettingsStore.Load`）：否则后来新增的 bool 字段会被读成 false。
 - **`core.Dial`（Xray，M3）是异步的**：失败通过 `session.TrackedConnectionError` 事件送达；目标地址非法时会 panic，要先校验。
 - **2026-04 起，打开 .rdp 文件每次都会弹安全对话框**：所以只用 `mstsc /v:` 直连模式（用户已拍板）。剪贴板等设置沿用 mstsc 的全局 `Default.rdp`。
+- **Windows 上计时可能读到 0**：单调时钟的精度比本机回环往返还粗，测试里不要断言耗时大于 0。
+- **`probe` 的测试分两个包**：编解码测试是 `package probe`；用到 `testutil` 的 `Check` 测试必须是 `package probe_test`，否则会循环导入（`testutil` 依赖 `probe`）。
+- **本机跑不了 `-race`**：没有 gcc。
+- **Windows 上 `Wait` 之后再 `os.Process.Kill`，返回的是 `EINVAL`，不是 `ErrProcessDone`**：`mstsc.Process` 因此改用自己持有的句柄调 `TerminateProcess`。
+- **`windows.NewCallback` 创建的回调释放不掉，数量也有上限**：只能在包级变量里创建一次（见 `winx` 的 `enumCallback`），不要在函数里每次新建。
+- **用替身进程的测试包必须有 `TestMain`，并且第一行调用 `testutil.RunHelper()`**：否则子进程会把整套测试再跑一遍。`HelperCommand` 带了 `-test.run=^$` 作为兜底。
+- **会话 / 隧道的回调里不能阻塞**：`tunnel.Reporter` 的方法不能等任何东西，因为 `Close` 要等它们返回；`Manager` 的 `Changed` / `Log` 回调里不能调 `Quit`。
