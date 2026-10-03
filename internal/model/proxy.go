@@ -1,9 +1,6 @@
 package model
 
-import (
-	"encoding/json"
-	"strings"
-)
+import "strings"
 
 // ProxySchema is the data-format number written into each proxy file.
 const ProxySchema = 1
@@ -50,28 +47,50 @@ type Proxy struct {
 	// shown in lists; the outbound decides where connections go.
 	Server string `json:"server"`
 	Port   int    `json:"port"`
-	// Username and Secret sign in to a SOCKS5 or HTTP proxy. The store seals
-	// Secret with DPAPI before it writes the file.
+	// Username signs in to a SOCKS5 or HTTP proxy, with Secret as the
+	// password.
 	Username string `json:"username"`
-	Secret   string `json:"secret"`
-	// Outbound is the complete Xray outbound object, as JSON text, for the
-	// V2Ray-family kinds and KindXray. It holds credentials, so the store
-	// seals it like Secret.
+	// Secret is what signs in: the password of a SOCKS5, HTTP, Shadowsocks,
+	// Trojan or Hysteria2 proxy, or the user ID of a VMess or VLESS one. The
+	// store seals it with DPAPI before it writes the file.
+	Secret string `json:"secret"`
+	// Options are the settings of the V2Ray-family kinds (IsV2Ray) besides
+	// the server, the port and the secret. They include obfuscation keys and
+	// the paths that lead to the server, so the store seals them like Secret.
+	Options ProxyOptions `json:"options"`
+	// Outbound is the complete Xray outbound object, as JSON text, of a
+	// KindXray proxy. It holds credentials, so the store seals it like
+	// Secret.
 	Outbound string `json:"outbound"`
 }
 
-// Normalize trims the fields where surrounding spaces are never meant.
-// Secret is kept exactly as entered: a password may contain spaces.
+// Normalize trims the fields where surrounding spaces are never meant, and
+// clears the ones the kind does not use. Passwords are kept exactly as
+// entered: they may contain spaces.
 func (p Proxy) Normalize() Proxy {
 	p.Schema = ProxySchema
 	p.Name = strings.TrimSpace(p.Name)
 	p.Server = normalizeHost(p.Server)
 	p.Username = strings.TrimSpace(p.Username)
 	p.Outbound = strings.TrimSpace(p.Outbound)
+	switch {
+	case p.Kind == KindSocks || p.Kind == KindHTTP:
+		p.Options, p.Outbound = ProxyOptions{}, ""
+	case IsV2Ray(p.Kind):
+		p.Username, p.Outbound = "", ""
+		p.Options = p.Options.normalize(p.Kind)
+		if p.Kind == KindVMess || p.Kind == KindVLESS {
+			p.Secret = strings.TrimSpace(p.Secret) // a user ID
+		}
+	case p.Kind == KindXray:
+		// The outbound holds its own credentials.
+		p.Username, p.Secret, p.Options = "", "", ProxyOptions{}
+	}
 	return p
 }
 
 // Validate reports every field that cannot be saved as is, as FieldErrors.
+// It expects a normalized proxy: Normalize fills in the options' defaults.
 func (p Proxy) Validate() error {
 	var e FieldErrors
 	if !ValidID(p.ID) {
@@ -99,7 +118,8 @@ func (p Proxy) Validate() error {
 		e.text("name", p.Name, true, MaxNameLen)
 		e.host("server", p.Server, true)
 		e.port("port", p.Port, true)
-		e.outbound(p.Outbound)
+		validSecret(p.Kind, p.Options.Cipher, p.Secret, &e)
+		p.Options.validate(p.Kind, &e)
 	case KindXray:
 		e.text("name", p.Name, true, MaxNameLen)
 		e.host("server", p.Server, false)
@@ -114,7 +134,8 @@ func (p Proxy) Validate() error {
 }
 
 // outbound checks that s is a JSON object with a "protocol", the minimum the
-// Xray engine needs. The engine reports anything else it rejects.
+// Xray engine needs, and that its masks and XHTTP settings hold no negative
+// number (see masks.go). The engine reports anything else Xray rejects.
 func (e *FieldErrors) outbound(s string) {
 	switch {
 	case s == "":
@@ -122,11 +143,10 @@ func (e *FieldErrors) outbound(s string) {
 	case len(s) > MaxOutboundLen:
 		e.add("outbound", CodeTooLong)
 	default:
-		var v struct {
-			Protocol string `json:"protocol"`
-		}
-		// Unmarshalling into a struct rejects arrays, strings and numbers.
-		if err := json.Unmarshal([]byte(s), &v); err != nil || v.Protocol == "" {
+		v, ok := decodeJSON(s)
+		ob, isObject := v.(map[string]any)
+		protocol, _ := ob["protocol"].(string)
+		if !ok || !isObject || protocol == "" || !customTransportSafe(ob) {
 			e.add("outbound", CodeInvalid)
 		}
 	}

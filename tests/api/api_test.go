@@ -235,15 +235,26 @@ type harness struct {
 	launched chan *fakeProcess
 	gateway  mstsc.Gateway
 	quits    atomic.Int32 // AppService.Quit's calls of the app's quit
+	log      *logging.Logger
+	// check stands in for Xray's check of a proxy's settings; nil accepts
+	// everything.
+	check func(model.Proxy) error
 }
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
-	dir := t.TempDir()
-	data, problems := store.OpenData(dir, sealer{})
+	h, problems := newHarnessIn(t, t.TempDir())
 	if len(problems) != 0 {
 		t.Fatalf("OpenData: %v", problems)
 	}
+	return h
+}
+
+// newHarnessIn starts the services on the data in dir, as the app does,
+// and returns the problems found while loading.
+func newHarnessIn(t *testing.T, dir string) (*harness, []store.Problem) {
+	t.Helper()
+	data, problems := store.OpenData(dir, sealer{})
 	settings := store.NewSettingsStore(dir)
 	st := model.DefaultSettings()
 	st.Language = model.LangEn
@@ -262,21 +273,28 @@ func newHarness(t *testing.T) *harness {
 		routes:   &anyRoute{},
 		events:   &events{changed: make(chan struct{}, 1)},
 		launched: make(chan *fakeProcess, 4),
+		log:      logging.New(nil, logging.LevelInfo, 100),
 	}
 	var pids atomic.Int32
 	h.core = NewCore(Deps{
 		Data:     data,
 		Settings: settings,
 		Routes:   h.routes,
-		Vault:    h.vault,
-		Servers:  h.servers,
+		CheckProxy: func(p model.Proxy) error {
+			if h.check != nil {
+				return h.check(p)
+			}
+			return nil
+		},
+		Vault:   h.vault,
+		Servers: h.servers,
 		Launch: func(args []string) (session.Process, error) {
 			p := &fakeProcess{pid: 5000 + int(pids.Add(1)), args: args, exit: make(chan int, 1)}
 			h.launched <- p
 			return p, nil
 		},
 		Gateway: func() (mstsc.Gateway, error) { return h.gateway, nil },
-		Log:     logging.New(nil, logging.LevelInfo, 100),
+		Log:     h.log,
 		Emit:    h.events.emit,
 	})
 	t.Cleanup(h.core.Quit)
@@ -284,7 +302,8 @@ func newHarness(t *testing.T) *harness {
 	h.proxies = NewProxyService(h.core)
 	h.sessions = NewSessionService(h.core)
 	h.app = NewAppService(h.core, func() { h.quits.Add(1) })
-	return h
+	h.core.Start(problems)
+	return h, problems
 }
 
 // proxy stores a SOCKS proxy; anyRoute ignores where it points.

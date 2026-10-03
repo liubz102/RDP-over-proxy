@@ -97,6 +97,9 @@ type Data struct {
 	mu       sync.Mutex
 	proxies  map[string]model.Proxy
 	profiles map[string]model.Profile
+	// lost are the proxies whose sealed values could not be opened when
+	// they were loaded (SecretsLost).
+	lost map[string]bool
 }
 
 // OpenData loads every proxy and profile under configDir. Loading never
@@ -108,6 +111,7 @@ func OpenData(configDir string, sealer Sealer) (*Data, []Problem) {
 		sealer:   sealer,
 		proxies:  map[string]model.Proxy{},
 		profiles: map[string]model.Profile{},
+		lost:     map[string]bool{},
 	}
 	problems := d.loadEach(ProxiesDir, func(id, rel string, data []byte) []Problem {
 		p, probs := d.decodeProxy(id, rel, data)
@@ -197,18 +201,35 @@ func (d *Data) setAside(rel string, err error) *Problem {
 	return &Problem{File: rel, Code: ProblemUnreadable, Err: err}
 }
 
+// proxyFile is a proxy as its file holds it: Secret, Options and Outbound
+// are sealed text.
+type proxyFile struct {
+	model.Proxy
+	// Options shadows Proxy.Options: the options as sealed JSON text.
+	Options string `json:"options"`
+}
+
 func (d *Data) decodeProxy(id, rel string, data []byte) (*model.Proxy, []Problem) {
-	p := model.Proxy{Schema: model.ProxySchema}
-	if prob := d.decode(rel, data, model.ProxySchema, &p); prob != nil {
+	f := proxyFile{Proxy: model.Proxy{Schema: model.ProxySchema}}
+	if prob := d.decode(rel, data, model.ProxySchema, &f); prob != nil {
 		return nil, []Problem{*prob}
 	}
+	p := f.Proxy
 	p.ID = id // the file name is the ID
 	var problems []Problem
 	secret, errSecret := d.sealer.Open(p.Secret)
 	outbound, errOutbound := d.sealer.Open(p.Outbound)
+	options, errOptions := d.sealer.Open(f.Options)
+	if errOptions == nil && options != "" {
+		errOptions = json.Unmarshal([]byte(options), &p.Options)
+	}
 	p.Secret, p.Outbound = secret, outbound
-	if err := errors.Join(errSecret, errOutbound); err != nil {
+	if err := errors.Join(errSecret, errOutbound, errOptions); err != nil {
+		// None of what was sealed is used: what a failed opening returns
+		// is no secret, and the rest belongs with it.
+		p.Secret, p.Outbound, p.Options = "", "", model.ProxyOptions{}
 		problems = append(problems, Problem{File: rel, Code: ProblemSecretLost, Err: err})
+		d.lost[id] = true
 	}
 	p = p.Normalize()
 	if p.Kind == model.KindDirect {
@@ -288,6 +309,18 @@ func (d *Data) Proxies() []model.Proxy {
 	return out
 }
 
+// SecretsLost reports whether the proxy's sealed values (its secret, the
+// V2Ray family's settings, a custom outbound) could not be opened when it
+// was loaded, because they came from another Windows user or computer. What
+// is left are defaults, which are no way to reach the server: the user's
+// ID would go out without the TLS it was meant to travel in. It stays so
+// until the proxy is saved again.
+func (d *Data) SecretsLost(id string) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.lost[id]
+}
+
 // Proxy returns the proxy with the given ID; model.DirectProxyID gives the
 // built-in direct entry.
 func (d *Data) Proxy(id string) (model.Proxy, bool) {
@@ -352,7 +385,7 @@ func (d *Data) saveProxy(p model.Proxy) (model.Proxy, error) {
 	if err := p.Validate(); err != nil {
 		return model.Proxy{}, err
 	}
-	onDisk := p
+	onDisk := proxyFile{Proxy: p}
 	var err error
 	if onDisk.Secret, err = d.sealer.Seal(p.Secret); err != nil {
 		return model.Proxy{}, err
@@ -360,10 +393,20 @@ func (d *Data) saveProxy(p model.Proxy) (model.Proxy, error) {
 	if onDisk.Outbound, err = d.sealer.Seal(p.Outbound); err != nil {
 		return model.Proxy{}, err
 	}
+	if p.Options != (model.ProxyOptions{}) {
+		options, err := json.Marshal(p.Options)
+		if err != nil {
+			return model.Proxy{}, err
+		}
+		if onDisk.Options, err = d.sealer.Seal(string(options)); err != nil {
+			return model.Proxy{}, err
+		}
+	}
 	if err := writeFile(filepath.Join(d.dir, ProxiesDir, p.ID+".json"), onDisk); err != nil {
 		return model.Proxy{}, err
 	}
 	d.proxies[p.ID] = p
+	delete(d.lost, p.ID)
 	return p, nil
 }
 
@@ -392,6 +435,7 @@ func (d *Data) DeleteProxy(id string) error {
 		return err
 	}
 	delete(d.proxies, id)
+	delete(d.lost, id)
 	return nil
 }
 

@@ -2,7 +2,8 @@ import { createInstance } from "i18next";
 import { beforeAll, describe, expect, it } from "vitest";
 import en from "../../src/locales/en.json";
 import zhCN from "../../src/locales/zh-CN.json";
-import { errorDetails, errorText, fieldCodes, logDetails, logText, noticeText } from "../../src/lib/messages";
+import { editableKinds, networks, securities, transportName } from "../../src/features/proxies/names";
+import { errorDetails, errorText, fieldCodes, linkNoteText, logDetails, logText, noticeText } from "../../src/lib/messages";
 
 const i18n = createInstance();
 
@@ -93,6 +94,23 @@ describe("noticeText", () => {
   });
 });
 
+describe("linkNoteText", () => {
+  it("fills in the note's arguments", () => {
+    expect(linkNoteText(i18n, { code: "ports", args: { ports: "443,20000-30000", port: "443" } })).toContain("443,20000-30000");
+    expect(linkNoteText(i18n, { code: "somethingNew" })).toBe("somethingNew");
+  });
+});
+
+describe("transportName", () => {
+  it("names what is not plain TCP", () => {
+    const t = i18n.t.bind(i18n);
+    expect(transportName(t, "ws", "tls")).toBe("WebSocket + TLS");
+    expect(transportName(t, "tcp", "reality")).toBe("REALITY");
+    expect(transportName(t, "tcp", "none")).toBe("");
+    expect(transportName(t, "", "")).toBe("");
+  });
+});
+
 describe("fieldCodes", () => {
   it("keeps the first problem of each field", () => {
     expect(
@@ -116,7 +134,9 @@ describe("catalogs", () => {
     ),
     ...["required", "invalid", "out_of_range", "too_long", "unsupported", "conflict"].map((c) => `fieldErrors.${c}`),
     ...["error", "warn", "info", "debug"].map((l) => `settings.logLevels.${l}`),
-    ...["socks", "http"].map((k) => `proxies.kinds.${k}`),
+    ...editableKinds.map((k) => `proxies.kinds.${k}`),
+    ...networks.map((n) => `proxies.networks.${n}`),
+    ...securities.map((s) => `proxies.securities.${s}`),
   ];
 
   it.each(["en", "zh-CN"])("%s has every key built from a code", (lng) => {

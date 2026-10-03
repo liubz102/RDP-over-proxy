@@ -2,7 +2,7 @@
 // keys) into text in the user's language. The Go side sends stable codes plus
 // the original English text; the text is kept as details.
 import type { i18n as I18n } from "i18next";
-import type { ErrorView, FieldError, LogLine, Notice } from "../api/backend";
+import type { ErrorView, FieldError, LinkNote, LogLine, Notice } from "../api/backend";
 
 type Translator = Pick<I18n, "t" | "exists">;
 
@@ -26,6 +26,12 @@ const technical = ["net.", "probe.", "tunnel.", "proxy.", "credential.", "secret
 export function errorDetails(e: Pick<ErrorView, "code" | "message"> | null | undefined): string {
   if (!e || e.code === "proxy.inUse" || !technical.some((p) => e.code.startsWith(p))) return "";
   return e.message;
+}
+
+/** A note about a share link (sharelink.Note) in the user's language. */
+export function linkNoteText(i18n: Translator, n: LinkNote): string {
+  const key = `linkNotes.${n.code}`;
+  return i18n.exists(key) ? i18n.t(key, { ...n.args }) : n.code;
 }
 
 /** A notice in the user's language. */

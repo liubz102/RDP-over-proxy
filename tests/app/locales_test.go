@@ -13,6 +13,7 @@ import (
 	"github.com/liubz102/RDP-over-proxy/internal/api"
 	"github.com/liubz102/RDP-over-proxy/internal/errcode"
 	"github.com/liubz102/RDP-over-proxy/internal/session"
+	"github.com/liubz102/RDP-over-proxy/internal/sharelink"
 )
 
 // The Go side sends codes and message keys; the frontend translates them.
@@ -29,9 +30,12 @@ func TestEveryCodeIsTranslated(t *testing.T) {
 	for _, msg := range append(slices.Clone(session.Messages), api.Messages...) {
 		want = append(want, "log."+msg)
 	}
+	for _, code := range sharelink.Notes {
+		want = append(want, "linkNotes."+code)
+	}
 	// Engine and store codes come from their packages' declarations; make
 	// sure those were linked rather than checking a short list.
-	for _, code := range []string{"proxy.auth", "store.notFound", "probe.noAnswer", "net.refused"} {
+	for _, code := range []string{"proxy.auth", "proxy.config", "link.invalid", "store.notFound", "probe.noAnswer", "net.refused"} {
 		if !slices.Contains(want, "errors."+code) {
 			t.Fatalf("%s was not declared; the list is incomplete: %q", code, want)
 		}

@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/liubz102/RDP-over-proxy/internal/engine"
@@ -268,12 +269,14 @@ func TestDirectNeedsNoOutbound(t *testing.T) {
 	}
 }
 
-func TestKindsOfLaterMilestonesAreRefused(t *testing.T) {
+func TestUnknownKindsAreRefused(t *testing.T) {
 	e := startEngine(t, engine.Options{})
-	p := model.Proxy{ID: "v", Name: "VMess", Kind: model.KindVMess, Server: "192.0.2.1", Port: 443,
-		Outbound: `{"protocol":"vmess"}`}
+	p := model.Proxy{ID: "t", Name: "Tor", Kind: "tor", Server: "192.0.2.1", Port: 9050}
 	if _, _, err := e.Acquire(p); !errors.Is(err, route.ErrUnsupported) {
-		t.Fatalf("Acquire(vmess) = %v, want ErrUnsupported", err)
+		t.Fatalf("Acquire(tor) = %v, want ErrUnsupported", err)
+	}
+	if len(e.Outbounds()) != 0 {
+		t.Fatal("a refused proxy left an outbound behind")
 	}
 }
 
@@ -370,6 +373,53 @@ func TestLogBridge(t *testing.T) {
 		default:
 			t.Fatalf("no line about the failed outbound; got %q", seen)
 		}
+	}
+}
+
+func TestLogBridgeAtTheUsualLevel(t *testing.T) {
+	// A VMess server first: creating an Xray instance takes over the
+	// process-wide logger, and the engine must be the last to do so.
+	o := xraytest.Options{Protocol: model.KindVMess, Secret: userID}
+	px := xraytest.Start(t, o)
+	var mu sync.Mutex
+	var lines []string
+	var verbose atomic.Bool
+	e := startEngine(t, engine.Options{
+		Log: func(level, msg string) {
+			mu.Lock()
+			lines = append(lines, level+" "+msg)
+			mu.Unlock()
+		},
+		Verbose: verbose.Load,
+	})
+	taken := func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		out := lines
+		lines = nil
+		return out
+	}
+	// Building a VMess outbound makes Xray call VMess deprecated.
+	acquire(t, e, px.Model("dep1", o))
+	started := false
+	for _, l := range taken() {
+		if strings.HasPrefix(l, "info core: Xray ") && strings.HasSuffix(l, " started") {
+			started = true
+		}
+		if strings.Contains(l, "deprecated") {
+			t.Errorf("a deprecation note at the usual level: %q", l)
+		}
+	}
+	if !started {
+		t.Error("Xray's start line, with its version, is missing")
+	}
+	// At debug level the note is there, as information.
+	verbose.Store(true)
+	acquire(t, e, px.Model("dep2", o))
+	if got := taken(); !slices.ContainsFunc(got, func(l string) bool {
+		return strings.HasPrefix(l, "info ") && strings.Contains(l, "deprecated")
+	}) {
+		t.Errorf("no deprecation note at debug level: %q", got)
 	}
 }
 

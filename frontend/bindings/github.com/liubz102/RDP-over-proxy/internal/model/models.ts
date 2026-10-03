@@ -95,18 +95,161 @@ export interface Proxy {
     "port": number;
 
     /**
-     * Username and Secret sign in to a SOCKS5 or HTTP proxy. The store seals
-     * Secret with DPAPI before it writes the file.
+     * Username signs in to a SOCKS5 or HTTP proxy, with Secret as the
+     * password.
      */
     "username": string;
+
+    /**
+     * Secret is what signs in: the password of a SOCKS5, HTTP, Shadowsocks,
+     * Trojan or Hysteria2 proxy, or the user ID of a VMess or VLESS one. The
+     * store seals it with DPAPI before it writes the file.
+     */
     "secret": string;
 
     /**
-     * Outbound is the complete Xray outbound object, as JSON text, for the
-     * V2Ray-family kinds and KindXray. It holds credentials, so the store
-     * seals it like Secret.
+     * Options are the settings of the V2Ray-family kinds (IsV2Ray) besides
+     * the server, the port and the secret. They include obfuscation keys and
+     * the paths that lead to the server, so the store seals them like Secret.
+     */
+    "options": ProxyOptions;
+
+    /**
+     * Outbound is the complete Xray outbound object, as JSON text, of a
+     * KindXray proxy. It holds credentials, so the store seals it like
+     * Secret.
      */
     "outbound": string;
+}
+
+/**
+ * ProxyOptions are a V2Ray-family proxy's settings besides the server, the
+ * port and the secret: the protocol's own options, the transport and its
+ * security layer. Most are named after the share-link parameters of the same
+ * meaning (XTLS/Xray-core discussion #716).
+ * 
+ * Normalize keeps only the options that apply to the proxy's kind, network
+ * and security, and fills in the defaults, so what is stored is exactly what
+ * is used.
+ */
+export interface ProxyOptions {
+    /**
+     * Cipher is Shadowsocks' method (ShadowsocksCiphers), or VMess' own
+     * encryption, which Xray calls "security" (VMessCiphers).
+     */
+    "cipher": string;
+
+    /**
+     * Flow is VLESS' flow control (VLESSFlows); empty for none.
+     */
+    "flow": string;
+
+    /**
+     * Encryption is VLESS' encryption: "none", or the client setting of VLESS
+     * Encryption ("mlkem768x25519plus.…").
+     */
+    "encryption": string;
+
+    /**
+     * ObfsPassword turns on Hysteria2's Salamander obfuscation.
+     */
+    "obfsPassword": string;
+
+    /**
+     * Network is how VMess, VLESS and Trojan carry the connection (Networks).
+     */
+    "network": string;
+
+    /**
+     * HeaderType disguises TCP as HTTP (TCPHeaders), or mKCP packets as
+     * another protocol (KCPHeaders).
+     */
+    "headerType": string;
+
+    /**
+     * Host and Path are the HTTP host and path of WebSocket, HTTPUpgrade and
+     * XHTTP, and of TCP's HTTP disguise, where both are comma-separated
+     * lists. For mKCP's DNS disguise, Host is the domain.
+     */
+    "host": string;
+    "path": string;
+
+    /**
+     * ServiceName and Authority are gRPC's.
+     */
+    "serviceName": string;
+    "authority": string;
+
+    /**
+     * Mode is gRPC's (GRPCModes) or XHTTP's (XHTTPModes).
+     */
+    "mode": string;
+
+    /**
+     * Seed encrypts mKCP packets with AES-128-GCM; without it they are only
+     * obfuscated.
+     */
+    "seed": string;
+
+    /**
+     * Extra is XHTTP's further settings, a JSON object.
+     */
+    "extra": string;
+
+    /**
+     * FinalMask is Xray's "finalmask" settings (masks for the packets on the
+     * wire, QUIC parameters), a JSON object; share links call it "fm".
+     */
+    "finalMask": string;
+
+    /**
+     * Security is the layer around the transport: SecurityNone, SecurityTLS
+     * or SecurityREALITY.
+     */
+    "security": string;
+
+    /**
+     * SNI is the server name that TLS and REALITY present. Empty means the
+     * server's address (TLS only).
+     */
+    "sni": string;
+
+    /**
+     * ALPN is TLS' application protocols, comma-separated.
+     */
+    "alpn": string;
+
+    /**
+     * Fingerprint is the TLS client that TLS and REALITY imitate, such as
+     * "chrome" (Fingerprints); empty is Xray's default, Chrome.
+     */
+    "fingerprint": string;
+
+    /**
+     * PinnedCerts are the SHA-256 hashes, in hex, of the certificates to
+     * trust, comma-separated. They are the way to trust a self-signed
+     * certificate: Xray no longer skips verification ("allowInsecure").
+     */
+    "pinnedCerts": string;
+
+    /**
+     * VerifyNames are the names to verify the certificate against instead of
+     * the SNI, comma-separated.
+     */
+    "verifyNames": string;
+
+    /**
+     * ECH is the config list of TLS Encrypted Client Hello.
+     */
+    "ech": string;
+
+    /**
+     * PublicKey, ShortID, SpiderX and MLDSA65Verify are REALITY's.
+     */
+    "publicKey": string;
+    "shortId": string;
+    "spiderX": string;
+    "mldsa65Verify": string;
 }
 
 /**

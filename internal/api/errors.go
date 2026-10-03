@@ -58,4 +58,8 @@ var (
 	ErrProxyMissing = errcode.New("profile.proxyMissing", "the connection's proxy no longer exists")
 	// ErrNoSession: there is no session to stop or bring forward.
 	ErrNoSession = errcode.New("session.none", "the connection is not running")
+	// ErrSecretsLost: the proxy's secrets and settings could not be
+	// decrypted (store.Data.SecretsLost); it is not used until they are
+	// entered again.
+	ErrSecretsLost = errcode.New("proxy.secretsLost", "the proxy's passwords and settings could not be decrypted; enter them again")
 )

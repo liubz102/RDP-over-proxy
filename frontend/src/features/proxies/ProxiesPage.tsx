@@ -21,18 +21,19 @@ import {
   Delete20Regular,
   Edit20Regular,
   Globe24Regular,
+  Link20Regular,
   MoreHorizontal20Regular,
   TopSpeed20Regular,
 } from "@fluentui/react-icons";
-import type { CancellablePromise } from "@wailsio/runtime";
+import { Clipboard, type CancellablePromise } from "@wailsio/runtime";
 import { useTranslation } from "react-i18next";
 import { errorOf, ProxyService, type ErrorView, type LatencyResult, type ProxyView } from "../../api/backend";
-import { ConfirmDialog, ErrorBar } from "../../components/Feedback";
+import { ConfirmDialog, ErrorBar, useNotify } from "../../components/Feedback";
 import { EmptyState, Page } from "../../components/Page";
 import { joinHostPort } from "../../lib/address";
 import { errorText } from "../../lib/messages";
 import { useData } from "../../stores/data";
-import { kindName, proxyName } from "./names";
+import { kindName, proxyName, transportName } from "./names";
 import { ProxyDialog } from "./ProxyDialog";
 
 const useStyles = makeStyles({
@@ -85,6 +86,9 @@ const useStyles = makeStyles({
   good: { color: tokens.colorPaletteGreenForeground1 },
   bad: {
     color: tokens.colorStatusDangerForeground1,
+    // Caption1 is a span; only a block of some kind keeps to its width.
+    display: "inline-block",
+    verticalAlign: "middle",
     maxWidth: "220px",
     overflow: "hidden",
     textOverflow: "ellipsis",
@@ -162,9 +166,19 @@ type Latency =
   | { kind: "done"; ms: number }
   | { kind: "failed"; error: ErrorView };
 
+/** Puts text on the clipboard: the page's own way first, Wails' when the page may not. */
+async function copy(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    await Clipboard.SetText(text);
+  }
+}
+
 function Row({ view, onDialog }: { view: ProxyView; onDialog: (kind: "edit" | "delete") => void }) {
   const styles = useStyles();
   const { t, i18n } = useTranslation();
+  const notify = useNotify();
   const p = view.proxy;
   const [latency, setLatency] = useState<Latency>({ kind: "idle" });
   const running = useRef<CancellablePromise<LatencyResult> | null>(null);
@@ -201,11 +215,22 @@ function Row({ view, onDialog }: { view: ProxyView; onDialog: (kind: "edit" | "d
     );
   };
 
+  const copyLink = async () => {
+    try {
+      await copy(await ProxyService.ShareLink(p.id));
+      notify.success(t("proxies.linkCopied"));
+    } catch (e) {
+      notify.error(e, t("proxies.linkCopyFailed"));
+    }
+  };
+
   const sub: string[] = [];
   if (view.builtIn) sub.push(t("proxies.directHint"));
   else {
-    sub.push(joinHostPort(p.server, p.port, -1));
+    if (p.server) sub.push(joinHostPort(p.server, p.port, -1));
     if (p.username) sub.push(t("proxies.account", { user: p.username }));
+    const transport = transportName(t, view.network, view.security);
+    if (transport) sub.push(transport);
   }
   sub.push(view.usedBy > 0 ? t("proxies.usedBy", { count: view.usedBy }) : t("proxies.unused"));
 
@@ -220,6 +245,13 @@ function Row({ view, onDialog }: { view: ProxyView; onDialog: (kind: "edit" | "d
             <Badge appearance="tint" color="informative" size="small">
               {kindName(t, p.kind)}
             </Badge>
+          )}
+          {view.secretsLost && (
+            <Tooltip content={t("proxies.secretsLostHint")} relationship="description">
+              <Badge appearance="tint" color="warning" size="small">
+                {t("proxies.secretsLost")}
+              </Badge>
+            </Tooltip>
           )}
         </div>
         <Caption1 className={styles.sub}>{sub.join(" · ")}</Caption1>
@@ -251,6 +283,11 @@ function Row({ view, onDialog }: { view: ProxyView; onDialog: (kind: "edit" | "d
                 <MenuItem icon={<Edit20Regular />} onClick={() => onDialog("edit")}>
                   {t("common.edit")}
                 </MenuItem>
+                {p.kind !== "xray" && (
+                  <MenuItem icon={<Link20Regular />} onClick={() => void copyLink()}>
+                    {t("proxies.copyLink")}
+                  </MenuItem>
+                )}
                 <MenuItem icon={<Delete20Regular />} onClick={() => onDialog("delete")}>
                   {t("common.delete")}
                 </MenuItem>

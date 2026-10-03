@@ -16,6 +16,7 @@ export type {
   DataView,
   ErrorView,
   LatencyResult,
+  LinkView,
   Notice,
   ProfileView,
   ProxyView,
@@ -28,9 +29,11 @@ export type {
   FieldError,
   Profile,
   Proxy,
+  ProxyOptions,
   Settings,
   Target,
 } from "../../bindings/github.com/liubz102/RDP-over-proxy/internal/model";
+export type { Note as LinkNote } from "../../bindings/github.com/liubz102/RDP-over-proxy/internal/sharelink";
 
 // Event names emitted by the Go side (internal/api).
 export const Events = {

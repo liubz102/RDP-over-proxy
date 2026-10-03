@@ -21,12 +21,17 @@ const (
 	// connection before the target answered. Xray-based servers (such as
 	// v2rayN's local port) do this when they cannot reach the target.
 	CodeProxyDropped = "proxy.dropped"
+	// CodeProxyTLS: the proxy server's certificate did not pass: it is not
+	// the pinned one, it is not valid for the name, or a REALITY server did
+	// not prove it has the key.
+	CodeProxyTLS = "proxy.tls"
 	// CodeProxyFailed: any other reason Xray gave.
 	CodeProxyFailed = "proxy.failed"
 )
 
 func init() {
-	errcode.Declare(CodeProxyAuth, CodeProxyUnreachable, CodeProxyTargetFailed, CodeProxyDropped, CodeProxyFailed)
+	errcode.Declare(CodeProxyAuth, CodeProxyUnreachable, CodeProxyTargetFailed, CodeProxyDropped, CodeProxyTLS,
+		CodeProxyFailed)
 }
 
 // classify labels the error Xray reported for a connection.
@@ -39,13 +44,18 @@ func classify(err error) error {
 	msg := err.Error()
 	has := func(s string) bool { return strings.Contains(msg, s) }
 	switch {
-	// SOCKS5 user name/password sign-in refused (RFC 1929), or HTTP 407.
-	case has("server rejects account"), has("non 200 code: 407"):
+	// SOCKS5 user name/password sign-in refused (RFC 1929), HTTP 407, or a
+	// Hysteria2 server that turned the password down.
+	case has("server rejects account"), has("non 200 code: 407"), has("hysteria: auth failed"):
 		return errcode.Wrap(CodeProxyAuth, err)
 	// The SOCKS5 CONNECT reply was an error, or an HTTP CONNECT got another
 	// status: the proxy answered but did not reach the target.
 	case has("server rejects request"), has("non 200 code"):
 		return errcode.Wrap(CodeProxyTargetFailed, err)
+	// The certificate is not the pinned one, or does not verify; a REALITY
+	// server without the key shows its target's certificate instead.
+	case has("peer cert is"), has("x509:"), has("tls: failed to verify"), has("REALITY: processed invalid connection"):
+		return errcode.Wrap(CodeProxyTLS, err)
 	// Every attempt to connect to the proxy server failed.
 	case has("failed to find an available destination"):
 		return errcode.Wrap(CodeProxyUnreachable, err)

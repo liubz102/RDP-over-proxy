@@ -12,7 +12,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -21,7 +20,6 @@ import (
 
 	"github.com/xtls/xray-core/core"
 	"github.com/xtls/xray-core/features/outbound"
-	"github.com/xtls/xray-core/infra/conf"
 	"github.com/xtls/xray-core/infra/conf/serial"
 
 	// The parts of Xray the engine uses. infra/conf links most of Xray in
@@ -34,8 +32,22 @@ import (
 	_ "github.com/xtls/xray-core/app/proxyman/outbound"
 	_ "github.com/xtls/xray-core/proxy/blackhole"
 	_ "github.com/xtls/xray-core/proxy/http"
+	_ "github.com/xtls/xray-core/proxy/hysteria"
+	_ "github.com/xtls/xray-core/proxy/shadowsocks"
+	_ "github.com/xtls/xray-core/proxy/shadowsocks_2022"
 	_ "github.com/xtls/xray-core/proxy/socks"
+	_ "github.com/xtls/xray-core/proxy/trojan"
+	_ "github.com/xtls/xray-core/proxy/vless/outbound"
+	_ "github.com/xtls/xray-core/proxy/vmess/outbound"
+	_ "github.com/xtls/xray-core/transport/internet/grpc"
+	_ "github.com/xtls/xray-core/transport/internet/httpupgrade"
+	_ "github.com/xtls/xray-core/transport/internet/hysteria"
+	_ "github.com/xtls/xray-core/transport/internet/kcp"
+	_ "github.com/xtls/xray-core/transport/internet/reality"
+	_ "github.com/xtls/xray-core/transport/internet/splithttp"
 	_ "github.com/xtls/xray-core/transport/internet/tcp"
+	_ "github.com/xtls/xray-core/transport/internet/tls"
+	_ "github.com/xtls/xray-core/transport/internet/websocket"
 
 	"github.com/liubz102/RDP-over-proxy/internal/errcode"
 	"github.com/liubz102/RDP-over-proxy/internal/model"
@@ -178,18 +190,14 @@ func (e *Engine) Outbounds() []string {
 }
 
 // add builds an outbound from its JSON and adds it under tag.
-func (e *Engine) add(outboundJSON, tag string) error {
-	var c conf.OutboundDetourConfig
-	if err := json.Unmarshal([]byte(outboundJSON), &c); err != nil {
-		return fmt.Errorf("the proxy's Xray outbound is not valid: %w", err)
-	}
-	c.Tag = tag
-	built, err := c.Build()
+func (e *Engine) add(outboundJSON, tag string) (err error) {
+	built, err := build(outboundJSON, tag)
 	if err != nil {
-		return fmt.Errorf("Xray rejected the proxy's settings: %w", err)
+		return err
 	}
+	defer recoverConfig(&err)
 	if err := core.AddOutboundHandler(e.instance, built); err != nil {
-		return fmt.Errorf("Xray could not add the proxy: %w", err)
+		return fmt.Errorf("%w: %w", ErrConfig, err)
 	}
 	return nil
 }
@@ -206,27 +214,15 @@ func (e *Engine) release(key string) {
 		return
 	}
 	delete(e.shared, key)
-	// Removing a handler only forgets it; closing it frees what it holds.
-	h := e.outbounds.GetHandler(s.tag)
-	_ = e.outbounds.RemoveHandler(context.Background(), s.tag)
-	if h != nil {
-		_ = h.Close()
-	}
+	e.remove(s.tag)
 }
 
-// Outbound returns the Xray outbound object, as JSON, for proxy p.
-func Outbound(p model.Proxy) (string, error) {
-	switch p.Kind {
-	case model.KindSocks, model.KindHTTP:
-		settings := map[string]any{"address": p.Server, "port": p.Port}
-		if p.Username != "" {
-			settings["user"] = p.Username
-			settings["pass"] = p.Secret
-		}
-		b, err := json.Marshal(map[string]any{"protocol": p.Kind, "settings": settings})
-		return string(b), err
-	default:
-		// The V2Ray-family kinds and custom outbounds arrive in M6.
-		return "", fmt.Errorf("%w: %s", route.ErrUnsupported, p.Kind)
+// remove takes the outbound with the tag out of Xray and closes it: removing
+// a handler only forgets it, closing it frees what it holds.
+func (e *Engine) remove(tag string) {
+	h := e.outbounds.GetHandler(tag)
+	_ = e.outbounds.RemoveHandler(context.Background(), tag)
+	if h != nil {
+		_ = h.Close()
 	}
 }

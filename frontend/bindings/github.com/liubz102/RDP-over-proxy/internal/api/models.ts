@@ -4,6 +4,9 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as model$0 from "../model/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as sharelink$0 from "../sharelink/models.js";
 
 /**
  * AppInfo describes the running build for the About section.
@@ -77,6 +80,15 @@ export interface LatencyResult {
 }
 
 /**
+ * LinkView is a proxy read from a share link, with notes about the link
+ * ("linkNotes.<code>").
+ */
+export interface LinkView {
+    "proxy": model$0.Proxy;
+    "notes": sharelink$0.Note[] | null;
+}
+
+/**
  * Notice is something the user should know about that no button press of
  * theirs caused, such as a file that could not be loaded. It stays until
  * dismissed.
@@ -117,14 +129,15 @@ export interface ProfileView {
 }
 
 /**
- * ProxyView is a proxy as the UI lists it. Secret and Outbound, which both
- * hold credentials, are always empty; ProxyService.Get returns the outbound.
+ * ProxyView is a proxy as the UI lists it. Secret, Options and Outbound,
+ * which hold credentials and the ways to the server, are always empty;
+ * ProxyService.Get returns the options and outbound for editing.
  */
 export interface ProxyView {
     "proxy": model$0.Proxy;
 
     /**
-     * HasSecret: a password is stored.
+     * HasSecret: a password or user ID is stored.
      */
     "hasSecret": boolean;
 
@@ -137,6 +150,19 @@ export interface ProxyView {
      * UsedBy counts the profiles that use the proxy.
      */
     "usedBy": number;
+
+    /**
+     * Network and Security describe the transport (model.Proxy.Transport).
+     */
+    "network": string;
+    "security": string;
+
+    /**
+     * SecretsLost: the stored secret and settings could not be decrypted
+     * (store.Data.SecretsLost). The proxy is not used until they are entered
+     * again.
+     */
+    "secretsLost": boolean;
 }
 
 /**

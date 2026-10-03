@@ -27,13 +27,14 @@
 | `main.go` | 入口；嵌入 `frontend/dist` 和 `build/appicon.png`；`version` 默认值 |
 | `internal/app` | Wails 应用、窗口、托盘、单实例、关闭缩到托盘、启动与退出顺序。`desktop_windows.go` 和 `server.go` 用构建标签区分桌面版与 server 版；`platform_windows.go` 提供两版共用的 Windows 部件（DPAPI、凭据、mstsc） |
 | `internal/api` | 暴露给前端的服务（Settings、Profile、Proxy、Session、App）和它们共用的 `Core`；视图类型、事件、错误 JSON（`MarshalError`） |
-| `internal/model` | 数据结构（Settings、Proxy、Profile、Target）与校验，纯逻辑。Proxy / Profile 的校验返回 `FieldErrors`（字段 + 代码） |
+| `internal/model` | 数据结构（Settings、Proxy、Profile、Target）与校验，纯逻辑。Proxy / Profile 的校验返回 `FieldErrors`（字段 + 代码）。V2Ray 系的设置在 `ProxyOptions`（`options.go`），`Normalize` 只留下这种代理用得上的项并补默认值 |
 | `internal/loopback` | 由 profile ID 派生 `127.a.b.c` 回环地址，冲突时顺延 |
 | `internal/rdpfile` | 只读解析 .rdp：导入草稿、RD 网关判定 |
 | `internal/mstsc` | mstsc 启动参数（`Args`，纯函数）；启动 / 等待 / 关闭 / 结束 / 聚焦（`launch_windows.go`）；`Servers` 注册表记忆（UsernameHint）；RD 网关检查（`DecideGateway` 纯函数 + `CheckGateway`） |
 | `internal/probe` | X.224 CR/CC 编解码、线路检查 `Check` |
 | `internal/route` | `Dialer` / `Provider` 接口、直连 |
-| `internal/engine` | 内嵌的 Xray 实例，也是应用实际使用的 `route.Provider`：outbound 引用计数、强制 tag 派发、错误原因回传、日志桥接 |
+| `internal/engine` | 内嵌的 Xray 实例，也是应用实际使用的 `route.Provider`：outbound 引用计数、强制 tag 派发、错误原因回传、日志桥接；各类代理的出站生成（`outbound.go`）和保存前的 `Check` |
+| `internal/sharelink` | 分享链接（vmess、vless、trojan、ss、hysteria2、socks、http）⇄ `model.Proxy`，纯逻辑 |
 | `internal/tunnel` | 回环入口：接受连接、经线路拨目标、双向拷贝、计数、报告 |
 | `internal/session` | 会话：纯 reducer（`session.go`、`reduce.go`），外壳是 actor（`actor.go`）和 `Manager`（`manager.go`） |
 | `internal/errcode` | 错误码：`New` / `Weak` / `Wrap`，`Of` 取最有用的代码；`Declare` / `All` 供翻译完整性测试 |
@@ -44,7 +45,7 @@
 | `internal/winx` | Win32 调用：WebView2 检测、错误框、系统深色模式 |
 | `tests/<包名>` | Go 测试，每个被测包一个目录（如 `tests/session`），包名 `<包名>_test`，只用导出的 API；`tests/rdpfile/testdata` 是 .rdp 样本 |
 | `tests/testutil` | 测试共用：假 RDP 服务端；替身进程（`RunHelper` / `HelperCommand`）；`FreePort`。只能被测试引用 |
-| `tests/testutil/xraytest` | 测试用：进程内的 Xray SOCKS / HTTP 代理。单独成包，只有需要的测试才链接 Xray |
+| `tests/testutil/xraytest` | 测试用：进程内的 Xray 代理服务端，SOCKS / HTTP 和 V2Ray 系各协议、各传输、TLS / REALITY。按客户端设置起对应的服务端，`Model` 填上证书指纹和 REALITY 公钥。单独成包，只有需要的测试才链接 Xray |
 | `frontend/src` | `app/`（外壳、主题、首次语言选择）、`features/`、`components/`、`stores/`、`locales/` |
 | `frontend/tests` | 前端测试（vitest），目录结构和 `frontend/src` 对应 |
 | `frontend/bindings` | `wails3 generate bindings` 生成，不要手改 |
@@ -83,9 +84,10 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
    - `frontend/package.json`、`main.go`
 3. **时序逻辑必须事件驱动**：不写 sleep，不写固定次数重试，不设拍脑袋的超时。已登记的例外都要在代码里注释原因：
    - Xray `connIdle` 调到最大（M3）
+   - Hysteria2 的 QUIC 保活心跳，每 10 秒（M6，`engine.quicKeepAlive`）：QUIC 静默 30 秒就断，NAT 也会忘掉空闲的 UDP 映射，空闲的连接上没有事件可等
    - 只用于显示的计时器
-   - 测试里的空闲端口辅助函数
-   - 测试脚手架的兜底超时
+   - 测试里的空闲端口辅助函数（`FreePort`、`FreeUDPPort`）
+   - 测试脚手架的兜底超时；测试用 Xray 服务端的握手时限 4 秒（`xraytest`，Xray 默认 60 秒，错误 VMess ID 的用例要等满）
 4. **.bat**：不写。如果非写不可，用纯 ASCII + CRLF，中文放进同名 `.ps1`（UTF-8 带 BOM）。
 5. **测试纪律**：
    - 测试只用自己的端口，隧道用 port 0，绝不用 13389。
@@ -131,6 +133,18 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
   - `RemoveHandler` 只是把 outbound 从表里删掉，不会关闭它：要自己调 `Close`。
   - `Dispatch` 遇到非法目标会 panic：拨号前必须先校验地址。
 - **测试要看引擎日志时，先启动 `xraytest` 代理，再启动引擎**：创建 Xray 实例会顶掉日志桥接。
+- **Xray 26.x 的配置变化**（engine 已经处理，升级 Xray 时要跑 engine 测试）：
+  - `allowInsecure` 在 2026-06-01 之后直接报错，自签名证书只能用 `pinnedPeerCertSha256`（`ProxyOptions.PinnedCerts`）。链接里要求跳过验证的，导入时给提示，不照做。
+  - HTTP/2（`h2`、`http`）和 QUIC 传输、旧 XTLS 已删除，链接导入时直接拒绝。
+  - mKCP 的伪装（headerType）和 seed 挪到了 `finalmask`：伪装头在前，`mkcp-aes128gcm`（有 seed）或 `mkcp-original`（没有）在后。
+  - Hysteria2 的 TLS 要 ALPN `h3`；拥塞、带宽、端口跳跃挪到了 `finalmask.quicParams`。
+- **Xray 的配置代码碰到某些畸形值会直接 panic**（例如截断的 VLESS Encryption 字符串，切片越界），而不是返回错误：model 校验先挡住已知的，`engine.build` / `add` 里 `recoverConfig` 兜底成 `proxy.config`。
+- **更糟的是有些值 Xray 照收不误，连接时才在它自己的 goroutine 里 panic**（recover 不到，整个程序崩掉）：finalmask 的 fragment 长度为负、noise 尺寸为负、XHTTP 的各种长度为负等。所以 `model/masks.go` 规定这些 JSON 里不许出现负数，分享链接和表单里的 finalmask 只认伪装头、mKCP 混淆、Salamander；`engine.Outbound` 生成前一律先过完整校验，任何来源（包括手改的文件）的代理都到不了 Xray。新增可直接透传给 Xray 的 JSON 字段时，要照此处理。
+- **REALITY 服务端第一次有人连时，如果对目标站点的探测还没做完，会整整睡 5 秒**（上游行为，真实服务器启动时就探测了）。`xraytest` 的目标站点握手后就关连接，探测才能马上结束；同一进程里第一个 REALITY 用例仍要等这 5 秒。
+- **Fluent 对话框打开时如果里面没有可聚焦的东西（比如只有转圈），焦点陷阱（tabster modalizer）就不会激活**，之后每次在对话框里获得焦点都会被拉到对话框外面：下拉框一开就关，输入框只能打进一个字。要么等数据读完再渲染对话框（`ProxyDialog` 的做法），要么打开时就让某个输入框 autoFocus。
+- **Fluent 对话框内容区是可滚动的 flex 列时，子元素会被压扁重叠**：给子元素 `flexShrink: 0`（`ProxyDialog` 的 `content` 样式）。
+- **`Caption1`、`Body1` 等是行内的 `span`，`maxWidth` 加省略号对它们不起作用**：要截断时加 `display: "inline-block"`（或放进 flex 容器）。
+- **浏览器预览里复制不到剪贴板**：网页剪贴板被拒，Wails 的 `Clipboard.SetText` 在 server 模式下是空操作却返回成功。桌面版两者都能用；要核对复制的内容，直接调服务（如 `ProxyService.ShareLink`）。
 - **测「代理不通」的用例要等约 1.5 秒**：这是 Xray 内部的重试，不是我们的超时。
 - **PowerShell 命令开头那行 PATH 设置里有 `C:\Program Files`，同一条命令里再写 `Remove-Item` 会被工具的安全检查拦下**：删除操作单独一条命令执行，或者改用 Bash。
 - **Wails 的单实例判断在 `application.New` 里**：第二个实例在那里直接 `os.Exit`。所以打开日志文件、载入数据、动凭据都必须放在 `application.New` 之后，服务用 `app.RegisterService` 注册（见 `app.Run`）。

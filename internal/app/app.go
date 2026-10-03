@@ -118,14 +118,15 @@ func Run(opts Options) error {
 	}
 
 	core := api.NewCore(api.Deps{
-		Data:     data,
-		Settings: settings,
-		Routes:   eng,
-		Vault:    vault(),
-		Servers:  servers(),
-		Launch:   launchMstsc,
-		Gateway:  checkGateway,
-		Log:      logger,
+		Data:       data,
+		Settings:   settings,
+		Routes:     eng,
+		CheckProxy: eng.Check,
+		Vault:      vault(),
+		Servers:    servers(),
+		Launch:     launchMstsc,
+		Gateway:    checkGateway,
+		Log:        logger,
 	})
 	core.Start(problems)
 	if settingsErr != nil {

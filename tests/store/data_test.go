@@ -96,6 +96,83 @@ func TestProxyRoundTripSealsSecrets(t *testing.T) {
 	}
 }
 
+func TestV2RayOptionsAreSealed(t *testing.T) {
+	dir := t.TempDir()
+	d, _ := open(t, dir)
+	created, err := d.CreateProxy(model.Proxy{Name: "Node", Kind: model.KindVLESS, Server: "proxy.example.com", Port: 443,
+		Secret:  "b831381d-6324-4d53-ad4f-8cda48b30811",
+		Options: model.ProxyOptions{Network: "ws", Path: "/secret-path", Security: "tls", SNI: "cdn.example.com"}})
+	if err != nil {
+		t.Fatalf("CreateProxy: %v", err)
+	}
+	if created.Options.Encryption != "none" || created.Options.Path != "/secret-path" {
+		t.Fatalf("created %+v", created.Options)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, ProxiesDir, created.ID+".json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, plain := range []string{"secret-path", "cdn.example.com", "b831381d"} {
+		if strings.Contains(string(raw), plain) {
+			t.Fatalf("the file shows %q:\n%s", plain, raw)
+		}
+	}
+	if !strings.Contains(string(raw), `"options": "sealed:`) {
+		t.Fatalf("the options are not sealed:\n%s", raw)
+	}
+	again, problems := open(t, dir)
+	if len(problems) != 0 {
+		t.Fatalf("problems: %v", problems)
+	}
+	if got, _ := again.Proxy(created.ID); got != created {
+		t.Fatalf("reloaded %+v, want %+v", got, created)
+	}
+
+	// SOCKS has no options and writes none.
+	s, err := d.CreateProxy(socks("Local"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ = os.ReadFile(filepath.Join(dir, ProxiesDir, s.ID+".json"))
+	if !strings.Contains(string(raw), `"options": ""`) {
+		t.Fatalf("SOCKS options:\n%s", raw)
+	}
+}
+
+func TestSecretsOfAnotherUserAreLost(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, ProxiesDir, "0123456789abcdef.json")
+	if err := os.MkdirAll(filepath.Dir(file), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// Sealed by someone else (DPAPI of another user or computer): fakeSealer
+	// can open neither.
+	text := `{"schema":1,"name":"Node","kind":"trojan","server":"proxy.example.com","port":443,` +
+		`"secret":"dpapi:AQAAAB","options":"dpapi:AQAAAN"}`
+	if err := os.WriteFile(file, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	d, problems := open(t, dir)
+	if len(problems) != 2 || problems[0].Code != ProblemSecretLost || problems[1].Code != ProblemInvalid {
+		t.Fatalf("problems = %v", problems)
+	}
+	p, ok := d.Proxy("0123456789abcdef")
+	if !ok || p.Secret != "" || p.Options.Security != model.SecurityTLS {
+		t.Fatalf("loaded %+v", p)
+	}
+	if !d.SecretsLost(p.ID) {
+		t.Fatal("the proxy is not marked as having lost its secrets")
+	}
+	// Saved again with what the user entered, it is whole.
+	p.Secret = "pw"
+	if _, err := d.UpdateProxy(p); err != nil {
+		t.Fatal(err)
+	}
+	if d.SecretsLost(p.ID) {
+		t.Fatal("still marked after saving")
+	}
+}
+
 func TestProxyValidationAndBuiltIn(t *testing.T) {
 	d, _ := open(t, t.TempDir())
 	bad := socks("")

@@ -21,6 +21,7 @@ export type {
     DataView,
     ErrorView,
     LatencyResult,
+    LinkView,
     Notice,
     ProfileView,
     ProxyView,

@@ -3,6 +3,7 @@ package api
 import (
 	"github.com/liubz102/RDP-over-proxy/internal/model"
 	"github.com/liubz102/RDP-over-proxy/internal/session"
+	"github.com/liubz102/RDP-over-proxy/internal/sharelink"
 )
 
 // ProfileView is a profile as the UI lists it.
@@ -17,16 +18,31 @@ type ProfileView struct {
 	ProxyMissing bool `json:"proxyMissing"`
 }
 
-// ProxyView is a proxy as the UI lists it. Secret and Outbound, which both
-// hold credentials, are always empty; ProxyService.Get returns the outbound.
+// ProxyView is a proxy as the UI lists it. Secret, Options and Outbound,
+// which hold credentials and the ways to the server, are always empty;
+// ProxyService.Get returns the options and outbound for editing.
 type ProxyView struct {
 	Proxy model.Proxy `json:"proxy"`
-	// HasSecret: a password is stored.
+	// HasSecret: a password or user ID is stored.
 	HasSecret bool `json:"hasSecret"`
 	// BuiltIn: the direct entry, which cannot be edited or deleted.
 	BuiltIn bool `json:"builtIn"`
 	// UsedBy counts the profiles that use the proxy.
 	UsedBy int `json:"usedBy"`
+	// Network and Security describe the transport (model.Proxy.Transport).
+	Network  string `json:"network"`
+	Security string `json:"security"`
+	// SecretsLost: the stored secret and settings could not be decrypted
+	// (store.Data.SecretsLost). The proxy is not used until they are entered
+	// again.
+	SecretsLost bool `json:"secretsLost"`
+}
+
+// LinkView is a proxy read from a share link, with notes about the link
+// ("linkNotes.<code>").
+type LinkView struct {
+	Proxy model.Proxy      `json:"proxy"`
+	Notes []sharelink.Note `json:"notes"`
 }
 
 // DataView is every profile and proxy, sent with EventDataChanged.

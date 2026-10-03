@@ -59,6 +59,9 @@ func (s *SessionService) request(profileID string) (session.Request, error) {
 	if !ok {
 		return session.Request{}, ErrProxyMissing
 	}
+	if s.c.d.Data.SecretsLost(px.ID) {
+		return session.Request{}, ErrSecretsLost
+	}
 	st := s.c.d.Settings.Get()
 	return session.Request{Profile: p, Proxy: px, Port: st.LocalPort, CheckFirst: st.CheckRouteBeforeConnect}, nil
 }

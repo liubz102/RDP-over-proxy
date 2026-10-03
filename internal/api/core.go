@@ -1,6 +1,10 @@
 package api
 
 import (
+	"encoding/json"
+	"net/netip"
+	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -104,10 +108,13 @@ type Deps struct {
 	Data     *store.Data
 	Settings *store.SettingsStore
 	// Routes reaches targets: the Xray engine.
-	Routes  route.Provider
-	Vault   Vault
-	Servers Servers
-	Launch  func(args []string) (session.Process, error)
+	Routes route.Provider
+	// CheckProxy reports whether Xray accepts a proxy's settings
+	// (engine.Check), before they are saved. Optional.
+	CheckProxy func(model.Proxy) error
+	Vault      Vault
+	Servers    Servers
+	Launch     func(args []string) (session.Process, error)
 	// Gateway reports whether mstsc would use an RD Gateway. Optional.
 	Gateway func() (mstsc.Gateway, error)
 	Log     *logging.Logger
@@ -252,7 +259,7 @@ func (c *Core) dataView() DataView {
 	}
 	v.Proxies = append(v.Proxies, ProxyView{Proxy: model.DirectProxy(), BuiltIn: true, UsedBy: used[model.DirectProxyID]})
 	for _, p := range proxies {
-		v.Proxies = append(v.Proxies, proxyView(p, used[p.ID]))
+		v.Proxies = append(v.Proxies, c.proxyView(p, used[p.ID]))
 	}
 	return v
 }
@@ -268,11 +275,12 @@ func (c *Core) profileView(p model.Profile, proxyExists bool) ProfileView {
 	return v
 }
 
-// proxyView leaves out the password and the Xray outbound, which holds
-// credentials too; ProxyService.Get returns the outbound for editing.
-func proxyView(p model.Proxy, usedBy int) ProxyView {
-	v := ProxyView{Proxy: p, HasSecret: p.Secret != "", UsedBy: usedBy}
-	v.Proxy.Secret, v.Proxy.Outbound = "", ""
+// proxyView leaves out the secret, and the options and Xray outbound, which
+// hold credentials too; ProxyService.Get returns them for editing.
+func (c *Core) proxyView(p model.Proxy, usedBy int) ProxyView {
+	v := ProxyView{Proxy: p, HasSecret: p.Secret != "", UsedBy: usedBy, SecretsLost: c.d.Data.SecretsLost(p.ID)}
+	v.Network, v.Security = p.Transport()
+	v.Proxy.Secret, v.Proxy.Outbound, v.Proxy.Options = "", "", model.ProxyOptions{}
 	return v
 }
 
@@ -285,17 +293,98 @@ func (c *Core) dataChanged() {
 
 // refreshRedactor masks, in the log file, every name the data holds that
 // could say something about the user: hosts, servers, user names, the names
-// of connections, groups and proxies, and proxy passwords should one ever
-// appear in a message. Names only ever join the set.
+// of connections, groups and proxies, and proxy passwords and the like
+// should one ever appear in a message. Names only ever join the set.
 func (c *Core) refreshRedactor() {
 	var known []string
 	for _, p := range c.d.Data.Profiles() {
 		known = append(known, p.Target.Host, p.Username, p.Name, p.Group)
 	}
 	for _, p := range c.d.Data.Proxies() {
-		known = append(known, p.Server, p.Username, p.Name, p.Secret)
+		known = append(known, proxyNames(p)...)
 	}
-	c.d.Log.Redactor().Add(known...)
+	c.d.Log.Redactor().Add(slices.DeleteFunc(known, func(s string) bool {
+		s = strings.ToLower(strings.TrimSpace(s))
+		a, err := netip.ParseAddr(s)
+		return commonWords[s] || err == nil && a.IsLoopback()
+	})...)
+}
+
+// commonWords are values that say nothing about anyone, such as a gRPC
+// service called "grpc" or a path "/ws". Masking them would garble every
+// line that mentions the word, such as Xray's notes about gRPC. Loopback
+// addresses (a local SOCKS port) are left alone for the same reason.
+var commonWords = map[string]bool{}
+
+func init() {
+	for _, w := range []string{
+		"/", "/ws", "/ray", "/vmess", "/vless", "/trojan", "/grpc", "/xhttp", "/path", "/proxy",
+		"tcp", "raw", "udp", "ws", "websocket", "grpc", "gun", "multi", "xhttp", "splithttp", "httpupgrade",
+		"kcp", "mkcp", "quic", "http", "https", "h2", "h3", "tls", "reality", "none", "auto",
+		"vmess", "vless", "trojan", "shadowsocks", "hysteria", "hysteria2", "socks", "socks5", "freedom",
+		"proxy", "direct", "chrome", "firefox", "safari", "localhost",
+	} {
+		commonWords[w] = true
+	}
+}
+
+// proxyNames are what a proxy holds that could identify the user or open
+// the server: its names and server, its credentials, and the server names,
+// paths and keys of its transport, its masks and XHTTP's extra settings.
+func proxyNames(p model.Proxy) []string {
+	o := p.Options
+	names := []string{p.Server, p.Username, p.Name, p.Secret, o.ObfsPassword, o.Seed, o.SNI, o.ServiceName,
+		o.Authority, o.PublicKey, o.ShortID}
+	for _, list := range []string{o.Host, o.Path, o.VerifyNames} {
+		names = append(names, strings.Split(list, ",")...)
+	}
+	for _, text := range []string{o.FinalMask, o.Extra, p.Outbound} {
+		names = append(names, jsonNames(text)...)
+	}
+	return names
+}
+
+// secretKeys are the members of Xray settings, in lower case, whose values
+// say where the server is or how to get in.
+var secretKeys = map[string]bool{
+	"address": true, "id": true, "password": true, "user": true, "pass": true, "auth": true, "email": true,
+	"servername": true, "servernames": true, "host": true, "path": true, "servicename": true,
+	"authority": true, "publickey": true, "shortid": true, "seed": true, "secretkey": true,
+	"privatekey": true, "presharedkey": true, "domain": true,
+}
+
+// jsonNames collects those values from Xray settings in JSON (a custom
+// outbound, masks, XHTTP's extra settings), and every header value: a
+// header may carry a token.
+func jsonNames(text string) []string {
+	if text == "" {
+		return nil
+	}
+	var v any
+	if json.Unmarshal([]byte(text), &v) != nil {
+		return nil
+	}
+	var names []string
+	var walk func(key string, v any, all bool)
+	walk = func(key string, v any, all bool) {
+		switch v := v.(type) {
+		case map[string]any:
+			for k, inner := range v {
+				k = strings.ToLower(k)
+				walk(k, inner, all || k == "headers")
+			}
+		case []any:
+			for _, inner := range v {
+				walk(key, inner, all)
+			}
+		case string:
+			if all || secretKeys[key] {
+				names = append(names, v)
+			}
+		}
+	}
+	walk("", v, false)
+	return names
 }
 
 // sessionChanged receives every state of every session.

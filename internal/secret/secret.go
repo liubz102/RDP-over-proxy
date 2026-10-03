@@ -1,7 +1,7 @@
-// Package secret keeps secrets out of plain sight: proxy passwords and Xray
-// outbounds are sealed with DPAPI before they are written to a file, and the
-// Remote Desktop password lives in Windows Credential Manager, where mstsc
-// reads it.
+// Package secret keeps secrets out of plain sight: proxy passwords, the
+// V2Ray family's settings and custom Xray outbounds are sealed with DPAPI
+// before they are written to a file, and the Remote Desktop password lives in
+// Windows Credential Manager, where mstsc reads it.
 package secret
 
 import "github.com/liubz102/RDP-over-proxy/internal/errcode"

@@ -4,7 +4,7 @@
 
 让 Windows 自带的远程桌面（mstsc）走代理：支持 SOCKS5、HTTP，以及 VMess、VLESS、Trojan、Shadowsocks、Hysteria2。
 
-> **开发中**：当前处于 0.1.0 预览阶段。界面框架已经完成，代理隧道等核心功能正在开发，暂时还不能用来连接。进度见 [docs/PROGRESS.md](docs/PROGRESS.md)。
+> **开发中**：当前处于 0.1.0 预览阶段。已经可以经 SOCKS5、HTTP 和 V2Ray 系代理连接远程桌面；.rdp 导入、诊断、安装包等还在开发。进度见 [docs/PROGRESS.md](docs/PROGRESS.md)。
 
 ## 为什么需要它
 
@@ -35,11 +35,12 @@ mstsc ──▶ 127.x.y.z:13389 ──▶ RDP over Proxy（本机隧道）──
 
 - ✓ 中英双语界面，首次启动时选择语言，之后可以在设置里修改
 - ✓ 关闭窗口时缩到托盘、单实例运行、跟随系统深浅色
-- 连接管理：目标地址和端口、使用的代理、登录用户名、记住密码（保存在 Windows 凭据管理器）
-- 代理管理：SOCKS5、HTTP、VMess、VLESS（含 REALITY）、Trojan、Shadowsocks、Hysteria2、自定义 Xray 出站
-- 粘贴分享链接导入，包括 v2rayN 导出的链接
-- 连接前检查线路：通过代理向目标发送 RDP 握手，报告延迟和对方支持的安全协议
-- 一键连接；关闭远程桌面窗口后，隧道自动关闭
+- ✓ 连接管理：目标地址和端口、使用的代理、登录用户名、记住密码（保存在 Windows 凭据管理器）
+- ✓ 代理管理：SOCKS5、HTTP、VMess、VLESS（含 REALITY）、Trojan、Shadowsocks、Hysteria2、自定义 Xray 出站
+- ✓ 粘贴分享链接导入，包括 v2rayN 导出的链接；也能复制代理的分享链接
+- ✓ 连接前检查线路：通过代理向目标发送 RDP 握手，报告延迟和对方支持的安全协议
+- ✓ 一键连接；关闭远程桌面窗口后，隧道自动关闭
+- 导入 .rdp 文件、环境诊断、安装包
 
 ## 系统要求
 

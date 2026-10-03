@@ -41,14 +41,24 @@ func (b bridge) Handle(msg xlog.Message) {
 	default:
 		return
 	}
+	text := fmt.Sprint(m.Content)
+	if level == "warn" {
+		switch {
+		case strings.HasPrefix(text, "core: Xray ") && strings.HasSuffix(text, " started"):
+			// Xray announces its start, with its version, as a warning so
+			// that it shows at Xray's default log level. It is information,
+			// and worth having in every log.
+			b.fn("info", text)
+			return
+		case strings.Contains(text, "The feature ") && strings.Contains(text, " is deprecated, not recommended"):
+			// Xray calls VMess, Trojan, Shadowsocks, WebSocket, gRPC and more
+			// deprecated each time such an outbound is built. They still
+			// work, and which one to use is the server's choice.
+			level = "info"
+		}
+	}
 	if (level == "info" || level == "debug") && !b.verbose() {
 		return
-	}
-	text := fmt.Sprint(m.Content)
-	// Xray announces its start, with its version, as a warning so that it
-	// shows at Xray's default log level. It is information, not a warning.
-	if level == "warn" && strings.HasPrefix(text, "core: Xray ") && strings.HasSuffix(text, " started") {
-		level = "info"
 	}
 	b.fn(level, text)
 }

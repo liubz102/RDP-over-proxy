@@ -19,7 +19,7 @@ import * as model$0 from "../model/models.js";
 import * as $models from "./models.js";
 
 /**
- * Create stores a new proxy.
+ * Create stores a new proxy, once Xray has accepted its settings.
  */
 export function Create(p: model$0.Proxy): $CancellablePromise<$models.ProxyView> {
     return $Call.ByID(2199925662, p);
@@ -34,8 +34,18 @@ export function Delete(id: string): $CancellablePromise<void> {
 }
 
 /**
- * Get returns one proxy for editing, without its password (see HasSecret
- * in List).
+ * DraftLatency is Latency through settings that are not saved, such as a
+ * link just pasted into the editor. With keepSecret the stored proxy's
+ * secret is used (p.ID names it), as Update would. The settings are checked
+ * as Create and Update check them.
+ */
+export function DraftLatency(p: model$0.Proxy, keepSecret: boolean): $CancellablePromise<$models.LatencyResult> {
+    return $Call.ByID(560764533, p, keepSecret);
+}
+
+/**
+ * Get returns one proxy for editing, without its secret (see HasSecret in
+ * List). Its options and custom outbound come along: the editor shows them.
  */
 export function Get(id: string): $CancellablePromise<model$0.Proxy> {
     return $Call.ByID(2115052486, id);
@@ -59,9 +69,27 @@ export function List(): $CancellablePromise<$models.ProxyView[] | null> {
 }
 
 /**
- * Update stores an edited proxy. With keepSecret the stored password stays
- * and p.Secret is ignored, so the form does not need to know it. Sessions
- * already using the proxy keep the settings they started with.
+ * ParseLink reads a share link into a proxy for the editor to fill in;
+ * nothing is saved. The notes say what the link asks for that the proxy does
+ * without.
+ */
+export function ParseLink(link: string): $CancellablePromise<$models.LinkView> {
+    return $Call.ByID(434563073, link);
+}
+
+/**
+ * ShareLink writes a stored proxy as a share link, credentials included, for
+ * the user to copy.
+ */
+export function ShareLink(id: string): $CancellablePromise<string> {
+    return $Call.ByID(3867526709, id);
+}
+
+/**
+ * Update stores an edited proxy, once Xray has accepted its settings. With
+ * keepSecret the stored secret stays and p.Secret is ignored, so the form
+ * does not need to know it; a proxy that changes its kind keeps none.
+ * Sessions already using the proxy keep the settings they started with.
  */
 export function Update(p: model$0.Proxy, keepSecret: boolean): $CancellablePromise<$models.ProxyView> {
     return $Call.ByID(2399689955, p, keepSecret);

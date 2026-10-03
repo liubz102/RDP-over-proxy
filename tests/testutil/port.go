@@ -21,3 +21,16 @@ func FreePort(t testing.TB) int {
 	ln.Close()
 	return port
 }
+
+// FreeUDPPort is FreePort for servers that listen on UDP (mKCP, QUIC). The
+// same exception applies.
+func FreeUDPPort(t testing.TB) int {
+	t.Helper()
+	pc, err := net.ListenPacket("udp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("find a free UDP port: %v", err)
+	}
+	port := pc.LocalAddr().(*net.UDPAddr).Port
+	pc.Close()
+	return port
+}

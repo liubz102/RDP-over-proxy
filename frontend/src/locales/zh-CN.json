@@ -101,7 +101,7 @@
   "proxies": {
     "title": "代理",
     "emptyTitle": "还没有自己的代理",
-    "emptyBody": "添加 SOCKS5 或 HTTP 代理，例如 v2rayN、Clash 在本机开的端口（常见的是 127.0.0.1:10808 或 7890）。VMess、VLESS、Trojan 等协议和分享链接导入即将支持。",
+    "emptyBody": "粘贴 v2rayN 等软件导出的分享链接（vmess://、vless://、trojan://、ss://、hysteria2://），或者填写 SOCKS5、HTTP 代理，例如 v2rayN、Clash 在本机开的端口（常见的是 127.0.0.1:10808 或 7890）。",
     "subtitle": "多个连接可以共用一个代理，换节点只需改一处。",
     "add": "添加代理",
     "direct": "直连",
@@ -140,8 +140,81 @@
       "passwordCleared": "保存后清除密码",
       "keepPassword": "保留已保存的密码",
       "clearPassword": "清除已保存的密码",
-      "unsupportedKind": "这种代理暂时不能在这里编辑。"
-    }
+      "unsupportedKind": "这种代理不能在这里编辑。",
+      "link": "分享链接",
+      "linkHint": "粘贴 v2rayN 等软件导出的链接，下面的设置会自动填好。",
+      "linkHintEdit": "粘贴新的链接会换掉下面的设置，名称不变。",
+      "linkImport": "读取",
+      "linkImported": "已按链接填好下面的设置，检查后保存。",
+      "userId": "用户 ID",
+      "userIdHint": "UUID，或者服务器上设的 1–30 个字符的自定义 ID。",
+      "method": "加密方法",
+      "vmessCipher": "加密方式",
+      "auto": "自动",
+      "none": "无",
+      "flow": "流控",
+      "encryption": "加密",
+      "encryptionHint": "VLESS Encryption 的客户端设置；服务器没开就保持 none。",
+      "obfsPassword": "混淆密码（Salamander）",
+      "obfsPasswordHint": "服务器没开混淆就留空；至少 4 个字符。",
+      "transport": "传输",
+      "network": "传输方式",
+      "disguise": "伪装类型",
+      "mode": "模式",
+      "host": "主机（Host）",
+      "path": "路径",
+      "listHint": "多个用逗号分隔。",
+      "serviceName": "服务名（serviceName）",
+      "seed": "种子（seed）",
+      "seedHint": "服务器设了 seed 才填，填了会加密数据包。",
+      "dnsDomain": "伪装域名",
+      "security": "安全",
+      "tls": "TLS",
+      "sni": "服务器名称（SNI）",
+      "sniHint": "留空就用服务器地址。",
+      "realitySniHint": "REALITY 服务器借用的网站，比如 www.microsoft.com。",
+      "alpn": "ALPN",
+      "fingerprint": "TLS 指纹（fp）",
+      "fingerprintDefault": "默认（chrome）",
+      "pinnedCerts": "证书指纹（SHA-256）",
+      "pinnedCertsHint": "服务器用自签名证书时，填这张证书的 SHA-256。Xray 已经不能跳过证书验证。",
+      "publicKey": "公钥（pbk）",
+      "shortId": "Short ID（sid）",
+      "authority": "Authority",
+      "extra": "XHTTP 额外设置（extra，JSON）",
+      "finalMask": "Finalmask（fm，JSON）",
+      "finalMaskHint": "分享链接里的 fm 参数，支持伪装头、mKCP 的混淆和 Salamander。不能和 mKCP 的伪装类型、种子同时用。新版 Xray 服务端的 mKCP 没开混淆时，填 {\"udp\":[]}。",
+      "verifyNames": "验证证书用的名称",
+      "verifyNamesHint": "代替 SNI 验证证书，多个用逗号分隔。",
+      "ech": "ECH 配置",
+      "spiderX": "SpiderX（spx）",
+      "mldsa65Verify": "ML-DSA-65 公钥（pqv）",
+      "showAdvanced": "显示高级设置",
+      "hideAdvanced": "隐藏高级设置",
+      "outbound": "Xray 出站（JSON）",
+      "outboundHint": "一个完整的 outbound 对象，要写 protocol；其中的 tag 会被忽略。",
+      "customServerHint": "可以不填，只用于在列表里显示；连接按 JSON 里写的走。",
+      "test": "测速",
+      "secretsLost": "这个代理的密码和设置解不开（来自别的电脑或 Windows 用户），下面显示的是默认值，不是原来的设置。请重新粘贴分享链接，或者把所有设置重新填好再保存。"
+    },
+    "copyLink": "复制分享链接",
+    "linkCopied": "分享链接已复制。链接里有密码，只发给信得过的人。",
+    "linkCopyFailed": "没能复制分享链接",
+    "networks": {
+      "tcp": "TCP",
+      "ws": "WebSocket",
+      "grpc": "gRPC",
+      "xhttp": "XHTTP",
+      "httpupgrade": "HTTPUpgrade",
+      "kcp": "mKCP"
+    },
+    "securities": {
+      "none": "无",
+      "tls": "TLS",
+      "reality": "REALITY"
+    },
+    "secretsLost": "需要重新填写",
+    "secretsLostHint": "密码和设置解不开（来自别的电脑或 Windows 用户），保存之前不会用它连接。"
   },
   "settings": {
     "title": "设置",
@@ -208,13 +281,13 @@
       "addressNotAvailable": "这台电脑上没有这个地址。"
     },
     "probe": {
-      "noAnswer": "远程计算机应答之前，连接就被关闭了。",
+      "noAnswer": "远程计算机应答之前，连接就被关闭了。经代理连接时，可能是代理连不上远程计算机，也可能是代理的用户 ID 或密码不对（VMess、VLESS、Trojan 这类代理不会说明原因）。",
       "notRdp": "有程序应答了，但不是远程桌面服务。请检查端口。",
       "truncated": "远程计算机的应答不完整。",
       "malformed": "远程计算机的应答不是有效的远程桌面数据。"
     },
     "tunnel": {
-      "noAnswer": "远程计算机应答之前，连接就被关闭了。"
+      "noAnswer": "远程计算机应答之前，连接就被关闭了。经代理连接时，可能是代理连不上远程计算机，也可能是代理的用户 ID 或密码不对（VMess、VLESS、Trojan 这类代理不会说明原因）。"
     },
     "proxy": {
       "auth": "代理拒绝了用户名或密码。",
@@ -223,7 +296,10 @@
       "dropped": "远程计算机应答之前，代理就关闭了连接。通常是代理（或它背后的服务器）连不上远程计算机。",
       "failed": "代理报告了错误。",
       "unsupported": "暂不支持这种代理。",
-      "inUse": "以下连接还在使用这个代理：{{profiles}}。"
+      "inUse": "以下连接还在使用这个代理：{{profiles}}。",
+      "config": "Xray 不接受这些设置。",
+      "tls": "代理服务器的证书没有通过验证：可能不是填的那张证书，或者和服务器名称对不上；用 REALITY 时，也可能是公钥不对。",
+      "secretsLost": "这个代理的密码和设置解不开（来自别的电脑或 Windows 用户），暂时不能用。请编辑它，重新粘贴分享链接或重新填写后保存。"
     },
     "app": {
       "quitting": "程序正在退出。"
@@ -256,13 +332,19 @@
     },
     "profile": {
       "proxyMissing": "这个连接使用的代理已不存在，请重新选择。"
+    },
+    "link": {
+      "invalid": "这不是有效的分享链接。",
+      "unsupported": "不支持链接里的「{{what}}」。",
+      "transportRemoved": "Xray 已经不支持「{{network}}」传输方式（HTTP/2、QUIC），请服务提供者改用 XHTTP 等其他方式。",
+      "notShareable": "自定义的 Xray 出站没有分享链接。"
     }
   },
   "notices": {
     "store": {
       "unreadable": "{{file}} 无法读取，已改名为 .corrupt 保留，没有载入。",
       "newerSchema": "{{file}} 是更新版本的程序保存的，没有载入。",
-      "secretLost": "{{file}} 里的密码无法解密，这个文件可能来自其他 Windows 用户或电脑。请重新填写密码。",
+      "secretLost": "{{file}} 里的密码和代理设置无法解密，这个文件可能来自其他 Windows 用户或电脑。请编辑这个代理，重新粘贴分享链接或重新填写后保存。",
       "loopbackMoved": "{{file}} 原来的回环地址缺失或与其他连接冲突，已分配新的地址。",
       "invalid": "{{file}} 里有需要修正的内容。",
       "readFailed": "{{file}} 无法打开，可能正被其他程序占用。它没有载入，文件本身没有改动。"
@@ -352,5 +434,11 @@
     "closed": "远程桌面已关闭",
     "cancelled": "已取消",
     "failed": "失败"
+  },
+  "linkNotes": {
+    "insecure": "链接要求跳过证书验证，Xray 已经不支持。连接时会照常验证证书；服务器用的是自签名证书的话，请在「证书指纹」里填它的 SHA-256。",
+    "alterId": "VMess 的 alterId（{{value}}）被忽略了：Xray 只支持 VMess AEAD。服务器如果还要求旧的验证方式，就会连不上。",
+    "ignored": "这些参数没有用上：{{params}}。",
+    "ports": "链接用了端口跳跃（{{ports}}），本程序只用端口 {{port}}。"
   }
 }

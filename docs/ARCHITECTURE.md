@@ -9,7 +9,7 @@ mstsc /v:127.a.b.c:13389 ──▶ tunnel (net.Listen on 127.a.b.c) ──▶ ro
                                                                   └─ engine: embedded Xray-core (one instance)
 ```
 
-Status markers: **[M0]** to **[M5]** are implemented; everything else is planned for the milestone shown. See [PROGRESS.md](PROGRESS.md).
+Status markers: **[M0]** to **[M6]** are implemented; everything else is planned for the milestone shown. See [PROGRESS.md](PROGRESS.md).
 
 ## Principles
 
@@ -25,7 +25,7 @@ Status markers: **[M0]** to **[M5]** are implemented; everything else is planned
 | `main` | Embeds the frontend and icon; holds the default `version` (release builds override it with `-ldflags -X main.version=…`) | [M0] |
 | `internal/app` | Wails application, main window, tray, single instance, close-to-tray, startup error box. `desktop_windows.go` and `server.go` split the desktop build from the browser-preview build (`-tags server`) | [M0] |
 | `internal/api` | Services bound to the frontend, their shared `Core`, views (DTOs), events, error JSON | [M4] |
-| `internal/model` | Settings [M0]; Proxy, Profile, Target, IDs and field-level validation [M1] | [M1] |
+| `internal/model` | Settings [M0]; Proxy, Profile, Target, IDs and field-level validation [M1]; the V2Ray family's settings (`ProxyOptions`), their defaults and checks [M6] | [M6] |
 | `internal/store` | Data folders, atomic JSON writes, settings load/repair [M0]; proxies and profiles (`Data`) [M4] | [M4] |
 | `internal/i18n` | Go-side strings (tray, native dialogs), system language detection | [M0] |
 | `internal/winx` | Win32 helpers: WebView2 detection, message box, dark-mode query [M0]; a process's main windows, their class and enabled state, WM_CLOSE, bringing a window to the front [M2, M5] | [M5] |
@@ -36,13 +36,13 @@ Status markers: **[M0]** to **[M5]** are implemented; everything else is planned
 | `internal/session` | Pure state-machine reducer [M1]; one actor goroutine per session, Manager [M2] | [M2] |
 | `internal/tunnel` | Loopback listener, per-connection upstream dial, two-way copy, byte counters, reports | [M2] |
 | `internal/route` | `Dialer` and `Provider` interfaces, the direct route [M2] | [M2] |
-| `internal/engine` | The single embedded Xray instance and the app's `route.Provider`: outbound registry with ref-counts; forced outbound tag per connection; Xray's failure reason per connection; log bridge [M3]. SOCKS / HTTP now, V2Ray family in M6 | partly |
+| `internal/engine` | The single embedded Xray instance and the app's `route.Provider`: outbound registry with ref-counts; forced outbound tag per connection; Xray's failure reason per connection; log bridge [M3]. The outbound of every kind, and `Check` before saving [M6] | [M6] |
 | `internal/secret` | DPAPI for secrets in JSON; `TERMSRV/<loopback>` credentials in Windows Credential Manager | [M4] |
-| `internal/sharelink` | Share links (vmess, vless, trojan, ss, hysteria2, socks, http) ⇄ Xray outbound JSON | M6 |
+| `internal/sharelink` | Share links (vmess, vless, trojan, ss, hysteria2, socks, http) ⇄ `model.Proxy` | [M6] |
 | `internal/diag` | Read-only environment report | M7 |
 | `internal/logging` | Log file with size-based rotation, in-memory rings, redaction, repeat collapsing, slog bridge for the Wails runtime | [M4] |
 | `internal/errcode` | Stable error codes the UI translates; picks the most useful code in an error tree | [M4] |
-| `tests/testutil` | Fake RDP server [M1]; helper processes that stand in for mstsc [M2]; `xraytest`: in-process Xray SOCKS / HTTP proxy servers [M3]. Moved out of `internal/` with the tests [M5] | [M5] |
+| `tests/testutil` | Fake RDP server [M1]; helper processes that stand in for mstsc [M2]; `xraytest`: in-process Xray SOCKS / HTTP proxy servers [M3], and servers of the V2Ray family over each transport, with TLS or REALITY [M6]. Moved out of `internal/` with the tests [M5] | [M6] |
 | `tools/notices` | Generates `THIRD_PARTY_NOTICES.md` | M9 |
 
 ## Data
@@ -62,7 +62,14 @@ Loading proxies and profiles (`store.OpenData`) [M4] never stops the app; each p
 
 **Settings** [M0]: `language` (`zh-CN` | `en`; empty until the first-run picker), `theme` (`system` | `light` | `dark`), `closeBehavior` (`tray` | `quit`), `localPort` (13389), `checkRouteBeforeConnect`, `testUrl`, `logLevel`.
 
-**Proxy** (model [M1], storage [M4]): `id`, `name`, `kind` (`direct` | `socks` | `http` | `shadowsocks` | `vmess` | `vless` | `trojan` | `hysteria2` | `xray`), `server`, `port`, `username`; `secret` and the full Xray `outbound` JSON (stored as JSON text) are DPAPI-sealed on disk; `summary` (non-secret display fields) arrives with the share-link parser in M6. `direct` is only the built-in entry `DirectProxyID = "direct"`, which every profile can pick and which is never stored.
+**Proxy** (model [M1], storage [M4], V2Ray family [M6]): `id`, `name`, `kind` (`direct` | `socks` | `http` | `shadowsocks` | `vmess` | `vless` | `trojan` | `hysteria2` | `xray`), `server`, `port`, `username` (SOCKS5 / HTTP), `secret`, `options`, `outbound`. `direct` is only the built-in entry `DirectProxyID = "direct"`, which every profile can pick and which is never stored.
+- `secret` is what signs in: a password, or the user ID of VMess and VLESS.
+- `options` (`model.ProxyOptions`) [M6] are the V2Ray family's settings, named after the share-link parameters: the protocol's own (Shadowsocks method, VMess cipher, VLESS flow and encryption, Hysteria2's Salamander password), the network (`tcp` with an optional HTTP disguise, `ws`, `grpc`, `xhttp`, `httpupgrade`, `kcp` with a disguise and seed) and the security layer (`none`, `tls` with SNI, ALPN, fingerprint, pinned certificate hashes, names to verify and ECH; `reality` with SNI, fingerprint, public key, short ID, spiderX and ML-DSA-65 key), plus Xray's `finalmask` and XHTTP's `extra` as JSON. `Normalize` keeps only the options the kind, network and security use and fills in the defaults, so what is stored is what is used.
+- `outbound` is a custom (`xray`) proxy's complete Xray outbound, JSON text.
+- On disk `secret`, `options` (as JSON text) and `outbound` are DPAPI-sealed: the options hold obfuscation keys and the paths that lead to the server. The list (`ProxyView`) carries none of the three; it gets `network` and `security` for display (`Proxy.Transport`, which reads a custom outbound's `streamSettings` too).
+- When the sealed values cannot be opened (a file from another Windows user or computer), none of them is used: what is left are defaults, which are no way to reach the server (a user ID would go out without the TLS it was meant to travel in). `Data.SecretsLost` marks such a proxy until it is saved again; the list shows it (`ProxyView.secretsLost`), and connecting through it or testing it is refused (`proxy.secretsLost`).
+- Trojan defaults to TLS; the other kinds start without a security layer, as share links do.
+- HTTP/2 and QUIC transports, the old XTLS and `allowInsecure` are gone from Xray, so they are refused or noted (see Share links).
 
 **Profile** (model [M1], storage [M4]): `id`, `name`, `group`, `target {host, port}`, `proxyId`, `loopback`, `username`, `rememberPassword`, `display {mode, width, height, multimon, span}`, `admin`. `display.mode` is `default` (no switch, follow `Default.rdp`), `fullscreen` (`/f`, plus `/multimon` or `/span`) or `window` (`/w /h`, 200–8192); the settings of the other modes are kept so switching back restores them. RDP passwords live only in Windows Credential Manager (`CRED_TYPE_GENERIC`, target `TERMSRV/<loopback>` without the port, as tools that pre-store mstsc passwords write it). A remembered password persists on this computer; a one-time password persists for the Windows logon session only and is deleted when its session ends. mstsc's own "Remember me" stores a domain-password credential under the same name; the app reports and deletes it but never writes one.
 
@@ -78,7 +85,7 @@ Wails generates TypeScript bindings for exported service methods (`frontend/bind
 |---|---|---|
 | `SettingsService` | `Get`, `Save`, `SystemLanguage`, `AppInfo` | [M0] |
 | `ProfileService` | `List` (with password state), `Draft`, `Create(profile, password)`, `Update(profile, password)`, `Delete`, `ForgetPassword` | [M4]; `.rdp` import M7 |
-| `ProxyService` | `List` (no passwords), `Get`, `Create`, `Update(proxy, keepSecret)`, `Delete`, `Latency(ctx)` | [M4]; share links M6 |
+| `ProxyService` | `List` (no secrets), `Get`, `Create`, `Update(proxy, keepSecret)`, `Delete`, `Latency(ctx)` [M4]; `ParseLink`, `ShareLink`, `DraftLatency(ctx, proxy, keepSecret)` [M6] | [M6] |
 | `SessionService` | `Connect(profile, password)`, `Disconnect(profile, force)`, `Focus`, `States`, `Log`, `CheckRoute(ctx)` | [M4] |
 | `AppService` | `Notices`, `Dismiss`, `Log` [M4]; `Quit(confirmed)`, `KeepRunning` [M5] | [M5] |
 
@@ -145,7 +152,7 @@ The app embeds Xray-core v1.260327.0 as a library: one instance per process, cre
 
 - **Base configuration**: no inbounds; one `blackhole` outbound, added first so that it is Xray's default and a connection without a tag goes nowhere; policy level 0 with `connIdle` at its maximum (registered exception: the default 300 s would cut an idle remote desktop).
 - **Outbounds**
-  - `Acquire(proxy)` turns the proxy into an Xray outbound object (JSON; SOCKS / HTTP are generated from the fields; the V2Ray family arrives in M6) and builds it with Xray's own config code. It is added under a tag of its own.
+  - `Acquire(proxy)` turns the proxy into an Xray outbound object (JSON generated from the fields and options [M6]; a custom outbound as written) and builds it with Xray's own config code. It is added under a tag of its own.
   - Outbounds are shared by reference count, keyed by proxy ID plus a digest of the outbound. Editing a proxy therefore gives new sessions a new outbound while running sessions keep the old one.
   - The last release removes the outbound from Xray and closes it; Xray's `RemoveHandler` alone would only forget it.
   - The direct entry bypasses Xray entirely (`route.Direct`).
@@ -155,6 +162,16 @@ The app embeds Xray-core v1.260327.0 as a library: one instance per process, cre
   - The address is validated before it reaches Xray, which would panic on some malformed destinations.
 - **Logging**: Xray's logger is process-wide, and creating an instance installs Xray's own. `Start` replaces it with a bridge to `Options.Log`: errors and warnings always; info and debug only while `Options.Verbose()` reports true (the app passes "the log level is debug"); access lines (one per connection, naming the target) never. Xray's start-up line, which it logs as a warning so that it shows by default, is passed on as information.
 - **Shutdown order**: `session.Manager.Quit` first (sessions release their routes), then `Engine.Close`.
+
+**The V2Ray family** [M6] (`engine.Outbound`, from `model.ProxyOptions`; checked end to end against real Xray servers in `tests/engine`):
+- VMess, VLESS, Trojan and Shadowsocks use Xray's flat outbound settings (`address`, `port`, `id` / `password`, …) and `streamSettings` for the network and security. TCP is Xray's `raw`; its HTTP disguise names the hosts and paths, with a browser's usual headers (naming headers replaces Xray's defaults).
+- mKCP's disguise and seed moved into Xray's `finalmask`: the header mask first (`header-wechat`, `header-srtp`, …), then `mkcp-aes128gcm` with the seed, or `mkcp-original` without one, which is how mKCP always obfuscated its packets. A `finalMask` the user gives replaces them.
+- Hysteria2 is Xray's `hysteria` outbound over its `hysteria` transport: TLS with ALPN `h3` unless the link says otherwise, `salamander` as a UDP mask for the obfuscation password, and a QUIC keep-alive every 10 seconds (registered exception: QUIC closes a connection silent for 30 seconds, and NAT forgets idle UDP mappings).
+- Xray no longer skips certificate verification (`allowInsecure` was removed on 2026-06-01). A self-signed certificate is trusted by its SHA-256 hash (`pinnedPeerCertSha256`); links that ask to skip verification import with a note.
+- A custom outbound is passed on as written (numbers kept exactly), without its `tag`: the engine gives every outbound a tag of its own.
+- No proxy reaches Xray without passing validation (`Outbound` validates first), whatever stored it: Xray accepts some values and then crashes on them while connecting, in a goroutine of its own where nothing can recover (a negative fragment length slices a packet backwards). `model/masks.go` keeps them out: no negative number anywhere in `finalMask`, XHTTP's `extra` or a custom outbound's masks and XHTTP settings (except `hKeepAlivePeriod`, where a negative means off), and masks from share links and the editor limited to the ones a server needs (the `header-*` disguises, `mkcp-original`, `mkcp-aes128gcm`, `salamander` with at least 4 bytes of password), none of which has a size to get wrong.
+- `Engine.Check` builds the outbound and adds it to the instance under a tag of its own, then removes it; nothing connects. That finds what Xray checks only when it creates the handler (a VLESS Encryption key that is no key). `ProxyService.Create` / `Update` / `DraftLatency` call it (`Deps.CheckProxy`) after the model's validation, so Xray's objections (an unknown fingerprint, a removed transport in a custom outbound) show when saving, as `proxy.config` with Xray's words. A panic while building or adding an outbound becomes `proxy.config` too.
+- The log bridge passes Xray's notes that a protocol or transport is deprecated (VMess, Trojan, Shadowsocks, WebSocket, gRPC, …) on as information: they come with every outbound built, and the protocol is the server's choice.
 
 `probe.Latency` measures one HTTP GET of the test URL through any route: connecting, TLS for https, up to the response headers. Any HTTP status counts and redirects are not followed. There is no timeout; it is cancellable.
 
@@ -187,12 +204,26 @@ Linking Xray adds about 23 MB to the executable (measured with production build 
 
 `internal/errcode` gives errors stable dotted codes (`proxy.auth`, `probe.notRdp`, `net.refused`, …). Packages create their sentinel errors with `errcode.New` or `errcode.Weak`; `errors.Is` keeps working. `errcode.Of` picks the most useful code in an error tree: the first strong code, else one recognised from a Winsock error, else the first weak code ("the connection closed before the target answered" is weak, so a more specific cause wins), else `unknown`.
 
-Xray reports why an outbound failed only as message text (its retry helper formats the errors it collected), so the engine labels them from the text, and the engine tests pin the texts with real proxies: `proxy.auth` (SOCKS5 account rejected, HTTP 407), `proxy.unreachable` (the proxy server could not be reached), `proxy.targetFailed` (the proxy answered that it could not reach the target), `proxy.dropped` (the proxy accepted, then closed before the target answered, which is what Xray-based servers such as v2rayN's local port do when the target is unreachable).
+Xray reports why an outbound failed only as message text (its retry helper formats the errors it collected), so the engine labels them from the text, and the engine tests pin the texts with real proxies: `proxy.auth` (SOCKS5 account rejected, HTTP 407, Hysteria2 password refused [M6]), `proxy.unreachable` (the proxy server could not be reached), `proxy.targetFailed` (the proxy answered that it could not reach the target), `proxy.dropped` (the proxy accepted, then closed before the target answered, which is what Xray-based servers such as v2rayN's local port do when the target is unreachable), `proxy.tls` [M6] (the certificate is not the pinned one or does not verify; a REALITY server without the key shows its target's certificate). VMess, VLESS and Trojan servers say nothing to a client they do not know, so a wrong user ID or password only ends the connection (`probe.noAnswer`, whose text mentions it).
+
+## Share links [M6]
+
+`internal/sharelink` reads and writes links itself (libXray rejects v2rayN's VMess links and is tied to Xray's pre-releases):
+- `vless://`, `trojan://` and the standard `vmess://uuid@host:port?…` follow XTLS/Xray-core discussion #716 (`type`, `security`, `sni`, `fp`, `pbk`, `sid`, `spx`, `pqv`, `pcs`, `vcn`, `ech`, `fm`, `extra`, …); Trojan is TLS unless the link says `security=none`, and the old `peer` stands for `sni`.
+- v2rayN's `vmess://` is base64 of a JSON object whose members may be strings or numbers; `type`, `host` and `path` mean different things per network (gRPC: mode, authority, service name; mKCP: header type and seed). Version 1 kept the WebSocket path in the host (`host;path`).
+- `ss://` is SIP002 (user info in base64, or percent-encoded for the 2022 methods) or the older all-base64 form; SIP003 plugins are refused (`link.unsupported`), since Xray cannot run them.
+- `hysteria2://` / `hy2://` default to port 443; for port hopping the first port is used, with a note.
+- `socks://`, `socks5://` and `http://` take the account plain or in base64, as v2rayN writes it.
+- Query values are unescaped without turning `+` into a space (keys are base64), and the name comes from the fragment, cut off before anything else.
+- `Parse` returns a normalized proxy, not a validated one: what is missing or wrong shows in the editor next to its field. It refuses only what cannot become a proxy at all: an invalid link, an unknown scheme, HTTP/2 or QUIC (`link.transportRemoved`), the old XTLS, an unknown Hysteria2 obfuscation.
+- Notes (`linkNotes.<code>`): a request to skip certificate verification (TLS only), a VMess alterId above 0 (Xray speaks only VMess AEAD), parameters that were left out, port hopping.
+- `Format` writes VMess in v2rayN's format unless the proxy uses what that format cannot hold (REALITY, pinned certificates, `fm`, …), then in the standard one; the others in their own schemes. v2rayN's format carries the name inside (`ps`) and gets no `#name`: its readers decode everything after `vmess://` as base64. A proxy comes back the same after `Format` and `Parse` (tested for each kind, including Hysteria2's `vcn`). A custom outbound has no link (`link.notShareable`).
+- mKCP without a disguise, a seed or `fm` gets `mkcp-original`, the obfuscation every mKCP server used before Xray 26; a current Xray server without masks speaks bare mKCP, which `fm={"udp":[]}` reaches.
 
 ## Logging [M4]
 
 - `%LOCALAPPDATA%\RDP-over-proxy\logs\app.log`, rotated by size: at most 2 MiB each, two older files kept.
-- The file is meant to be attachable to a bug report. Before a line is written, the user's profile folder becomes `%USERPROFILE%` (paths name the Windows account); the hosts, servers, RD Gateway, user names, connection, group and proxy names and proxy passwords the app knows become `<redacted>`; and every IP address except loopback and unspecified ones becomes `<ip>`. Names only ever join the set: a running session may still use a host the data no longer has. The in-memory rings (the app's and each session's) keep the details for the user's own screen.
+- The file is meant to be attachable to a bug report. Before a line is written, the user's profile folder becomes `%USERPROFILE%` (paths name the Windows account); the hosts, servers, RD Gateway, user names, connection, group and proxy names and proxy passwords the app knows become `<redacted>`, and so do the V2Ray family's user IDs, SNI, hosts, paths, service names, keys and seeds, the passwords in masks and XHTTP settings, and the addresses, IDs, passwords, keys, server names and header values in a custom outbound [M6]; and every IP address except loopback and unspecified ones becomes `<ip>`. Words that name nothing (a service called "grpc", a path "/ws", a local SOCKS port's 127.0.0.1) are not masked: they would garble every line that mentions them. Names only ever join the set: a running session may still use a host the data no longer has. The in-memory rings (the app's and each session's) keep the details for the user's own screen.
 - Consecutive identical lines are written once; when a different line follows, a note says how often the previous one repeated.
 - The level comes from the settings and changes at once. Xray's info and debug lines are forwarded only at debug level.
 - Only the Wails runtime's warnings and errors are kept, at every level: some of its debug records carry the arguments of service calls, passwords included, and it logs every asset it serves. Its reports of errors that service methods returned are left out too (the UI gets them), and attributes that carry payloads (`args`, `result`, …) are written as `<omitted>`.
@@ -203,19 +234,20 @@ Tests live apart from the code: the Go tests in `tests/<package>/`, one folder p
 
 - A Go test folder holds an external test package (`package session_test`) and uses only what the package exports. Tests that used to sit inside their package dot-import it (`import . "…/internal/session"`), the use the Go FAQ gives for dot imports, so their bodies read as before.
 - Packages are tested through their public API: dependencies come in as interfaces (`api.Deps`, `session.Options`, `session.Process`), so tests pass stand-ins. Lists that exist for completeness checks are exported in the same spirit as the code lists (`session.Messages`, `api.NoticeCodes`, `errcode.All`, `i18n.Keys` with `i18n.Lookup`). Nothing is exported only for a test.
-- `tests/testutil` (fake RDP server, helper processes, `FreePort`) and `tests/testutil/xraytest` (in-process Xray proxies) are the shared test support; `tests/rdpfile/testdata` holds sample `.rdp` files.
+- `tests/testutil` (fake RDP server, helper processes, `FreePort`, `FreeUDPPort`) and `tests/testutil/xraytest` (in-process Xray proxies) are the shared test support; `tests/rdpfile/testdata` holds sample `.rdp` files.
+- `xraytest` [M6] starts a server for the client settings a test gives (`Options`): the protocol's inbound, the same network written the way a server's configuration says it, a self-signed certificate for TLS and Hysteria2 (`Model` pins its hash), and for REALITY a key and a local TLS 1.3 site to borrow handshakes from. The site ends each connection after the handshake: a REALITY server first reads what its target sends after a handshake until it closes, or 5 seconds. The servers get a 4-second handshake time; Xray's default of 60 is how long a VMess server holds a client it does not know.
 - `go test ./...` runs everything; the CI does the same after building the frontend.
 
 ## Frontend structure
 
 - `src/app` — shell with sidebar (Quit at the bottom), theme (follows Windows via `prefers-color-scheme`), first-run language picker [M0]; notices bar and quit confirmation [M5]
 - `src/features/connections` [M5] — the list by group with each session's state and buttons (Connect / Cancel / Show window + Disconnect / End now); the profile editor; the password prompt; the route check; the session log drawer. `status.ts` maps a `SessionView` to the row's colour, text and buttons; `profileForm.ts` converts between the form and `model.Profile` (one address field takes `host`, `host:port`, `[IPv6]:port`).
-- `src/features/proxies` [M5] — the list (built-in Direct first) with latency tests that can be cancelled; the SOCKS5 / HTTP editor (`proxyForm.ts`; an empty password field keeps the saved one).
+- `src/features/proxies` [M5] — the list (built-in Direct first) with latency tests that can be cancelled; the SOCKS5 / HTTP editor (`proxyForm.ts`; an empty password field keeps the saved one). [M6]: the editor covers every kind: a share-link field fills the form (`ParseLink`) and shows the link's notes; per kind the account, the secret, the protocol's options, the transport and the security layer (`sections`); settings few people change fold away; a custom kind takes outbound JSON; "Test" measures the unsaved settings (`DraftLatency`). Choosing another kind starts its settings over from that kind's defaults, and a stored secret is kept only for the same kind (SOCKS5 and HTTP accounts count as one); another network starts the mode and disguise over. A test still running when the settings change is cancelled. A proxy whose secrets were lost shows a warning, in the list and in its editor. The list shows the transport ("WebSocket + TLS"); the menu copies a proxy's share link. The editor of a saved proxy opens once the proxy has loaded: a Fluent dialog that opens with nothing to focus never starts its focus trap, and then sends focus out of the dialog whenever it lands inside.
 - `src/features/settings` — appearance, close behaviour, about [M0]; local port, check-first, test URL, log level [M5]
 - `src/components` — `Page`, `EmptyState` [M0]; `Feedback`: toasts, `ErrorBar`, `ConfirmDialog` [M5]
 - `src/stores` — zustand stores fed by service calls and Go events: `settings` [M0]; `data` (profiles, proxies, sessions, session logs, notices, quit confirmation) [M5]. Replies and events travel separately: what an event changed while the first read was in flight is kept over the reply; session log lines carry a sequence number (`logging.Line.Seq`, given by `Core`) so a log read and the lines sent as events merge without duplicates; settings saves run one after another, each on top of the last stored settings.
 - `src/lib` [M5] — pure helpers with tests: address splitting, translating error / notice / log codes (`messages.ts`), session log merging (`sessionLog.ts`)
-- `src/locales` — `zh-CN.json` and `en.json`; a test enforces identical keys [M0]; another checks the keys the frontend builds from codes (phases, steps, outcomes, field errors) [M5]
+- `src/locales` — `zh-CN.json` and `en.json`; a test enforces identical keys [M0]; another checks the keys the frontend builds from codes (phases, steps, outcomes, field errors) [M5], and proxy kinds, networks and security layers [M6]; the Go side checks `linkNotes.<code>` [M6]
 - `tests/` — the vitest tests, mirroring `src/` (`tests/lib/address.test.ts` tests `src/lib/address.ts`) [M5]
 
 **Conventions** [M5]

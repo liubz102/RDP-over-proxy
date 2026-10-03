@@ -101,7 +101,7 @@
   "proxies": {
     "title": "Proxies",
     "emptyTitle": "No proxies of your own yet",
-    "emptyBody": "Add a SOCKS5 or HTTP proxy, such as the local port of v2rayN or Clash (often 127.0.0.1:10808 or 7890). VMess, VLESS, Trojan and share links are coming.",
+    "emptyBody": "Paste a share link exported from v2rayN or similar (vmess://, vless://, trojan://, ss://, hysteria2://), or enter a SOCKS5 or HTTP proxy, such as the local port of v2rayN or Clash (often 127.0.0.1:10808 or 7890).",
     "subtitle": "Connections can share a proxy, so switching servers is done in one place.",
     "add": "Add proxy",
     "direct": "Direct",
@@ -140,8 +140,81 @@
       "passwordCleared": "Cleared when saved",
       "keepPassword": "Keep the saved password",
       "clearPassword": "Clear the saved password",
-      "unsupportedKind": "This kind of proxy cannot be edited here yet."
-    }
+      "unsupportedKind": "This kind of proxy can't be edited here.",
+      "link": "Share link",
+      "linkHint": "Paste a link exported from v2rayN or similar to fill in the settings below.",
+      "linkHintEdit": "A new link replaces the settings below; the name stays.",
+      "linkImport": "Read",
+      "linkImported": "The settings below come from the link. Check them, then save.",
+      "userId": "User ID",
+      "userIdHint": "A UUID, or the custom ID of 1–30 characters set on the server.",
+      "method": "Method",
+      "vmessCipher": "Encryption",
+      "auto": "Auto",
+      "none": "None",
+      "flow": "Flow",
+      "encryption": "Encryption",
+      "encryptionHint": "The client setting of VLESS Encryption; keep none unless the server uses it.",
+      "obfsPassword": "Obfuscation password (Salamander)",
+      "obfsPasswordHint": "Leave empty unless the server uses obfuscation; at least 4 characters.",
+      "transport": "Transport",
+      "network": "Network",
+      "disguise": "Header type",
+      "mode": "Mode",
+      "host": "Host",
+      "path": "Path",
+      "listHint": "Separate several with commas.",
+      "serviceName": "Service name",
+      "seed": "Seed",
+      "seedHint": "Only if the server sets one; it encrypts the packets.",
+      "dnsDomain": "Disguise domain",
+      "security": "Security",
+      "tls": "TLS",
+      "sni": "Server name (SNI)",
+      "sniHint": "Empty: the server's address.",
+      "realitySniHint": "The site the REALITY server borrows, such as www.microsoft.com.",
+      "alpn": "ALPN",
+      "fingerprint": "TLS fingerprint (fp)",
+      "fingerprintDefault": "Default (chrome)",
+      "pinnedCerts": "Certificate fingerprint (SHA-256)",
+      "pinnedCertsHint": "For a self-signed certificate, enter its SHA-256 hash. Xray no longer skips certificate checks.",
+      "publicKey": "Public key (pbk)",
+      "shortId": "Short ID (sid)",
+      "authority": "Authority",
+      "extra": "XHTTP extra settings (JSON)",
+      "finalMask": "Finalmask (fm, JSON)",
+      "finalMaskHint": "The link's fm parameter: disguise headers, mKCP obfuscation and Salamander. Can't be used together with mKCP's header type and seed. For mKCP to a current Xray server without obfuscation, enter {\"udp\":[]}.",
+      "verifyNames": "Names to verify the certificate against",
+      "verifyNamesHint": "Checked instead of the SNI; separate several with commas.",
+      "ech": "ECH config",
+      "spiderX": "SpiderX (spx)",
+      "mldsa65Verify": "ML-DSA-65 public key (pqv)",
+      "showAdvanced": "Show advanced settings",
+      "hideAdvanced": "Hide advanced settings",
+      "outbound": "Xray outbound (JSON)",
+      "outboundHint": "One complete outbound object with a protocol; its tag is ignored.",
+      "customServerHint": "Optional, only shown in the list; connections go where the JSON says.",
+      "test": "Test",
+      "secretsLost": "This proxy's password and settings can't be decrypted (they come from another computer or Windows user), so what you see below are defaults, not its settings. Paste the share link again, or enter all the settings again, before saving."
+    },
+    "copyLink": "Copy share link",
+    "linkCopied": "Share link copied. It contains the password; share it only with people you trust.",
+    "linkCopyFailed": "Couldn't copy the share link",
+    "networks": {
+      "tcp": "TCP",
+      "ws": "WebSocket",
+      "grpc": "gRPC",
+      "xhttp": "XHTTP",
+      "httpupgrade": "HTTPUpgrade",
+      "kcp": "mKCP"
+    },
+    "securities": {
+      "none": "None",
+      "tls": "TLS",
+      "reality": "REALITY"
+    },
+    "secretsLost": "Needs re-entering",
+    "secretsLostHint": "Its password and settings can't be decrypted (they come from another computer or Windows user). It isn't used until saved again."
   },
   "settings": {
     "title": "Settings",
@@ -208,13 +281,13 @@
       "addressNotAvailable": "This address isn't available on this computer."
     },
     "probe": {
-      "noAnswer": "The connection closed before the remote computer answered.",
+      "noAnswer": "The connection closed before the remote computer answered. Through a proxy, the proxy may not reach the remote computer, or its user ID or password may be wrong (VMess, VLESS and Trojan proxies don't say why).",
       "notRdp": "Something answered, but not a Remote Desktop server. Check the port.",
       "truncated": "The remote computer's answer was cut short.",
       "malformed": "The remote computer's answer isn't valid Remote Desktop data."
     },
     "tunnel": {
-      "noAnswer": "The connection closed before the remote computer answered."
+      "noAnswer": "The connection closed before the remote computer answered. Through a proxy, the proxy may not reach the remote computer, or its user ID or password may be wrong (VMess, VLESS and Trojan proxies don't say why)."
     },
     "proxy": {
       "auth": "The proxy rejected the user name or password.",
@@ -223,7 +296,10 @@
       "dropped": "The proxy closed the connection before the remote computer answered. Usually the proxy, or the server behind it, can't reach the remote computer.",
       "failed": "The proxy reported an error.",
       "unsupported": "This kind of proxy isn't supported yet.",
-      "inUse": "This proxy is still used by: {{profiles}}."
+      "inUse": "This proxy is still used by: {{profiles}}.",
+      "config": "Xray doesn't accept these settings.",
+      "tls": "The proxy server's certificate didn't pass: it may not be the pinned certificate, or may not match the server name; with REALITY, the public key may be wrong.",
+      "secretsLost": "This proxy's password and settings can't be decrypted (they come from another computer or Windows user), so it can't be used for now. Edit it: paste the share link again, or enter everything again, and save."
     },
     "app": {
       "quitting": "The app is quitting."
@@ -256,13 +332,19 @@
     },
     "profile": {
       "proxyMissing": "This connection's proxy no longer exists. Choose another one."
+    },
+    "link": {
+      "invalid": "This isn't a valid share link.",
+      "unsupported": "This app doesn't support “{{what}}” from the link.",
+      "transportRemoved": "Xray no longer has the “{{network}}” transport (HTTP/2, QUIC). Ask the server's provider to switch to XHTTP or another transport.",
+      "notShareable": "A custom Xray outbound has no share link."
     }
   },
   "notices": {
     "store": {
       "unreadable": "{{file}} couldn't be read. It was renamed to .corrupt and left out.",
       "newerSchema": "{{file}} was saved by a newer version of the app and was left out.",
-      "secretLost": "The password in {{file}} can't be decrypted; the file may come from another Windows user or computer. Enter the password again.",
+      "secretLost": "The password and proxy settings in {{file}} can't be decrypted; the file may come from another Windows user or computer. Edit the proxy: paste the share link again, or enter everything again, and save.",
       "loopbackMoved": "{{file}} got a new loopback address because its old one was missing or used by another connection.",
       "invalid": "{{file}} has values that need fixing.",
       "readFailed": "{{file}} couldn't be opened, perhaps because another program is using it. It was left out and is unchanged."
@@ -352,5 +434,11 @@
     "closed": "Remote Desktop closed",
     "cancelled": "cancelled",
     "failed": "failed"
+  },
+  "linkNotes": {
+    "insecure": "The link asks to skip certificate checks, which Xray no longer does. The certificate will be checked; if the server's is self-signed, enter its SHA-256 hash under Certificate fingerprint.",
+    "alterId": "VMess alterId {{value}} was ignored: Xray speaks only VMess AEAD. A server that still requires the old authentication won't accept the connection.",
+    "ignored": "These parameters weren't used: {{params}}.",
+    "ports": "The link uses port hopping ({{ports}}); this app uses port {{port}} only."
   }
 }
