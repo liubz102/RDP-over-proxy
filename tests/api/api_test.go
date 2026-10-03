@@ -233,9 +233,12 @@ type harness struct {
 	routes   *anyRoute
 	events   *events
 	launched chan *fakeProcess
-	gateway  mstsc.Gateway
-	quits    atomic.Int32 // AppService.Quit's calls of the app's quit
-	log      *logging.Logger
+	// defaults stands in for Default.rdp and the RD Gateway policy, and
+	// defaultsErr for failing to read them.
+	defaults    mstsc.Defaults
+	defaultsErr error
+	quits       atomic.Int32 // AppService.Quit's calls of the app's quit
+	log         *logging.Logger
 	// check stands in for Xray's check of a proxy's settings; nil accepts
 	// everything.
 	check func(model.Proxy) error
@@ -293,9 +296,9 @@ func newHarnessIn(t *testing.T, dir string) (*harness, []store.Problem) {
 			h.launched <- p
 			return p, nil
 		},
-		Gateway: func() (mstsc.Gateway, error) { return h.gateway, nil },
-		Log:     h.log,
-		Emit:    h.events.emit,
+		Defaults: func() (mstsc.Defaults, error) { return h.defaults, h.defaultsErr },
+		Log:      h.log,
+		Emit:     h.events.emit,
 	})
 	t.Cleanup(h.core.Quit)
 	h.profiles = NewProfileService(h.core)
@@ -744,7 +747,7 @@ func TestGatewayPreflight(t *testing.T) {
 	px := h.proxy(t, "Office")
 	p := h.profile(t, "PC", px.ID, srv.Addr, "")
 
-	h.gateway = mstsc.Gateway{Verdict: rdpfile.GatewayUsed, Server: "gw.example.com"}
+	h.defaults.Gateway = mstsc.Gateway{Verdict: rdpfile.GatewayUsed, Server: "gw.example.com"}
 	if _, err := h.sessions.Connect(p.ID, ""); err != nil {
 		t.Fatal(err)
 	}
@@ -765,7 +768,7 @@ func TestGatewayPreflight(t *testing.T) {
 		t.Fatalf("step failed line: %+v", failed)
 	}
 
-	h.gateway = mstsc.Gateway{Verdict: rdpfile.GatewayMaybeUsed, Server: "gw.example.com"}
+	h.defaults.Gateway = mstsc.Gateway{Verdict: rdpfile.GatewayMaybeUsed, Server: "gw.example.com"}
 	if _, err := h.sessions.Connect(p.ID, ""); err != nil {
 		t.Fatal(err)
 	}

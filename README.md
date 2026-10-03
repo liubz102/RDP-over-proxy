@@ -4,7 +4,7 @@
 
 让 Windows 自带的远程桌面（mstsc）走代理：支持 SOCKS5、HTTP，以及 VMess、VLESS、Trojan、Shadowsocks、Hysteria2。
 
-> **开发中**：当前处于 0.1.0 预览阶段。已经可以经 SOCKS5、HTTP 和 V2Ray 系代理连接远程桌面；.rdp 导入、诊断、安装包等还在开发。进度见 [docs/PROGRESS.md](docs/PROGRESS.md)。
+> **开发中**：当前处于 0.1.0 预览阶段。已经可以经 SOCKS5、HTTP 和 V2Ray 系代理连接远程桌面，也能导入 .rdp 文件、查看环境诊断；安装包等还在开发。进度见 [docs/PROGRESS.md](docs/PROGRESS.md)。
 
 ## 为什么需要它
 
@@ -39,8 +39,11 @@ mstsc ──▶ 127.x.y.z:13389 ──▶ RDP over Proxy（本机隧道）──
 - ✓ 代理管理：SOCKS5、HTTP、VMess、VLESS（含 REALITY）、Trojan、Shadowsocks、Hysteria2、自定义 Xray 出站
 - ✓ 粘贴分享链接导入，包括 v2rayN 导出的链接；也能复制代理的分享链接
 - ✓ 连接前检查线路：通过代理向目标发送 RDP 握手，报告延迟和对方支持的安全协议
+- ✓ 分步检查线路：分别测代理本身和经代理的远程计算机，指出问题出在哪一段
 - ✓ 一键连接；关闭远程桌面窗口后，隧道自动关闭
-- 导入 .rdp 文件、环境诊断、安装包
+- ✓ 从 .rdp 文件导入连接
+- ✓ 诊断页：Windows 和远程桌面的版本、远程桌面默认设置里会影响连接的项、保存的密码能不能用；可以复制去掉了服务器名称的诊断信息
+- 安装包
 
 ## 系统要求
 

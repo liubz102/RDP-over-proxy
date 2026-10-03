@@ -27,12 +27,13 @@ import {
   MoreHorizontal20Regular,
   TopSpeed20Regular,
 } from "@fluentui/react-icons";
-import { Clipboard, type CancellablePromise } from "@wailsio/runtime";
+import type { CancellablePromise } from "@wailsio/runtime";
 import { useTranslation } from "react-i18next";
 import { errorOf, ProxyService, type ErrorView, type LatencyResult, type ProxyView } from "../../api/backend";
 import { ConfirmDialog, ErrorBar, useNotify } from "../../components/Feedback";
 import { EmptyState, Page } from "../../components/Page";
 import { joinHostPort } from "../../lib/address";
+import { copyText } from "../../lib/clipboard";
 import { errorText } from "../../lib/messages";
 import { useData } from "../../stores/data";
 import { kindName, proxyName, transportName } from "./names";
@@ -201,15 +202,6 @@ type Latency =
   | { kind: "done"; ms: number }
   | { kind: "failed"; error: ErrorView };
 
-/** Puts text on the clipboard: the page's own way first, Wails' when the page may not. */
-async function copy(text: string) {
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    await Clipboard.SetText(text);
-  }
-}
-
 function Row({ view, onDialog }: { view: ProxyView; onDialog: (kind: "edit" | "delete") => void }) {
   const styles = useStyles();
   const { t, i18n } = useTranslation();
@@ -252,7 +244,7 @@ function Row({ view, onDialog }: { view: ProxyView; onDialog: (kind: "edit" | "d
 
   const copyLink = async () => {
     try {
-      await copy(await ProxyService.ShareLink(p.id));
+      await copyText(await ProxyService.ShareLink(p.id));
       notify.success(t("proxies.linkCopied"));
     } catch (e) {
       notify.error(e, t("proxies.linkCopyFailed"));

@@ -11,6 +11,7 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
+	"github.com/liubz102/RDP-over-proxy/internal/diag"
 	"github.com/liubz102/RDP-over-proxy/internal/errcode"
 	"github.com/liubz102/RDP-over-proxy/internal/logging"
 	"github.com/liubz102/RDP-over-proxy/internal/model"
@@ -41,6 +42,9 @@ const (
 	// tray while remote desktops are connected. The window asks them to
 	// confirm and then calls AppService.Quit.
 	EventQuitRequested = "app:quitRequested"
+	// EventDiagChanged carries the environment report again once a part of
+	// it that takes long (Credential Guard) is known (DiagService.Report).
+	EventDiagChanged = "diag:changed"
 )
 
 func init() {
@@ -49,6 +53,7 @@ func init() {
 	application.RegisterEvent[logging.Line](EventSessionLog)
 	application.RegisterEvent[Notice](EventNotice)
 	application.RegisterEvent[QuitView](EventQuitRequested)
+	application.RegisterEvent[[]diag.Item](EventDiagChanged)
 }
 
 // Session log keys the services add to the reducer's (session.Msg*).
@@ -56,14 +61,24 @@ const (
 	// MsgGatewayMaybe: Default.rdp or policy may send the connection through
 	// an RD Gateway, which cannot reach the tunnel.
 	MsgGatewayMaybe = "session.gatewayMaybe"
-	// MsgGatewayUnknown: the RD Gateway settings could not be read.
-	MsgGatewayUnknown = "session.gatewayUnknown"
+	// MsgDefaultsUnknown: Default.rdp or the RD Gateway policy could not be
+	// read.
+	MsgDefaultsUnknown = "session.defaultsUnknown"
+	// MsgServerAuthRefuse: Default.rdp says not to connect when the
+	// computer's identity cannot be verified, which through the tunnel it
+	// cannot by name. MsgServerAuthRefusePolicy: Group Policy says so.
+	MsgServerAuthRefuse       = "session.serverAuthRefuse"
+	MsgServerAuthRefusePolicy = "session.serverAuthRefusePolicy"
+	// MsgAlwaysPrompt: Default.rdp says to ask for the password every time,
+	// so the saved one is not used.
+	MsgAlwaysPrompt = "session.alwaysPrompt"
 	// MsgHintFailed: the user name hint for mstsc could not be written.
 	MsgHintFailed = "session.hintFailed"
 )
 
 // Messages lists the session log keys the services add.
-var Messages = []string{MsgGatewayMaybe, MsgGatewayUnknown, MsgHintFailed}
+var Messages = []string{MsgGatewayMaybe, MsgDefaultsUnknown, MsgServerAuthRefuse, MsgServerAuthRefusePolicy,
+	MsgAlwaysPrompt, MsgHintFailed}
 
 // Notice codes, besides the problems found while loading (store.Problem*).
 const (
@@ -115,9 +130,19 @@ type Deps struct {
 	Vault      Vault
 	Servers    Servers
 	Launch     func(args []string) (session.Process, error)
-	// Gateway reports whether mstsc would use an RD Gateway. Optional.
-	Gateway func() (mstsc.Gateway, error)
-	Log     *logging.Logger
+	// Defaults reads what Default.rdp and Group Policy decide for every
+	// connection (mstsc.ReadDefaults). Optional.
+	Defaults func() (mstsc.Defaults, error)
+	// Diagnose gathers the facts of the environment report (diag.Gather):
+	// all but whether Credential Guard runs, which CredentialGuard asks
+	// (winx.CredentialGuardRunning). Optional.
+	Diagnose        func() diag.Facts
+	CredentialGuard func() (bool, error)
+	// EditDefaults opens Remote Desktop Connection on Default.rdp
+	// (mstsc.EditDefaults), and OpenLogs the log folder. Optional.
+	EditDefaults func() error
+	OpenLogs     func() error
+	Log          *logging.Logger
 	// Emit sends an event to the frontend. Optional: by default it goes to
 	// the running Wails application.
 	Emit func(name string, data any)
@@ -144,6 +169,11 @@ type Core struct {
 	// quitAsked: the window was asked to confirm quitting and has not
 	// answered yet (AskToQuit, AppService.KeepRunning).
 	quitAsked atomic.Bool
+
+	// guard is what is known about Credential Guard (a diag.Running), asked
+	// once (credentialGuard).
+	guardOnce sync.Once
+	guard     atomic.Int32
 }
 
 // sessionLogSize is how many lines of a session's log the UI can show.
@@ -439,38 +469,57 @@ func (c *Core) addSessionLine(profileID string, line logging.Line, fresh bool) {
 	c.d.Emit(EventSessionLog, line)
 }
 
-// preflight runs before a session acquires anything.
+// preflight runs before a session acquires anything. mstsc takes much of
+// what it does from Default.rdp and Group Policy: an RD Gateway it would
+// always use stops the session, as the gateway cannot reach the tunnel;
+// settings that may get in the way are noted in the session log.
 func (c *Core) preflight(req session.Request) error {
-	if c.d.Gateway == nil {
+	if c.d.Defaults == nil {
 		return nil
 	}
 	id := req.Profile.ID
-	g, err := c.d.Gateway()
+	d, err := c.d.Defaults()
 	if err != nil {
 		// Unreadable settings should not stop the connection; mstsc will
 		// show what it does.
-		c.addSessionLine(id, logging.Line{Level: logging.LevelWarn, Msg: MsgGatewayUnknown,
-			Args: map[string]any{"error": err.Error(), "code": errcode.Of(err)}}, false)
+		c.warnSession(id, MsgDefaultsUnknown, map[string]any{"error": err.Error(), "code": errcode.Of(err)})
 		return nil
 	}
+	g := d.Gateway
 	c.d.Log.Redactor().Add(g.Server)
-	args := map[string]string{"server": g.Server}
+	source := "defaultRdp"
 	if g.ByPolicy {
-		args["source"] = "policy"
-	} else {
-		args["source"] = "defaultRdp"
+		source = "policy"
 	}
 	switch g.Verdict {
 	case rdpfile.GatewayUsed:
-		return errcode.WithArgs(ErrGatewayUsed, args)
+		return errcode.WithArgs(ErrGatewayUsed, map[string]string{"server": g.Server, "source": source})
 	case rdpfile.GatewayMaybeUsed:
-		lineArgs := map[string]any{}
-		for k, v := range args {
-			lineArgs[k] = v
+		c.warnSession(id, MsgGatewayMaybe, map[string]any{"server": g.Server, "source": source})
+	}
+	if d.ServerAuth == rdpfile.ServerAuthRefuse {
+		msg := MsgServerAuthRefuse
+		if d.ServerAuthByPolicy {
+			msg = MsgServerAuthRefusePolicy
 		}
-		c.addSessionLine(id, logging.Line{Level: logging.LevelWarn, Msg: MsgGatewayMaybe, Args: lineArgs}, false)
+		c.warnSession(id, msg, nil)
+	}
+	if d.AlwaysPrompt && (req.Password != "" || c.passwordSaved(req.Profile)) {
+		c.warnSession(id, MsgAlwaysPrompt, nil)
 	}
 	return nil
+}
+
+// passwordSaved reports whether the app or mstsc keeps a password for the
+// profile.
+func (c *Core) passwordSaved(p model.Profile) bool {
+	saved, err := c.creds.lookup(c.server(p))
+	return err == nil && saved.Any()
+}
+
+// warnSession adds a warning to the profile's session log.
+func (c *Core) warnSession(profileID, msg string, args map[string]any) {
+	c.addSessionLine(profileID, logging.Line{Level: logging.LevelWarn, Msg: msg, Args: args}, false)
 }
 
 // credentials gives a session what mstsc signs in with.

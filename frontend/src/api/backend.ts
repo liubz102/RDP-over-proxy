@@ -4,6 +4,7 @@ import type { ErrorView } from "../../bindings/github.com/liubz102/RDP-over-prox
 
 export {
   AppService,
+  DiagService,
   ProfileService,
   ProxyService,
   SessionService,
@@ -21,8 +22,10 @@ export type {
   ProfileView,
   ProxyView,
   QuitView,
+  RDPImportView,
   SessionView,
 } from "../../bindings/github.com/liubz102/RDP-over-proxy/internal/api";
+export type { Item as DiagItem } from "../../bindings/github.com/liubz102/RDP-over-proxy/internal/diag";
 export type { Line as LogLine } from "../../bindings/github.com/liubz102/RDP-over-proxy/internal/logging";
 export type {
   Display,
@@ -43,6 +46,7 @@ export const Events = {
   sessionLog: "session:log",
   notice: "app:notice",
   quitRequested: "app:quitRequested",
+  diagChanged: "diag:changed",
 } as const;
 
 /** The built-in "no proxy" entry (model.DirectProxyID). */
@@ -50,6 +54,9 @@ export const DIRECT_PROXY_ID = "direct";
 
 /** The standard Remote Desktop port (model.DefaultRDPPort). */
 export const RDP_PORT = 3389;
+
+/** The largest file taken for an .rdp file (rdpfile.MaxSize). */
+export const RDP_MAX_SIZE = 1 << 20;
 
 /**
  * The structured error a rejected service call carries in its `cause`

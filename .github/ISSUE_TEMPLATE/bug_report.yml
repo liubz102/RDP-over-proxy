@@ -53,4 +53,4 @@ body:
     id: diagnostics
     attributes:
       label: 诊断信息 / Diagnostics
-      description: 如果有，请附上程序导出的诊断信息（会自动去掉密钥）。 / If available, attach the diagnostics the app exports (secrets are removed).
+      description: 在程序的「诊断」页点「复制诊断信息」，粘贴到这里（不含服务器名称和密码）。需要时再附上日志文件（「诊断」页 →「打开日志文件夹」）。 / On the app's Diagnostics page, click "Copy diagnostics" and paste here (no server names or passwords). Attach the log file if needed (Diagnostics → "Open the log folder").

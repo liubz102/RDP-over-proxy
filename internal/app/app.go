@@ -100,7 +100,8 @@ func Run(opts Options) error {
 	current, settingsErr := settings.Load()
 	logger.SetLevel(current.LogLevel)
 	// Without a log file the app still runs; the in-memory log remains.
-	logFile, logErr := logging.OpenFile(filepath.Join(dirs.Local, "logs"), logMaxBytes, logKeep)
+	logDir := filepath.Join(dirs.Local, "logs")
+	logFile, logErr := logging.OpenFile(logDir, logMaxBytes, logKeep)
 	logger.Attach(logFile)
 
 	data, problems := store.OpenData(dirs.Config, sealer())
@@ -118,15 +119,19 @@ func Run(opts Options) error {
 	}
 
 	core := api.NewCore(api.Deps{
-		Data:       data,
-		Settings:   settings,
-		Routes:     eng,
-		CheckProxy: eng.Check,
-		Vault:      vault(),
-		Servers:    servers(),
-		Launch:     launchMstsc,
-		Gateway:    checkGateway,
-		Log:        logger,
+		Data:            data,
+		Settings:        settings,
+		Routes:          eng,
+		CheckProxy:      eng.Check,
+		Vault:           vault(),
+		Servers:         servers(),
+		Launch:          launchMstsc,
+		Defaults:        readDefaults,
+		Diagnose:        diagnose(opts.Version, logDir),
+		CredentialGuard: credentialGuard,
+		EditDefaults:    editDefaults,
+		OpenLogs:        openFolder(logDir),
+		Log:             logger,
 	})
 	core.Start(problems)
 	if settingsErr != nil {
@@ -158,6 +163,7 @@ func Run(opts Options) error {
 		application.NewServiceWithOptions(api.NewProxyService(core), withErrors),
 		application.NewServiceWithOptions(api.NewSessionService(core), withErrors),
 		application.NewServiceWithOptions(api.NewAppService(core, sh.quitLater), withErrors),
+		application.NewServiceWithOptions(api.NewDiagService(core), withErrors),
 	} {
 		sh.app.RegisterService(svc)
 	}

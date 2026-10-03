@@ -6,6 +6,7 @@ import {
   Globe24Regular,
   Power24Regular,
   Settings24Regular,
+  Stethoscope24Regular,
 } from "@fluentui/react-icons";
 import { useTranslation } from "react-i18next";
 import { AppToaster, useNotify } from "../components/Feedback";
@@ -13,10 +14,11 @@ import { useData } from "../stores/data";
 import { Notices } from "./Notices";
 import { QuitDialog } from "./QuitDialog";
 import { ConnectionsPage } from "../features/connections/ConnectionsPage";
+import { DiagnosticsPage } from "../features/diagnostics/DiagnosticsPage";
 import { ProxiesPage } from "../features/proxies/ProxiesPage";
 import { SettingsPage } from "../features/settings/SettingsPage";
 
-type Page = "connections" | "proxies" | "settings";
+type Page = "connections" | "proxies" | "diagnostics" | "settings";
 
 const useStyles = makeStyles({
   root: {
@@ -118,6 +120,7 @@ export function Shell() {
         {navItem("connections", <Desktop24Regular />, t("nav.connections"))}
         {navItem("proxies", <Globe24Regular />, t("nav.proxies"))}
         <div className={styles.spacer} />
+        {navItem("diagnostics", <Stethoscope24Regular />, t("nav.diagnostics"))}
         {navItem("settings", <Settings24Regular />, t("nav.settings"))}
         <Button
           appearance="subtle"
@@ -144,6 +147,7 @@ export function Shell() {
         )}
         {status === "ready" && page === "connections" && <ConnectionsPage />}
         {status === "ready" && page === "proxies" && <ProxiesPage />}
+        {page === "diagnostics" && <DiagnosticsPage />}
         {page === "settings" && <SettingsPage />}
       </main>
       <QuitDialog />

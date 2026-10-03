@@ -5,6 +5,8 @@ package mstsc
 import (
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"sync"
@@ -55,6 +57,31 @@ func Launch(args []string) (*Process, error) {
 		return nil, err
 	}
 	return Start(exec.Command(path, args...), SessionWindowClass)
+}
+
+// EditDefaults opens Remote Desktop Connection on Default.rdp with its
+// options shown ("mstsc /edit"), where the user changes what every
+// connection shares (clipboard, drives, sound, experience) and saves it.
+// Without a Default.rdp, plain mstsc opens on its built-in defaults, and
+// saving there creates the file. The app neither waits for it nor ends it.
+func EditDefaults() error {
+	exe, err := Path()
+	if err != nil {
+		return err
+	}
+	file, err := DefaultRDPPath()
+	if err != nil {
+		return err
+	}
+	var args []string
+	if _, err := os.Stat(file); !errors.Is(err, fs.ErrNotExist) {
+		args = []string{"/edit", file}
+	}
+	cmd := exec.Command(exe, args...)
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	return cmd.Process.Release()
 }
 
 // Start starts cmd, whose session window has the class sessionClass. Launch

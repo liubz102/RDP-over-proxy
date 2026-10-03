@@ -61,6 +61,17 @@ export function List(): $CancellablePromise<$models.ProfileView[] | null> {
 }
 
 /**
+ * ParseRDP drafts a new profile from an .rdp file, given its name and its
+ * bytes as the frontend read them: the computer, the user name, the display
+ * and /admin, named after the file. Nothing is stored; the editor shows the
+ * draft and Create stores it. Everything else in the file (clipboard,
+ * drives, sound) has no place in a profile: those come from Default.rdp.
+ */
+export function ParseRDP(fileName: string, data: string | null): $CancellablePromise<$models.RDPImportView> {
+    return $Call.ByID(2565673732, fileName, data);
+}
+
+/**
  * SetProxy chooses the proxy the profile connects through: a stored proxy's
  * ID, or model.DirectProxyID. A connected profile keeps its proxy
  * (ErrSessionRunning).

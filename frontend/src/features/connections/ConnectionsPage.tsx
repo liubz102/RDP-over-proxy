@@ -22,6 +22,7 @@ import {
 } from "@fluentui/react-components";
 import {
   Add20Regular,
+  ArrowImport20Regular,
   DismissCircle20Regular,
   Delete20Regular,
   DesktopArrowRight20Regular,
@@ -45,6 +46,7 @@ import { proxyName } from "../proxies/names";
 import { CheckDialog } from "./CheckDialog";
 import { PasswordDialog } from "./PasswordDialog";
 import { ProfileDialog } from "./ProfileDialog";
+import { importRdp, type Imported } from "./rdpImport";
 import { SessionLog } from "./SessionLog";
 import { sessionStatus, type Tone } from "./status";
 
@@ -140,10 +142,15 @@ const useStyles = makeStyles({
   proxyList: {
     maxWidth: "320px",
   },
+  emptyActions: {
+    display: "flex",
+    gap: "8px",
+    justifyContent: "center",
+  },
 });
 
 type Dialog =
-  | { kind: "edit"; view: ProfileView | null }
+  | { kind: "edit"; view: ProfileView | null; imported?: Imported }
   | { kind: "password"; view: ProfileView }
   | { kind: "check"; view: ProfileView }
   | { kind: "log"; view: ProfileView }
@@ -167,7 +174,20 @@ export function ConnectionsPage() {
   const profiles = useData((s) => s.profiles);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [busy, setBusy] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
   const close = () => setDialog(null);
+
+  // An .rdp file fills in the editor of a new profile; saving stores it.
+  // A dialog the user opened meanwhile stays: the editor reads what it
+  // starts from only when it opens.
+  const importFile = async (file: File) => {
+    try {
+      const imported = await importRdp(file);
+      setDialog((d) => d ?? { kind: "edit", view: null, imported });
+    } catch (e) {
+      notify.error(e, t("connections.import.failed", { file: file.name }));
+    }
+  };
 
   const connect = async (v: ProfileView, password: string, remember?: boolean) => {
     close();
@@ -234,18 +254,51 @@ export function ConnectionsPage() {
       {t("connections.add")}
     </Button>
   );
+  const importButton = (
+    <Button icon={<ArrowImport20Regular />} onClick={() => fileInput.current?.click()}>
+      {t("connections.import.button")}
+    </Button>
+  );
 
   const groups = byGroup(profiles);
   const showGroupTitles = groups.some(([g]) => g !== "");
 
   return (
-    <Page title={t("connections.title")} subtitle={profiles.length > 0 ? t("connections.subtitle") : undefined} actions={profiles.length > 0 ? add : undefined}>
+    <Page
+      title={t("connections.title")}
+      subtitle={profiles.length > 0 ? t("connections.subtitle") : undefined}
+      actions={
+        profiles.length > 0 && (
+          <>
+            {importButton}
+            {add}
+          </>
+        )
+      }
+    >
+      <input
+        ref={fileInput}
+        type="file"
+        accept=".rdp"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          // Cleared, so choosing the same file again reads it again.
+          e.target.value = "";
+          if (file) void importFile(file);
+        }}
+      />
       {profiles.length === 0 && (
         <EmptyState
           icon={<DesktopArrowRight24Regular />}
           title={t("connections.emptyTitle")}
           body={t("connections.emptyBody")}
-          action={add}
+          action={
+            <div className={styles.emptyActions}>
+              {add}
+              {importButton}
+            </div>
+          }
         />
       )}
       {groups.map(([group, list]) => (
@@ -271,7 +324,7 @@ export function ConnectionsPage() {
         </section>
       ))}
 
-      {dialog?.kind === "edit" && <ProfileDialog view={dialog.view} onClose={close} />}
+      {dialog?.kind === "edit" && <ProfileDialog view={dialog.view} imported={dialog.imported} onClose={close} />}
       {dialog?.kind === "password" && (
         <PasswordDialog
           view={dialog.view}

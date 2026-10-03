@@ -3,6 +3,7 @@ module github.com/liubz102/RDP-over-proxy
 go 1.26
 
 require (
+	github.com/go-ole/go-ole v1.3.0
 	github.com/wailsapp/wails/v3 v3.0.0-beta.27
 	github.com/xtls/xray-core v1.260327.0
 	golang.org/x/sys v0.46.0
@@ -15,7 +16,6 @@ require (
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/coder/websocket v1.8.14 // indirect
 	github.com/ghodss/yaml v1.0.1-0.20220118164431-d8423dcdf344 // indirect
-	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/google/btree v1.1.2 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect

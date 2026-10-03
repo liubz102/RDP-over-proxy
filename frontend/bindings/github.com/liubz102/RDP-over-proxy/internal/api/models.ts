@@ -177,6 +177,25 @@ export interface QuitView {
 }
 
 /**
+ * RDPImportView is a new profile drafted from an .rdp file, for the editor.
+ */
+export interface RDPImportView {
+    "profile": model$0.Profile;
+
+    /**
+     * ViaGateway: the file connects through an RD Gateway, Gateway when it
+     * names one. The app connects through the proxy instead.
+     */
+    "viaGateway": boolean;
+    "gateway": string;
+
+    /**
+     * Existing names the profiles that connect to the same computer.
+     */
+    "existing": string[] | null;
+}
+
+/**
  * SessionView is a session's state as the UI shows it.
  */
 export interface SessionView {

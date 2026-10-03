@@ -29,8 +29,8 @@
 | `internal/api` | 暴露给前端的服务（Settings、Profile、Proxy、Session、App）和它们共用的 `Core`；视图类型、事件、错误 JSON（`MarshalError`） |
 | `internal/model` | 数据结构（Settings、Proxy、Profile、Target）与校验，纯逻辑。Proxy / Profile 的校验返回 `FieldErrors`（字段 + 代码）。V2Ray 系的设置在 `ProxyOptions`（`options.go`），`Normalize` 只留下这种代理用得上的项并补默认值 |
 | `internal/loopback` | 由 profile ID 派生 `127.a.b.c` 回环地址，冲突时顺延 |
-| `internal/rdpfile` | 只读解析 .rdp：导入草稿、RD 网关判定 |
-| `internal/mstsc` | mstsc 启动参数（`Args`，纯函数）；启动 / 等待 / 关闭 / 结束 / 聚焦（`launch_windows.go`）；`Servers` 注册表记忆（UsernameHint）；RD 网关检查（`DecideGateway` 纯函数 + `CheckGateway`） |
+| `internal/rdpfile` | 只读解析 .rdp：导入草稿、RD 网关判定、服务器身份验证和「始终要求凭据」 |
+| `internal/mstsc` | mstsc 启动参数（`Args`，纯函数）；启动 / 等待 / 关闭 / 结束 / 聚焦（`launch_windows.go`）；`Servers` 注册表记忆（UsernameHint）；Default.rdp 和网关策略（`DecideGateway`、`DecideDefaults` 纯函数 + `ReadDefaults`）；`EditDefaults`（`mstsc /edit Default.rdp`） |
 | `internal/probe` | X.224 CR/CC 编解码、线路检查 `Check` |
 | `internal/route` | `Dialer` / `Provider` 接口、直连 |
 | `internal/engine` | 内嵌的 Xray 实例，也是应用实际使用的 `route.Provider`：outbound 引用计数、强制 tag 派发、错误原因回传、日志桥接；各类代理的出站生成（`outbound.go`）和保存前的 `Check` |
@@ -42,8 +42,10 @@
 | `internal/logging` | 日志文件（按大小轮转）、环形缓冲、脱敏、连续重复折叠、给 Wails 用的 slog 适配 |
 | `internal/store` | 原子写 JSON；数据目录；`RDP_OVER_PROXY_HOME`；设置；代理和连接的文件存储（`Data`） |
 | `internal/i18n` | Go 侧文案（托盘、原生对话框）、系统语言检测 |
-| `internal/winx` | Win32 调用：WebView2 检测、错误框、系统深色模式 |
+| `internal/winx` | Win32 调用：WebView2 检测和版本、错误框、系统深色模式、窗口；文件版本、Credential Guard（WMI）、打开文件夹（`system_windows.go`） |
+| `internal/diag` | 只读的环境报告：`Gather` 读 Windows，`Build`（纯函数）生成报告项；凭据委派策略的判定（`delegation.go`） |
 | `tests/<包名>` | Go 测试，每个被测包一个目录（如 `tests/session`），包名 `<包名>_test`，只用导出的 API；`tests/rdpfile/testdata` 是 .rdp 样本 |
+| `tests/winx`、`tests/diag` | 除了纯逻辑，还有读本机 Windows 的测试（文件版本、WMI、`diag.Gather`），只读 |
 | `tests/testutil` | 测试共用：假 RDP 服务端；替身进程（`RunHelper` / `HelperCommand`）；`FreePort`。只能被测试引用 |
 | `tests/testutil/xraytest` | 测试用：进程内的 Xray 代理服务端，SOCKS / HTTP 和 V2Ray 系各协议、各传输、TLS / REALITY。按客户端设置起对应的服务端，`Model` 填上证书指纹和 REALITY 公钥。单独成包，只有需要的测试才链接 Xray |
 | `frontend/src` | `app/`（外壳、主题、首次语言选择）、`features/`、`components/`、`stores/`、`locales/` |
@@ -153,4 +155,8 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 - **凭据管理器的域类型凭据只接受它认识的目标名前缀**（如 `TERMSRV/`）：`foo/bar` 这类名字会报「参数错误」。所以测试凭据也放在 `TERMSRV/` 下，用保留的 `.invalid` 主机名。
 - **Xray 的失败原因只有文本**：它的重试把原始错误格式化成文字。engine 的 `classify` 按文本归类，升级 Xray 时要跑 engine 测试确认文本没变。
 - **新增错误码、通知代码、会话日志键时，要在两份语言文件里加翻译**：`errors.<code>`、`notices.<code>`、`log.<key>`。`internal/app` 的测试会检查。用 `errcode.Wrap` 的代码要 `errcode.Declare`。
+- **Wails 运行时默认拦下从资源管理器拖进窗口的文件**（`EnableFileDrop` 为 false 时把光标设成禁止，网页收不到 drop）：所以 .rdp 导入用隐藏的 `<input type="file">`，桌面版和浏览器预览都能用。预览里测导入时，用脚本给这个 input 塞一个 `File` 再派发 `change`。
+- **`LsaIso.exe` 在跑不等于 Credential Guard 在跑**：Key Guard（保护 Windows Hello 密钥）也会启动它，用户的 Win10 专业版上就是这样。判断 Credential Guard 要看 WMI `Win32_DeviceGuard.SecurityServicesRunning` 里有没有 1（`winx.CredentialGuardRunning`）。
+- **在 Go 里用 COM（WMI 经 go-ole、ShellExecute）**：都经过 `winx.withCOM`：锁住线程；`CoInitializeEx` 返回 S_FALSE（这个线程已经按同样方式初始化过）也要配对 `CoUninitialize`，返回 RPC_E_CHANGED_MODE（已按别的方式初始化）则照用、不反初始化。
+- **WMI 可能很久不回答（仓库损坏时）**：所以诊断报告不等 Credential Guard，它在后台只查一次，查完发 `diag:changed` 带着新报告；不设超时。
 - **Wails 运行时的 debug 日志带着服务调用的参数（也就是密码）**：`Binding call complete`、`Runtime call` 都会记 `args`。`logging.SlogHandler` 因此不收 Wails 的 debug、info 记录（任何级别），也不收服务方法返回的预期错误，载荷属性写成 `<omitted>`。改它时别放开。

@@ -10,6 +10,9 @@ import type { Events } from "@wailsio/runtime";
 import type * as api$0 from "../../../../liubz102/RDP-over-proxy/internal/api/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import type * as diag$0 from "../../../../liubz102/RDP-over-proxy/internal/diag/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import type * as logging$0 from "../../../../liubz102/RDP-over-proxy/internal/logging/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -21,6 +24,7 @@ declare module "@wailsio/runtime" {
             "app:notice": api$0.Notice;
             "app:quitRequested": api$0.QuitView;
             "data:changed": api$0.DataView;
+            "diag:changed": diag$0.Item[] | null;
             "session:log": logging$0.Line;
             "sessions:changed": api$0.SessionView;
             "settings:changed": model$0.Settings;

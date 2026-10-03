@@ -102,6 +102,9 @@ type shared struct {
 	refs int
 }
 
+// XrayVersion is the embedded Xray-core's version, such as "26.3.27".
+func XrayVersion() string { return core.Version() }
+
 // Start creates and starts the Xray instance. It holds no proxies until
 // sessions acquire them.
 func Start(opts Options) (*Engine, error) {

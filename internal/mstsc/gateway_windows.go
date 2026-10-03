@@ -4,6 +4,7 @@ package mstsc
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 
@@ -12,37 +13,44 @@ import (
 	"github.com/liubz102/RDP-over-proxy/internal/rdpfile"
 )
 
-// gatewayPolicyKey holds the RD Gateway policies. TerminalServer.admx
-// defines them for users only, so only HKEY_CURRENT_USER is read.
-const gatewayPolicyKey = `SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services`
+// policyKey holds the Remote Desktop Connection policies. TerminalServer.admx
+// puts the RD Gateway ones under HKEY_CURRENT_USER only, and "Configure
+// server authentication for client" under HKEY_LOCAL_MACHINE only.
+const policyKey = `SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services`
 
-// CheckGateway tells whether mstsc, started with /v:, would hand the
-// connection to an RD Gateway, going by the user's Default.rdp and the RD
-// Gateway Group Policy (see DecideGateway).
-func CheckGateway() (Gateway, error) {
+// ReadDefaults reads the user's Default.rdp and the Group Policy settings
+// that decide over it (see DecideDefaults).
+//
+// An error says why Default.rdp could not be read, without its path: the
+// error goes into the log file and into diagnostics people copy, and a
+// redirected Documents folder can name a file server or a company.
+func ReadDefaults() (Defaults, error) {
 	path, err := DefaultRDPPath()
 	if err != nil {
-		return Gateway{}, err
+		return Defaults{}, err
 	}
+	var file *rdpfile.File
 	data, err := os.ReadFile(path)
-	var file rdpfile.Gateway
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		// No Default.rdp: mstsc's own defaults, which use no gateway and
-		// defer to the administrator's settings.
-		file = rdpfile.Gateway{AdminDefaults: true}
 	case err != nil:
-		return Gateway{}, err
+		var pe *fs.PathError
+		if errors.As(err, &pe) {
+			err = fmt.Errorf("read Default.rdp: %w", pe.Err)
+		}
+		return Defaults{Path: path}, err
 	default:
-		file = rdpfile.Parse(data).Gateway()
+		file = rdpfile.Parse(data)
 	}
-	return DecideGateway(file, readGatewayPolicy()), nil
+	d := DecideDefaults(file, Policies{Gateway: readGatewayPolicy()}.withServerAuth())
+	d.Path = path
+	return d, nil
 }
 
-// readGatewayPolicy reads the policy values. Anything missing or unreadable
-// counts as not configured.
+// readGatewayPolicy reads the RD Gateway policy values. Anything missing or
+// unreadable counts as not configured.
 func readGatewayPolicy() GatewayPolicy {
-	k, err := registry.OpenKey(registry.CURRENT_USER, gatewayPolicyKey, registry.QUERY_VALUE)
+	k, err := registry.OpenKey(registry.CURRENT_USER, policyKey, registry.QUERY_VALUE)
 	if err != nil {
 		return GatewayPolicy{}
 	}
@@ -56,5 +64,21 @@ func readGatewayPolicy() GatewayPolicy {
 		p.Enforced = err != nil || allow != 1
 	}
 	p.Server, _, _ = k.GetStringValue("ProxyName")
+	return p
+}
+
+// withServerAuth adds "Configure server authentication for client", whose
+// value AuthenticationLevel holds 0 (always connect), 1 (do not connect) or
+// 2 (warn) while the policy is enabled.
+func (p Policies) withServerAuth() Policies {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, policyKey, registry.QUERY_VALUE)
+	if err != nil {
+		return p
+	}
+	defer k.Close()
+	v, _, err := k.GetIntegerValue("AuthenticationLevel")
+	if err == nil && v <= uint64(rdpfile.ServerAuthWarn) {
+		p.ServerAuth, p.ServerAuthSet = rdpfile.ServerAuth(v), true
+	}
 	return p
 }

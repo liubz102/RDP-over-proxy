@@ -16,6 +16,12 @@ const webView2ClientKey = `Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF
 // machine (64- or 32-bit registry view) or for the current user. Without it
 // Wails exits without showing anything, so the app checks first and explains.
 func WebView2Installed() bool {
+	return WebView2Version() != ""
+}
+
+// WebView2Version is the installed WebView2 Runtime's version, or "" when
+// there is none.
+func WebView2Version() string {
 	candidates := []struct {
 		root registry.Key
 		path string
@@ -32,10 +38,10 @@ func WebView2Installed() bool {
 		pv, _, err := k.GetStringValue("pv")
 		_ = k.Close()
 		if err == nil && pv != "" && pv != "0.0.0.0" {
-			return true
+			return pv
 		}
 	}
-	return false
+	return ""
 }
 
 // SystemPrefersDark reports whether Windows is set to dark mode for apps. It

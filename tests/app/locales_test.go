@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/liubz102/RDP-over-proxy/internal/api"
+	"github.com/liubz102/RDP-over-proxy/internal/diag"
 	"github.com/liubz102/RDP-over-proxy/internal/errcode"
 	"github.com/liubz102/RDP-over-proxy/internal/session"
 	"github.com/liubz102/RDP-over-proxy/internal/sharelink"
@@ -32,6 +33,9 @@ func TestEveryCodeIsTranslated(t *testing.T) {
 	}
 	for _, code := range sharelink.Notes {
 		want = append(want, "linkNotes."+code)
+	}
+	for _, code := range diag.Codes() {
+		want = append(want, "diag."+code)
 	}
 	// Engine and store codes come from their packages' declarations; make
 	// sure those were linked rather than checking a short list.

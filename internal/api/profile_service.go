@@ -1,10 +1,13 @@
 package api
 
 import (
+	"path/filepath"
+	"strings"
 	"unicode/utf16"
 
 	"github.com/liubz102/RDP-over-proxy/internal/logging"
 	"github.com/liubz102/RDP-over-proxy/internal/model"
+	"github.com/liubz102/RDP-over-proxy/internal/rdpfile"
 	"github.com/liubz102/RDP-over-proxy/internal/secret"
 	"github.com/liubz102/RDP-over-proxy/internal/store"
 )
@@ -21,6 +24,42 @@ func (s *ProfileService) List() []ProfileView { return s.c.dataView().Profiles }
 // Draft returns the starting values for a new profile. ID, Name, Target and
 // ProxyID are for the user to fill in.
 func (s *ProfileService) Draft() model.Profile { return model.DefaultProfile() }
+
+// ParseRDP drafts a new profile from an .rdp file, given its name and its
+// bytes as the frontend read them: the computer, the user name, the display
+// and /admin, named after the file. Nothing is stored; the editor shows the
+// draft and Create stores it. Everything else in the file (clipboard,
+// drives, sound) has no place in a profile: those come from Default.rdp.
+func (s *ProfileService) ParseRDP(fileName string, data []byte) (RDPImportView, error) {
+	if len(data) > rdpfile.MaxSize {
+		return RDPImportView{}, rdpfile.ErrTooLarge
+	}
+	f := rdpfile.Parse(data)
+	p, err := f.Draft(rdpName(fileName))
+	if err != nil {
+		return RDPImportView{}, err
+	}
+	v := RDPImportView{Profile: p, Existing: []string{}}
+	if g := f.Gateway(); g.Verdict() != rdpfile.GatewayNotUsed {
+		v.ViaGateway, v.Gateway = true, g.Host
+	}
+	for _, q := range s.c.d.Data.Profiles() {
+		if strings.EqualFold(q.Target.Host, p.Target.Host) && q.Target.Port == p.Target.Port {
+			v.Existing = append(v.Existing, q.Name)
+		}
+	}
+	return v, nil
+}
+
+// rdpName is what mstsc calls a connection file: its name without the
+// folder and ".rdp".
+func rdpName(fileName string) string {
+	name := fileName[strings.LastIndexAny(fileName, `\/`)+1:]
+	if ext := filepath.Ext(name); strings.EqualFold(ext, ".rdp") {
+		name = name[:len(name)-len(ext)]
+	}
+	return name
+}
 
 // Create stores a new profile. When password is set and the profile
 // remembers passwords, it is saved in Windows Credential Manager. A

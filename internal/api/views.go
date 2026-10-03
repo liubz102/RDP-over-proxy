@@ -38,6 +38,17 @@ type ProxyView struct {
 	SecretsLost bool `json:"secretsLost"`
 }
 
+// RDPImportView is a new profile drafted from an .rdp file, for the editor.
+type RDPImportView struct {
+	Profile model.Profile `json:"profile"`
+	// ViaGateway: the file connects through an RD Gateway, Gateway when it
+	// names one. The app connects through the proxy instead.
+	ViaGateway bool   `json:"viaGateway"`
+	Gateway    string `json:"gateway"`
+	// Existing names the profiles that connect to the same computer.
+	Existing []string `json:"existing"`
+}
+
 // LinkView is a proxy read from a share link, with notes about the link
 // ("linkNotes.<code>").
 type LinkView struct {

@@ -16,6 +16,7 @@
   "nav": {
     "connections": "Connections",
     "proxies": "Proxies",
+    "diagnostics": "Diagnostics",
     "settings": "Settings",
     "quit": "Quit"
   },
@@ -74,8 +75,17 @@
       "width": "Width",
       "height": "Height",
       "sizeHint": "Pixels, 200 to 8192.",
-      "displayHint": "Clipboard, drives, sound and the other settings come from Remote Desktop's defaults (Default.rdp in Documents): change them in Remote Desktop Connection and click Save.",
+      "displayHint": "Clipboard, drives, sound and the other settings come from Remote Desktop's default settings (Default.rdp in Documents), the same for every connection.",
       "admin": "Connect to the administrative session (/admin)"
+    },
+    "import": {
+      "button": "Import .rdp",
+      "title": "Import from an .rdp file",
+      "read": "The computer, user name and display settings were read from “{{file}}”; check them and save. Clipboard, drives and the file's other settings are not imported: every connection uses Remote Desktop's default settings.",
+      "gateway": "This file connects through an RD Gateway ({{server}}). The imported connection goes to the computer through the proxy instead, without the gateway.",
+      "gatewayUnnamed": "This file connects through an RD Gateway. The imported connection goes to the computer through the proxy instead, without the gateway.",
+      "existing": "Connections to this computer already exist: {{names}}.",
+      "failed": "Could not import “{{file}}”"
     },
     "password": {
       "title": "Connect to “{{name}}”",
@@ -83,12 +93,47 @@
       "hint": "You can also leave it empty and let Remote Desktop ask for it.",
       "skip": "Let Remote Desktop ask"
     },
-    "check": {
+    "test": {
       "title": "Check the route to “{{name}}”",
-      "running": "Reaching the remote computer through the proxy…",
-      "passed": "The route works: the Remote Desktop service answered in {{ms}} ms (security protocol {{protocol}}).",
-      "passedNegotiation": "The route works: the Remote Desktop service answered in {{ms}} ms but refused the security protocols offered ({{reason}}). Remote Desktop may still connect.",
-      "failed": "The route does not work"
+      "route": "Through “{{proxy}}” to {{target}}",
+      "routeDirect": "Directly to {{target}}, without a proxy",
+      "proxy": "Proxy",
+      "proxyWhat": "Fetching the test URL ({{host}}) through the proxy",
+      "proxySkipped": "Direct connection, no proxy",
+      "target": "Remote computer",
+      "targetWhat": "Asking the Remote Desktop service on the remote computer to answer",
+      "security": "Security",
+      "securityWaiting": "Waiting for the remote computer to answer",
+      "securityUnknown": "The remote computer did not answer, so this is unknown",
+      "ms": "{{ms}} ms",
+      "elapsed": "{{seconds}} s so far…",
+      "again": "Test again",
+      "verdict": {
+        "ok": "The route works.",
+        "testUrlFailed": "The route works. The test URL could not be fetched through the proxy, perhaps because that site is blocked where the proxy server is; Remote Desktop is not affected.",
+        "direct": "The remote computer cannot be reached: check the computer's address and port, that it is on and allows Remote Desktop, and the firewalls in between.",
+        "beyondProxy": "The proxy itself works, but the remote computer cannot be reached through it: check the computer's address and port, that it is on and allows Remote Desktop, and that the proxy server can reach it.",
+        "proxy": "The problem is most likely the proxy: it could not fetch the test URL either. Check the proxy's settings (server, port, user ID or password) and that the proxy server is running.",
+        "settings": "The connection's settings need fixing; see above."
+      },
+      "protocols": {
+        "hybridEx": "{{name}}: Network Level Authentication (NLA). You enter the password on this computer before the remote desktop shows.",
+        "hybrid": "{{name}}: Network Level Authentication (NLA). You enter the password on this computer first.",
+        "ssl": "{{name}}: TLS without Network Level Authentication; the sign-in screen shows on the remote computer.",
+        "rdstls": "{{name}}: RDSTLS sign-in.",
+        "rdsaad": "{{name}}: Microsoft Entra ID sign-in.",
+        "rdp": "{{name}}: Standard RDP Security, the old encryption without TLS. Consider requiring TLS or Network Level Authentication on the remote computer.",
+        "other": "{{name}}"
+      },
+      "failures": {
+        "sslRequired": "{{name}}: the remote computer requires TLS.",
+        "sslNotAllowed": "{{name}}: the remote computer accepts only Standard RDP Security, the old encryption. Remote Desktop may still connect.",
+        "sslCertMissing": "{{name}}: the remote computer has no certificate to use, which leaves only Standard RDP Security. Remote Desktop may still connect.",
+        "inconsistentFlags": "{{name}}: the remote computer found the request inconsistent.",
+        "hybridRequired": "{{name}}: the remote computer requires Network Level Authentication (NLA).",
+        "sslWithUserAuthRequired": "{{name}}: the remote computer requires TLS with user authentication.",
+        "other": "{{name}}: the remote computer refused the security protocols offered. Remote Desktop may still connect."
+      }
     },
     "log": {
       "title": "Session log: {{name}}",
@@ -259,6 +304,110 @@
       "debug": "Detailed (for troubleshooting)"
     }
   },
+  "diag": {
+    "title": "Diagnostics",
+    "subtitle": "Settings and versions on this computer that affect Remote Desktop connections. Only read, never changed.",
+    "refresh": "Check again",
+    "copy": "Copy diagnostics",
+    "copied": "Diagnostics copied; paste them into a bug report. Server names and folders are left out.",
+    "copyFailed": "Could not copy the diagnostics",
+    "copyTitle": "RDP over Proxy diagnostics",
+    "editDefaults": "Change Remote Desktop's default settings",
+    "editDefaultsOpened": "Remote Desktop Connection is open. If its options are hidden, click Show Options; change the settings on its tabs, then click Save on the General tab to keep them.",
+    "editDefaultsFailed": "Could not open Remote Desktop Connection",
+    "openLogs": "Open the log folder",
+    "openLogsFailed": "Could not open the log folder",
+    "groups": {
+      "versions": "Versions",
+      "defaults": "Remote Desktop's default settings",
+      "credentials": "Saved passwords",
+      "files": "Files"
+    },
+    "items": {
+      "app": {
+        "label": "This app"
+      },
+      "xray": {
+        "label": "Xray-core"
+      },
+      "windows": {
+        "label": "Windows"
+      },
+      "mstsc": {
+        "label": "Remote Desktop Connection (mstsc)",
+        "missing": "mstsc.exe is missing. This edition of Windows may lack Remote Desktop Connection; the app cannot work without it."
+      },
+      "webview2": {
+        "label": "WebView2 Runtime",
+        "missing": "The WebView2 Runtime was not found."
+      },
+      "defaultRdp": {
+        "label": "Default settings file (Default.rdp)",
+        "found": "Present. Clipboard, drives, sound and the other settings of every connection through this app come from it.",
+        "missing": "Not yet. Remote Desktop uses its built-in defaults; saving once in “Change Remote Desktop's default settings” creates it.",
+        "unreadable": "Could not be read ({{error}}).",
+        "detail": "{{text}}"
+      },
+      "gateway": {
+        "label": "RD Gateway",
+        "none": "Not used.",
+        "maybe": "When it cannot connect directly, Remote Desktop may switch to an RD Gateway, which cannot reach this app's tunnel.",
+        "maybePolicy": "Group Policy enables an RD Gateway: when it cannot connect directly, Remote Desktop switches to the gateway, which cannot reach this app's tunnel.",
+        "used": "Remote Desktop is set to always connect through an RD Gateway, so connections through this app are stopped. In “Change Remote Desktop's default settings”, go to Advanced → Settings and choose “Do not use an RD Gateway server”.",
+        "detail": "Gateway server: {{text}}"
+      },
+      "serverAuth": {
+        "label": "If server authentication fails",
+        "connect": "Connect and don't warn me.",
+        "refuse": "Do not connect. Through the tunnel the name on the certificate never matches the entrance address, so Remote Desktop refuses to connect unless you trusted the computer's certificate before. Consider “Warn me” on the Advanced tab of “Change Remote Desktop's default settings”.",
+        "warn": "Warn me. The first time Remote Desktop reaches a computer through the tunnel, it warns about the certificate; tick “Don't ask me again for connections to this computer” to stop it.",
+        "unspecified": "Not specified.",
+        "connectPolicy": "Always connect, even if authentication fails (Group Policy “Configure server authentication for client”).",
+        "refusePolicy": "Do not connect if authentication fails (Group Policy “Configure server authentication for client”). Through the tunnel the name on the certificate never matches the entrance address, so Remote Desktop refuses to connect unless you trusted the computer's certificate before. Only an administrator can change this policy.",
+        "warnPolicy": "Warn me if authentication fails (Group Policy “Configure server authentication for client”). The first time Remote Desktop reaches a computer through the tunnel, it warns about the certificate; tick “Don't ask me again for connections to this computer” to stop it."
+      },
+      "alwaysPrompt": {
+        "label": "Always ask for credentials",
+        "no": "No. Saved passwords are used.",
+        "yes": "Yes. Remote Desktop asks for the password every time and does not fill in saved ones. Untick “Always ask for credentials” on the General tab of “Change Remote Desktop's default settings”."
+      },
+      "domain": {
+        "label": "Domain",
+        "workgroup": "Not joined to a domain (workgroup).",
+        "domain": "Joined to a domain.",
+        "unknown": "Unknown."
+      },
+      "savedCredentials": {
+        "label": "Saved passwords through the tunnel",
+        "allowedDefault": "Allowed. No policy says otherwise, and computers outside a domain allow them by default.",
+        "allowedPolicy": "Allowed. The policy “Allow delegating saved credentials with NTLM-only server authentication” covers every Remote Desktop server.",
+        "deniedDefault": "Not allowed. Computers in a domain do not use saved passwords by default when the server is authenticated with NTLM only, and through the tunnel it can be authenticated with NTLM only (127.x.y.z has no Kerberos name). Remote Desktop then says your system administrator does not allow saved credentials, and you type the password. An administrator can add TERMSRV/* to Computer Configuration → Administrative Templates → System → Credentials Delegation → “Allow delegating saved credentials with NTLM-only server authentication”.",
+        "deniedPolicy": "Not allowed. The policy “Allow delegating saved credentials with NTLM-only server authentication” is disabled.",
+        "deniedByDeny": "Not allowed. The policy “Deny delegating saved credentials” covers every server.",
+        "limited": "The policy allows saved passwords for the servers below only; this app's entrance addresses (127.x.y.z) are hardly among them.",
+        "detail": "Servers the policy names: {{text}}",
+        "unknown": "Unknown: whether this computer is in a domain could not be told, and that decides the default."
+      },
+      "credentialGuard": {
+        "label": "Credential Guard",
+        "running": "Running. Passwords Remote Desktop saves itself (“Remember me”) may not be used; those this app saves are not affected.",
+        "off": "Not running.",
+        "unknown": "Unknown.",
+        "checking": "Checking…"
+      },
+      "encryptionOracle": {
+        "label": "CredSSP Encryption Oracle Remediation",
+        "notConfigured": "Not configured (works as Mitigated).",
+        "forceUpdated": "Force Updated Clients. Does not connect to remote computers without the CredSSP update, and this computer's Remote Desktop service does not accept clients without it either.",
+        "mitigated": "Mitigated. Does not connect to remote computers without the CredSSP update.",
+        "vulnerable": "Vulnerable. Also connects to remote computers without the update, which is unsafe.",
+        "other": "Unknown value: {{value}}."
+      },
+      "logs": {
+        "label": "Log folder"
+      }
+    }
+  },
   "common": {
     "loading": "Loading…",
     "loadFailed": "Couldn't load settings: {{message}}",
@@ -321,7 +470,8 @@
       "exhausted": "Every loopback address is taken."
     },
     "rdp": {
-      "noAddress": "The .rdp file doesn't say which computer to connect to."
+      "noAddress": "The .rdp file doesn't say which computer to connect to.",
+      "tooLarge": "This file is too large to be an .rdp file."
     },
     "store": {
       "notFound": "It no longer exists. It may have been deleted.",
@@ -389,8 +539,11 @@
       "actionFailed": "Action “{{action}}” failed: {{error}}",
       "unexpectedEvent": "Ignored an unexpected event {{event}} during step “{{step}}”.",
       "gatewayMaybe": "If Remote Desktop can't connect directly, it may switch to an RD Gateway ({{server}}), which can't reach this app's tunnel.",
-      "gatewayUnknown": "Couldn't read the RD Gateway settings: {{error}}",
-      "hintFailed": "Couldn't pre-fill the user name for Remote Desktop: {{error}}"
+      "defaultsUnknown": "Could not read Remote Desktop's default settings (Default.rdp): {{error}}",
+      "hintFailed": "Couldn't pre-fill the user name for Remote Desktop: {{error}}",
+      "serverAuthRefuse": "Remote Desktop's default settings say “If server authentication fails: Do not connect”. Through the tunnel the name on the certificate never matches the entrance address, so Remote Desktop refuses to connect unless you trusted this computer's certificate before.",
+      "alwaysPrompt": "Remote Desktop's default settings say “Always ask for credentials”, so the saved password is not filled in; you will be asked again.",
+      "serverAuthRefusePolicy": "The Group Policy “Configure server authentication for client” says “Do not connect if authentication fails”. Through the tunnel the name on the certificate never matches the entrance address, so Remote Desktop refuses to connect unless you trusted this computer's certificate before."
     }
   },
   "quit": {

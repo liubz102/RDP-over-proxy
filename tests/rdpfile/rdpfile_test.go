@@ -289,3 +289,32 @@ func TestGatewayVerdict(t *testing.T) {
 		t.Error("profile usage 1 uses the file's own settings")
 	}
 }
+
+func TestSignInSettings(t *testing.T) {
+	cases := []struct {
+		lines  string
+		auth   ServerAuth
+		prompt bool
+	}{
+		{"", ServerAuthUnspecified, false},
+		{"authentication level:i:0", ServerAuthConnect, false},
+		{"authentication level:i:1", ServerAuthRefuse, false},
+		{"authentication level:i:2\nprompt for credentials:i:0", ServerAuthWarn, false},
+		{"authentication level:i:3", ServerAuthUnspecified, false},
+		{"authentication level:i:7\nprompt for credentials:i:1", ServerAuthUnspecified, true}, // not a value mstsc defines
+		{"authentication level:s:1", ServerAuthUnspecified, false},                            // not an integer
+	}
+	for _, c := range cases {
+		f := Parse([]byte(c.lines))
+		if got := f.ServerAuth(); got != c.auth {
+			t.Errorf("%q: ServerAuth = %d, want %d", c.lines, got, c.auth)
+		}
+		if got := f.AlwaysPrompt(); got != c.prompt {
+			t.Errorf("%q: AlwaysPrompt = %v, want %v", c.lines, got, c.prompt)
+		}
+	}
+	// What mstsc writes into a file it saves.
+	if f := readTestdata(t, "mstsc-saved.rdp"); f.ServerAuth() != ServerAuthWarn || f.AlwaysPrompt() {
+		t.Errorf("mstsc-saved.rdp: ServerAuth = %d, AlwaysPrompt = %v", f.ServerAuth(), f.AlwaysPrompt())
+	}
+}

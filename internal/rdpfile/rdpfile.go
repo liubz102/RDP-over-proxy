@@ -35,6 +35,8 @@ const (
 	propGatewayHost      = "gatewayhostname"
 	propGatewayUsage     = "gatewayusagemethod"
 	propGatewayProfile   = "gatewayprofileusagemethod"
+	propServerAuth       = "authentication level"
+	propPromptCreds      = "prompt for credentials"
 )
 
 // "screen mode id" values.
@@ -45,6 +47,13 @@ const (
 
 // ErrNoAddress is returned by Target when the file names no computer.
 var ErrNoAddress = errcode.New("rdp.noAddress", "the .rdp file has no \"full address\"")
+
+// MaxSize is the largest file taken for an .rdp file. mstsc writes a few
+// kilobytes; anything near this size is some other file chosen by mistake.
+const MaxSize = 1 << 20
+
+// ErrTooLarge: the file is larger than MaxSize.
+var ErrTooLarge = errcode.New("rdp.tooLarge", "the file is too large to be an .rdp file")
 
 // File is a parsed .rdp file.
 type File struct {

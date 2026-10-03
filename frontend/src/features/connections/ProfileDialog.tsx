@@ -29,7 +29,9 @@ import { errorOf, ProfileService, type ErrorView, type Profile, type ProfileView
 import { ErrorBar, useNotify } from "../../components/Feedback";
 import { fieldCodes, fieldText } from "../../lib/messages";
 import { useData } from "../../stores/data";
+import { useEditDefaults } from "../diagnostics/editDefaults";
 import { formField, fromForm, toForm, type ProfileForm } from "./profileForm";
+import type { Imported } from "./rdpImport";
 import { isActive } from "./status";
 
 const useStyles = makeStyles({
@@ -44,6 +46,8 @@ const useStyles = makeStyles({
     maxHeight: "calc(100vh - 220px)",
     overflowY: "auto",
     paddingRight: "8px",
+    // The content scrolls; without this its items would shrink to fit and overlap.
+    "& > *": { flexShrink: 0 },
   },
   row: {
     display: "grid",
@@ -73,11 +77,23 @@ const useStyles = makeStyles({
   },
 });
 
-/** Creates a profile (view is null) or edits one. */
-export function ProfileDialog({ view, onClose }: { view: ProfileView | null; onClose: () => void }) {
+/**
+ * Creates a profile (view is null), from scratch or from an imported .rdp
+ * file, or edits one.
+ */
+export function ProfileDialog({
+  view,
+  imported,
+  onClose,
+}: {
+  view: ProfileView | null;
+  imported?: Imported;
+  onClose: () => void;
+}) {
   const styles = useStyles();
   const { t, i18n } = useTranslation();
   const notify = useNotify();
+  const editDefaults = useEditDefaults();
   const proxies = useData((s) => s.proxies);
   const profiles = useData((s) => s.profiles);
   const [base, setBase] = useState<Profile | null>(view?.profile ?? null);
@@ -91,19 +107,22 @@ export function ProfileDialog({ view, onClose }: { view: ProfileView | null; onC
   // A connected profile only shows its settings; they unlock when the session ends.
   const locked = useData((s) => view !== null && isActive(s.sessions[view.profile.id]));
 
-  // A new profile starts from the Go side's defaults, with the first proxy the
-  // user made (or direct, when there is none). The list changes it later.
+  // A new profile starts from the Go side's defaults, or from what an .rdp
+  // file says, with the first proxy the user made (or direct, when there is
+  // none). The list changes it later.
   useEffect(() => {
     if (view) return;
-    ProfileService.Draft().then(
-      (draft) => {
-        const firstProxy = proxies.find((p) => !p.builtIn) ?? proxies[0];
-        const p = { ...draft, proxyId: firstProxy?.proxy.id ?? "direct" };
-        setBase(p);
-        setForm(toForm(p));
-      },
-      (e: unknown) => setError(errorOf(e)),
-    );
+    const start = (draft: Profile) => {
+      const firstProxy = proxies.find((p) => !p.builtIn) ?? proxies[0];
+      const p = { ...draft, proxyId: firstProxy?.proxy.id ?? "direct" };
+      setBase(p);
+      setForm(toForm(p));
+    };
+    if (imported) {
+      start(imported.view.profile);
+      return;
+    }
+    ProfileService.Draft().then(start, (e: unknown) => setError(errorOf(e)));
     // Only once, when the dialog opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -193,13 +212,20 @@ export function ProfileDialog({ view, onClose }: { view: ProfileView | null; onC
           }}
         >
           <DialogBody>
-            <DialogTitle>{editing ? t("connections.form.editTitle") : t("connections.form.newTitle")}</DialogTitle>
+            <DialogTitle>
+              {editing
+                ? t("connections.form.editTitle")
+                : imported
+                  ? t("connections.import.title")
+                  : t("connections.form.newTitle")}
+            </DialogTitle>
             <DialogContent className={styles.content}>
               {locked && (
                 <MessageBar intent="info" layout="multiline">
                   <MessageBarBody>{t("connections.form.locked")}</MessageBarBody>
                 </MessageBar>
               )}
+              {imported && <ImportNotes imported={imported} />}
               <ErrorBar error={error} />
               <div className={styles.row}>
                 <Field label={t("connections.form.name")} required validationState={validation("name")} validationMessage={problem("name")}>
@@ -319,7 +345,12 @@ export function ProfileDialog({ view, onClose }: { view: ProfileView | null; onC
                 </div>
               )}
               {form.mode === "window" && <Caption1 className={styles.hint}>{t("connections.form.sizeHint")}</Caption1>}
-              <Caption1 className={styles.hint}>{t("connections.form.displayHint")}</Caption1>
+              <Caption1 className={styles.hint}>
+                {t("connections.form.displayHint")}{" "}
+                <Link as="button" type="button" inline onClick={editDefaults}>
+                  {t("diag.editDefaults")}
+                </Link>
+              </Caption1>
               <Checkbox checked={form.admin} disabled={locked} label={t("connections.form.admin")} onChange={(_, d) => set("admin", !!d.checked)} />
             </DialogContent>
             <DialogActions>
@@ -334,5 +365,32 @@ export function ProfileDialog({ view, onClose }: { view: ProfileView | null; onC
         </form>
       </DialogSurface>
     </Dialog>
+  );
+}
+
+/** What reading the .rdp file found, above the form it filled in. */
+function ImportNotes({ imported }: { imported: Imported }) {
+  const { t } = useTranslation();
+  const v = imported.view;
+  return (
+    <>
+      <MessageBar intent="info" layout="multiline">
+        <MessageBarBody>{t("connections.import.read", { file: imported.file })}</MessageBarBody>
+      </MessageBar>
+      {v.viaGateway && (
+        <MessageBar intent="warning" layout="multiline">
+          <MessageBarBody>
+            {v.gateway ? t("connections.import.gateway", { server: v.gateway }) : t("connections.import.gatewayUnnamed")}
+          </MessageBarBody>
+        </MessageBar>
+      )}
+      {(v.existing ?? []).length > 0 && (
+        <MessageBar intent="warning" layout="multiline">
+          <MessageBarBody>
+            {t("connections.import.existing", { names: (v.existing ?? []).join(t("common.listSeparator")) })}
+          </MessageBarBody>
+        </MessageBar>
+      )}
+    </>
   );
 }
