@@ -190,7 +190,7 @@ func TestProxyValidationAndBuiltIn(t *testing.T) {
 	if _, err := d.UpdateProxy(model.DirectProxy()); !errors.Is(err, ErrBuiltIn) {
 		t.Fatalf("updating the direct entry = %v", err)
 	}
-	if err := d.DeleteProxy(model.DirectProxyID); !errors.Is(err, ErrBuiltIn) {
+	if _, err := d.DeleteProxy(model.DirectProxyID, nil); !errors.Is(err, ErrBuiltIn) {
 		t.Fatalf("deleting the direct entry = %v", err)
 	}
 	if _, err := d.UpdateProxy(socks("x")); !errors.Is(err, ErrNotFound) {
@@ -201,26 +201,116 @@ func TestProxyValidationAndBuiltIn(t *testing.T) {
 	}
 }
 
-func TestProxyInUseCannotBeDeleted(t *testing.T) {
-	d, _ := open(t, t.TempDir())
+func TestDeletingAProxyMovesItsUsersToDirect(t *testing.T) {
+	dir := t.TempDir()
+	d, _ := open(t, dir)
 	px, _ := d.CreateProxy(socks("Office"))
-	pr, err := d.CreateProfile(profile("PC", px.ID))
+	other, _ := d.CreateProxy(socks("Home"))
+	one, _ := d.CreateProfile(profile("PC one", px.ID))
+	two, _ := d.CreateProfile(profile("PC two", px.ID))
+	elsewhere, err := d.CreateProfile(profile("PC three", other.ID))
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = d.DeleteProxy(px.ID)
+
+	// A user the caller did not name keeps everything as it was.
+	moved, err := d.DeleteProxy(px.ID, []string{one.ID})
 	var inUse *InUseError
-	if !errors.As(err, &inUse) || !slices.Equal(inUse.Profiles, []string{pr.ID}) || errcode.Of(err) != "proxy.inUse" {
-		t.Fatalf("DeleteProxy of a used proxy = %v", err)
+	if !errors.As(err, &inUse) || !slices.Equal(inUse.Profiles, []string{two.ID}) || errcode.Of(err) != "proxy.inUse" || moved != nil {
+		t.Fatalf("DeleteProxy naming one of two users = %v, %v", moved, err)
 	}
-	if _, err := d.DeleteProfile(pr.ID); err != nil {
+	if p, _ := d.Profile(one.ID); p.ProxyID != px.ID {
+		t.Fatalf("a refused delete moved %+v", p)
+	}
+	if _, ok := d.Proxy(px.ID); !ok {
+		t.Fatal("a refused delete removed the proxy")
+	}
+
+	moved, err = d.DeleteProxy(px.ID, []string{two.ID, one.ID, elsewhere.ID})
+	if want := slices.Sorted(slices.Values([]string{one.ID, two.ID})); err != nil || !slices.Equal(moved, want) {
+		t.Fatalf("DeleteProxy = %v, %v; want %v moved", moved, err, want)
+	}
+	for _, reopened := range []bool{false, true} {
+		if reopened {
+			d, _ = open(t, dir)
+		}
+		if _, ok := d.Proxy(px.ID); ok {
+			t.Fatal("the proxy is still there")
+		}
+		for _, id := range []string{one.ID, two.ID} {
+			if p, _ := d.Profile(id); p.ProxyID != model.DirectProxyID {
+				t.Fatalf("reopened %v: user %+v did not move to direct", reopened, p)
+			}
+		}
+		if p, _ := d.Profile(elsewhere.ID); p.ProxyID != other.ID {
+			t.Fatalf("reopened %v: a profile of another proxy moved: %+v", reopened, p)
+		}
+	}
+	if _, err := d.DeleteProxy(px.ID, nil); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("deleting it again = %v", err)
+	}
+	if moved, err := d.DeleteProxy(other.ID, []string{elsewhere.ID}); err != nil || len(moved) != 1 {
+		t.Fatalf("DeleteProxy of the other = %v, %v", moved, err)
+	}
+}
+
+func TestProfileProxyChangesOnlyBySetProfileProxy(t *testing.T) {
+	dir := t.TempDir()
+	d, _ := open(t, dir)
+	office, _ := d.CreateProxy(socks("Office"))
+	home, _ := d.CreateProxy(socks("Home"))
+	p, err := d.CreateProfile(profile("PC", office.ID))
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := d.DeleteProxy(px.ID); err != nil {
-		t.Fatalf("DeleteProxy after its last user went: %v", err)
+
+	// An editor that sends another proxy does not change it.
+	edit := p
+	edit.Name, edit.ProxyID = "Renamed", home.ID
+	if stored, _, err := d.UpdateProfile(edit); err != nil || stored.ProxyID != office.ID || stored.Name != "Renamed" {
+		t.Fatalf("UpdateProfile = %+v, %v; want the proxy kept", stored, err)
 	}
-	if _, ok := d.Proxy(px.ID); ok {
-		t.Fatal("the proxy is still there")
+
+	for _, id := range []string{home.ID, model.DirectProxyID} {
+		stored, err := d.SetProfileProxy(p.ID, id)
+		if err != nil || stored.ProxyID != id || stored.Name != "Renamed" {
+			t.Fatalf("SetProfileProxy(%s) = %+v, %v", id, stored, err)
+		}
+		again, _ := open(t, dir)
+		if got, _ := again.Profile(p.ID); got != stored {
+			t.Fatalf("reloaded %+v, want %+v", got, stored)
+		}
+	}
+	if _, err := d.SetProfileProxy(p.ID, "nosuchproxy"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("SetProfileProxy to a missing proxy = %v", err)
+	}
+	if _, err := d.SetProfileProxy("nosuchprofile", model.DirectProxyID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("SetProfileProxy of a missing profile = %v", err)
+	}
+}
+
+func TestProfileKeepsAProxyThatIsGone(t *testing.T) {
+	dir := t.TempDir()
+	d, _ := open(t, dir)
+	px, _ := d.CreateProxy(socks("Office"))
+	p, err := d.CreateProfile(profile("PC", px.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The proxy's file goes, as if it could not be loaded.
+	if err := os.Remove(filepath.Join(dir, ProxiesDir, px.ID+".json")); err != nil {
+		t.Fatal(err)
+	}
+	d, _ = open(t, dir)
+	p.Name = "Renamed"
+	if stored, _, err := d.UpdateProfile(p); err != nil || stored.ProxyID != px.ID {
+		t.Fatalf("editing a profile whose proxy is gone = %+v, %v", stored, err)
+	}
+	// Choosing it is another matter.
+	q := profile("PC two", px.ID)
+	var fields model.FieldErrors
+	if _, err := d.CreateProfile(q); !errors.As(err, &fields) || !fields.Has("proxyId", model.CodeInvalid) {
+		t.Fatalf("creating a profile with a missing proxy = %v", err)
 	}
 }
 

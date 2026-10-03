@@ -43,9 +43,10 @@ var (
 	errInUse = errcode.New("proxy.inUse", "the proxy is still in use")
 )
 
-// InUseError is returned when deleting a proxy that profiles still use.
+// InUseError is returned when deleting a proxy that profiles still use and
+// that were not named to move to the direct entry (DeleteProxy).
 type InUseError struct {
-	// Profiles are the IDs of the profiles that use the proxy.
+	// Profiles are the IDs of those profiles.
 	Profiles []string
 }
 
@@ -410,33 +411,52 @@ func (d *Data) saveProxy(p model.Proxy) (model.Proxy, error) {
 	return p, nil
 }
 
-// DeleteProxy removes a proxy. A proxy that profiles use is not removed;
-// the error is an *InUseError naming them.
-func (d *Data) DeleteProxy(id string) error {
+// DeleteProxy removes a proxy. The profiles that use it switch to the
+// built-in direct entry, but only those named in moveToDirect, the ones the
+// user agreed to: any other user leaves everything as it was, and the error
+// is an *InUseError naming them. It returns the IDs of the profiles that
+// switched, sorted, which may be some of them when saving one fails (the
+// proxy then stays, so no profile is left without its proxy).
+func (d *Data) DeleteProxy(id string, moveToDirect []string) (moved []string, err error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if id == model.DirectProxyID {
-		return ErrBuiltIn
+		return nil, ErrBuiltIn
 	}
 	if _, ok := d.proxies[id]; !ok {
-		return ErrNotFound
+		return nil, ErrNotFound
 	}
-	var users []string
+	var users, unasked []string
 	for _, p := range d.profiles {
 		if p.ProxyID == id {
 			users = append(users, p.ID)
+			if !slices.Contains(moveToDirect, p.ID) {
+				unasked = append(unasked, p.ID)
+			}
 		}
 	}
-	if len(users) > 0 {
-		slices.Sort(users)
-		return &InUseError{Profiles: users}
+	if len(unasked) > 0 {
+		slices.Sort(unasked)
+		return nil, &InUseError{Profiles: unasked}
+	}
+	slices.Sort(users)
+	for _, pid := range users {
+		// Written as it is: a problem elsewhere in the profile (a file
+		// edited by hand) is no reason to keep the proxy.
+		p := d.profiles[pid]
+		p.ProxyID = model.DirectProxyID
+		if err := d.writeProfile(p); err != nil {
+			return moved, err
+		}
+		d.profiles[pid] = p
+		moved = append(moved, pid)
 	}
 	if err := removeFile(filepath.Join(d.dir, ProxiesDir, id+".json")); err != nil {
-		return err
+		return moved, err
 	}
 	delete(d.proxies, id)
 	delete(d.lost, id)
-	return nil
+	return moved, nil
 }
 
 // CreateProfile stores a new profile and returns it with its new ID and
@@ -462,6 +482,8 @@ func (d *Data) CreateProfile(p model.Profile) (model.Profile, error) {
 // UpdateProfile replaces a stored profile and returns it as stored, along
 // with the version it replaced. The loopback address never changes: it is
 // the profile's identity for mstsc's saved passwords and certificate trust.
+// The proxy stays too: SetProfileProxy changes it, so an editor that knows
+// nothing of it cannot set it back.
 func (d *Data) UpdateProfile(p model.Profile) (stored, previous model.Profile, err error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -469,9 +491,28 @@ func (d *Data) UpdateProfile(p model.Profile) (stored, previous model.Profile, e
 	if !ok {
 		return model.Profile{}, model.Profile{}, ErrNotFound
 	}
-	p.Loopback = previous.Loopback
+	p.Loopback, p.ProxyID = previous.Loopback, previous.ProxyID
 	stored, err = d.saveProfile(p)
 	return stored, previous, err
+}
+
+// SetProfileProxy points a profile at another proxy, or at the built-in
+// direct entry, and returns the profile as stored. Only the proxy changes,
+// so a problem elsewhere in the profile (a file edited by hand) does not
+// stand in the way.
+func (d *Data) SetProfileProxy(id, proxyID string) (model.Profile, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	p, ok := d.profiles[id]
+	if !ok || !d.hasProxy(proxyID) {
+		return model.Profile{}, ErrNotFound
+	}
+	p.ProxyID = proxyID
+	if err := d.writeProfile(p); err != nil {
+		return model.Profile{}, err
+	}
+	d.profiles[id] = p
+	return p, nil
 }
 
 func (d *Data) saveProfile(p model.Profile) (model.Profile, error) {
@@ -481,10 +522,12 @@ func (d *Data) saveProfile(p model.Profile) (model.Profile, error) {
 	if err != nil && !errors.As(err, &fields) {
 		return model.Profile{}, err
 	}
-	if p.ProxyID != model.DirectProxyID && p.ProxyID != "" && model.ValidID(p.ProxyID) {
-		if _, ok := d.proxies[p.ProxyID]; !ok {
-			fields = append(fields, model.FieldError{Field: "proxyId", Code: model.CodeInvalid})
-		}
+	// A proxy has to exist when it is chosen. A profile keeps the one it has
+	// even when that is gone (its file could not be loaded); the list says so.
+	old, existed := d.profiles[p.ID]
+	chosen := !existed || old.ProxyID != p.ProxyID
+	if chosen && model.ValidID(p.ProxyID) && !d.hasProxy(p.ProxyID) {
+		fields = append(fields, model.FieldError{Field: "proxyId", Code: model.CodeInvalid})
 	}
 	if len(fields) > 0 {
 		return model.Profile{}, fields
@@ -494,6 +537,13 @@ func (d *Data) saveProfile(p model.Profile) (model.Profile, error) {
 	}
 	d.profiles[p.ID] = p
 	return p, nil
+}
+
+// hasProxy reports whether id is a stored proxy or the direct entry. The
+// caller holds d.mu.
+func (d *Data) hasProxy(id string) bool {
+	_, ok := d.proxies[id]
+	return ok || id == model.DirectProxyID
 }
 
 func (d *Data) writeProfile(p model.Profile) error {

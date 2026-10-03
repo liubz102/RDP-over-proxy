@@ -26,11 +26,15 @@ export function Create(p: model$0.Proxy): $CancellablePromise<$models.ProxyView>
 }
 
 /**
- * Delete removes a proxy. One that connections still use is not removed;
- * the error's args name them ("profiles").
+ * Delete removes a proxy. The profiles that use it switch to the built-in
+ * direct entry, but only those in moveToDirect, the ones the user was shown
+ * and agreed to: any other user leaves everything as it was, and the error
+ * (proxy.inUse) names them in its args ("profiles") so the user can be
+ * asked again. Nothing changes either while a connected profile uses the
+ * proxy (ErrProxyConnected).
  */
-export function Delete(id: string): $CancellablePromise<void> {
-    return $Call.ByID(3030182293, id);
+export function Delete(id: string, moveToDirect: string[] | null): $CancellablePromise<void> {
+    return $Call.ByID(3030182293, id, moveToDirect);
 }
 
 /**
@@ -89,7 +93,8 @@ export function ShareLink(id: string): $CancellablePromise<string> {
  * Update stores an edited proxy, once Xray has accepted its settings. With
  * keepSecret the stored secret stays and p.Secret is ignored, so the form
  * does not need to know it; a proxy that changes its kind keeps none.
- * Sessions already using the proxy keep the settings they started with.
+ * While a connected profile uses the proxy it is not changed
+ * (ErrProxyConnected): that session would go on with the old settings.
  */
 export function Update(p: model$0.Proxy, keepSecret: boolean): $CancellablePromise<$models.ProxyView> {
     return $Call.ByID(2399689955, p, keepSecret);

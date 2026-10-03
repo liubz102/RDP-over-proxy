@@ -28,6 +28,8 @@
     "ungrouped": "No group",
     "proxyMissing": "Proxy no longer exists",
     "via": "via {{proxy}}",
+    "proxy": "Proxy",
+    "setProxyFailed": "Could not change the proxy of “{{name}}”",
     "connect": "Connect",
     "disconnect": "Disconnect",
     "focus": "Show window",
@@ -41,13 +43,13 @@
     "form": {
       "newTitle": "New connection",
       "editTitle": "Edit connection",
+      "locked": "This connection is in use. Disconnect it to change its settings.",
       "name": "Name",
       "group": "Group",
       "groupPlaceholder": "No group",
       "address": "Computer",
       "addressHint": "Computer name or IP address. If the port is not 3389, write address:port, such as pc.example.com:3390.",
       "addressChanged": "After the computer changes, the password saved for the old address is deleted.",
-      "proxy": "Proxy",
       "signIn": "Sign-in",
       "username": "User name",
       "usernameHint": "Fills in Remote Desktop's sign-in. DOMAIN\\user and user@domain both work.",
@@ -115,6 +117,8 @@
     "latencyHint": "Fetches the test URL from Settings through this proxy and measures the time.",
     "deleteTitle": "Delete this proxy?",
     "deleteBody": "“{{name}}” will be deleted.",
+    "deleteMoves": "These connections use it and will connect directly, without a proxy: {{profiles}}.",
+    "deleteConnected": "These connections are connected through this proxy. Disconnect them to delete it: {{profiles}}.",
     "kinds": {
       "direct": "Direct",
       "socks": "SOCKS5",
@@ -129,6 +133,7 @@
     "form": {
       "newTitle": "Add proxy",
       "editTitle": "Edit proxy",
+      "locked": "These connections are connected through this proxy. Disconnect them to change it: {{profiles}}.",
       "kind": "Type",
       "name": "Name",
       "server": "Server",
@@ -264,7 +269,8 @@
     "delete": "Delete",
     "edit": "Edit",
     "more": "More",
-    "colon": ": "
+    "colon": ": ",
+    "listSeparator": ", "
   },
   "errors": {
     "unknown": "Something went wrong.",
@@ -296,7 +302,8 @@
       "dropped": "The proxy closed the connection before the remote computer answered. Usually the proxy, or the server behind it, can't reach the remote computer.",
       "failed": "The proxy reported an error.",
       "unsupported": "This kind of proxy isn't supported yet.",
-      "inUse": "This proxy is still used by: {{profiles}}.",
+      "inUse": "These connections use this proxy too: {{profiles}}. Check the list and delete again.",
+      "connected": "These connections are connected through this proxy: {{profiles}}. Disconnect them to change or delete it.",
       "config": "Xray doesn't accept these settings.",
       "tls": "The proxy server's certificate didn't pass: it may not be the pinned certificate, or may not match the server name; with REALITY, the public key may be wrong.",
       "secretsLost": "This proxy's password and settings can't be decrypted (they come from another computer or Windows user), so it can't be used for now. Edit it: paste the share link again, or enter everything again, and save."

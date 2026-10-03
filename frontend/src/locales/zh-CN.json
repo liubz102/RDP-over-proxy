@@ -28,6 +28,8 @@
     "ungrouped": "未分组",
     "proxyMissing": "代理已不存在",
     "via": "经 {{proxy}}",
+    "proxy": "代理",
+    "setProxyFailed": "无法更改「{{name}}」的代理",
     "connect": "连接",
     "disconnect": "断开",
     "focus": "切换到窗口",
@@ -41,13 +43,13 @@
     "form": {
       "newTitle": "新建连接",
       "editTitle": "编辑连接",
+      "locked": "这个连接正在使用中，断开后才能修改设置。",
       "name": "名称",
       "group": "分组",
       "groupPlaceholder": "不分组",
       "address": "计算机",
       "addressHint": "计算机名或 IP 地址。端口不是 3389 时写成「地址:端口」，例如 pc.example.com:3390。",
       "addressChanged": "改了计算机后，为原地址保存的密码会被删除。",
-      "proxy": "代理",
       "signIn": "登录",
       "username": "用户名",
       "usernameHint": "预先填入远程桌面的登录框。可以写成 域\\用户 或 用户@域。",
@@ -115,6 +117,8 @@
     "latencyHint": "经这个代理访问「设置」里的测速网址，计算用时。",
     "deleteTitle": "删除代理？",
     "deleteBody": "「{{name}}」会被删除。",
+    "deleteMoves": "以下连接正在使用它，删除后会改为直连，不再经过代理：{{profiles}}。",
+    "deleteConnected": "以下连接正在通过这个代理连接，断开后才能删除：{{profiles}}。",
     "kinds": {
       "direct": "直连",
       "socks": "SOCKS5",
@@ -129,6 +133,7 @@
     "form": {
       "newTitle": "添加代理",
       "editTitle": "编辑代理",
+      "locked": "以下连接正在通过这个代理连接，断开后才能修改：{{profiles}}。",
       "kind": "类型",
       "name": "名称",
       "server": "服务器",
@@ -264,7 +269,8 @@
     "delete": "删除",
     "edit": "编辑",
     "more": "更多",
-    "colon": "："
+    "colon": "：",
+    "listSeparator": "、"
   },
   "errors": {
     "unknown": "出现了问题。",
@@ -296,7 +302,8 @@
       "dropped": "远程计算机应答之前，代理就关闭了连接。通常是代理（或它背后的服务器）连不上远程计算机。",
       "failed": "代理报告了错误。",
       "unsupported": "暂不支持这种代理。",
-      "inUse": "以下连接还在使用这个代理：{{profiles}}。",
+      "inUse": "以下连接也在使用这个代理：{{profiles}}。请确认后再删除。",
+      "connected": "以下连接正在通过这个代理连接：{{profiles}}。断开后才能修改或删除这个代理。",
       "config": "Xray 不接受这些设置。",
       "tls": "代理服务器的证书没有通过验证：可能不是填的那张证书，或者和服务器名称对不上；用 REALITY 时，也可能是公钥不对。",
       "secretsLost": "这个代理的密码和设置解不开（来自别的电脑或 Windows 用户），暂时不能用。请编辑它，重新粘贴分享链接或重新填写后保存。"

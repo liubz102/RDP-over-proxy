@@ -57,5 +57,12 @@ describe("profile form", () => {
     expect(formField("target.host")).toBe("address");
     expect(formField("display.span")).toBe("screens");
     expect(formField("loopback")).toBeNull();
+    // The list chooses the proxy, not the editor.
+    expect(formField("proxyId")).toBeNull();
+  });
+
+  it("leaves the proxy to the list", () => {
+    expect(toForm(profile)).not.toHaveProperty("proxyId");
+    expect(fromForm(profile, { ...toForm(profile), name: "Renamed" }).profile.proxyId).toBe(profile.proxyId);
   });
 });

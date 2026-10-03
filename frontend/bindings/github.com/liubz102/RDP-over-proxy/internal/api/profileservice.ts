@@ -46,7 +46,8 @@ export function Draft(): $CancellablePromise<model$0.Profile> {
 
 /**
  * ForgetPassword deletes every saved password of the profile: the app's
- * and the one mstsc remembered.
+ * and the one mstsc remembered. Not while it is connected
+ * (ErrSessionRunning): the session's one-time password would go too.
  */
 export function ForgetPassword(id: string): $CancellablePromise<void> {
     return $Call.ByID(3269240923, id);
@@ -60,7 +61,18 @@ export function List(): $CancellablePromise<$models.ProfileView[] | null> {
 }
 
 /**
- * Update stores the edited profile. Its ID and loopback address stay.
+ * SetProxy chooses the proxy the profile connects through: a stored proxy's
+ * ID, or model.DirectProxyID. A connected profile keeps its proxy
+ * (ErrSessionRunning).
+ */
+export function SetProxy(id: string, proxyID: string): $CancellablePromise<$models.ProfileView> {
+    return $Call.ByID(2450101691, id, proxyID);
+}
+
+/**
+ * Update stores the edited profile. Its ID, loopback address and proxy stay
+ * (SetProxy changes the proxy). A connected profile is not changed
+ * (ErrSessionRunning): its session would go on with the old settings.
  * 
  *   - Changing the target computer (host or port) deletes the saved
  *     passwords: they belong to the old computer, and mstsc would offer them

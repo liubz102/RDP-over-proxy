@@ -41,6 +41,7 @@ import {
 } from "../../api/backend";
 import { ErrorBar } from "../../components/Feedback";
 import { errorDetails, errorText, fieldCodes, fieldText, linkNoteText } from "../../lib/messages";
+import { useData } from "../../stores/data";
 import {
   editableKinds,
   fingerprints,
@@ -74,6 +75,7 @@ import {
   type FieldKey,
   type ProxyForm,
 } from "./proxyForm";
+import { profileNames, proxyUsage } from "./usage";
 
 const useStyles = makeStyles({
   surface: {
@@ -178,6 +180,12 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
   const [imported, setImported] = useState<Imported | null>(null);
   const [test, setTest] = useState<Test>({ kind: "idle" });
   const testing = useRef<CancellablePromise<LatencyResult> | null>(null);
+  // While a connection runs through the proxy, the editor only shows it: that
+  // session would go on with the old settings. It unlocks when they end.
+  const profiles = useData((s) => s.profiles);
+  const sessions = useData((s) => s.sessions);
+  const connected = view ? proxyUsage(view.proxy.id, profiles, sessions).connected : [];
+  const locked = connected.length > 0;
 
   // The list leaves out what the editor needs (the settings, the custom
   // outbound); read the proxy itself.
@@ -260,7 +268,7 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
   };
 
   const save = async () => {
-    if (!form || !base) return;
+    if (!form || !base || locked) return;
     const { proxy, keepSecret, problems: local } = fromForm(base, form, hasSecret);
     if (Object.keys(local).length > 0) {
       setProblems(local);
@@ -345,6 +353,7 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
         className={styles.fill}
         type={extra.password ? "password" : "text"}
         spellCheck={false}
+        disabled={locked}
         value={o[key]}
         placeholder={extra.placeholder}
         onChange={(_, d) => setOption(key, d.value)}
@@ -357,6 +366,7 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
       <Textarea
         textarea={{ className: styles.code }}
         spellCheck={false}
+        disabled={locked}
         resize="vertical"
         rows={3}
         value={o[key]}
@@ -370,6 +380,7 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
     <Field key={key} label={label} validationState={validation(`options.${key}`)} validationMessage={problem(`options.${key}`)}>
       <Dropdown
         className={styles.fill}
+        disabled={locked}
         value={name(o[key])}
         selectedOptions={[o[key]]}
         onOptionSelect={(_, d) => d.optionValue !== undefined && setOption(key, d.optionValue)}
@@ -397,6 +408,7 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
         // A user ID is pasted rather than typed; seeing it helps to check it.
         type={show.secret === "userId" ? "text" : "password"}
         spellCheck={false}
+        disabled={locked}
         value={form.password}
         placeholder={secretSaved ? t("proxies.form.passwordSaved") : show.secret === "userId" ? "UUID" : undefined}
         onChange={(_, d) => set("password", d.value)}
@@ -412,6 +424,7 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
         <Field label={t("proxies.form.network")} validationState={validation("options.network")} validationMessage={problem("options.network")}>
           <Dropdown
             className={styles.fill}
+            disabled={locked}
             value={networkName(t, o.network)}
             selectedOptions={[o.network]}
             onOptionSelect={(_, d) => {
@@ -448,7 +461,7 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
 
       <Divider className={styles.section} />
       <Subtitle2>{t("proxies.form.security")}</Subtitle2>
-      <RadioGroup layout="horizontal" value={o.security} onChange={(_, d) => setOption("security", d.value)}>
+      <RadioGroup layout="horizontal" value={o.security} disabled={locked} onChange={(_, d) => setOption("security", d.value)}>
         {securities.map((s) => (
           <Radio key={s} value={s} label={s === "none" ? t("proxies.form.none") : securityName(t, s)} />
         ))}
@@ -498,6 +511,7 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
         <Combobox
           className={styles.fill}
           freeform
+          disabled={locked}
           value={o.fingerprint}
           selectedOptions={[o.fingerprint]}
           placeholder={t("proxies.form.fingerprintDefault")}
@@ -544,6 +558,11 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
           <DialogBody>
             <DialogTitle>{editing ? t("proxies.form.editTitle") : t("proxies.form.newTitle")}</DialogTitle>
             <DialogContent className={styles.content}>
+              {locked && (
+                <MessageBar intent="info" layout="multiline">
+                  <MessageBarBody>{t("proxies.form.locked", { profiles: profileNames(connected, t("common.listSeparator")) })}</MessageBarBody>
+                </MessageBar>
+              )}
               <ErrorBar error={error} />
               {view?.secretsLost && (
                 <MessageBar intent="warning" layout="multiline">
@@ -562,6 +581,7 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
                     <Input
                       value={link}
                       autoFocus={!editing}
+                      disabled={locked}
                       spellCheck={false}
                       placeholder="vless://… vmess://… ss://…"
                       onChange={(_, d) => {
@@ -580,7 +600,7 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
                           type="button"
                           size="small"
                           appearance="transparent"
-                          disabled={link.trim() === ""}
+                          disabled={link.trim() === "" || locked}
                           onClick={() => void importLink()}
                         >
                           {t("proxies.form.linkImport")}
@@ -607,6 +627,7 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
                     <Field label={t("proxies.form.kind")} validationState={validation("kind")} validationMessage={problem("kind")}>
                       <Dropdown
                         className={styles.fill}
+                        disabled={locked}
                         value={kindName(t, form.kind)}
                         selectedOptions={[form.kind]}
                         onOptionSelect={(_, d) => {
@@ -624,7 +645,7 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
                       </Dropdown>
                     </Field>
                     <Field label={t("proxies.form.name")} required validationState={validation("name")} validationMessage={problem("name")}>
-                      <Input className={styles.fill} value={form.name} onChange={(_, d) => set("name", d.value)} />
+                      <Input className={styles.fill} value={form.name} disabled={locked} onChange={(_, d) => set("name", d.value)} />
                     </Field>
                   </div>
                   <div className={styles.server}>
@@ -637,6 +658,7 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
                     >
                       <Input
                         value={form.server}
+                        disabled={locked}
                         spellCheck={false}
                         placeholder={form.kind === "socks" || form.kind === "http" ? "127.0.0.1" : "proxy.example.com"}
                         onChange={(_, d) => set("server", d.value)}
@@ -651,6 +673,7 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
                       <Input
                         className={styles.fill}
                         value={form.port}
+                        disabled={locked}
                         inputMode="numeric"
                         placeholder={form.kind === "http" ? "8080" : form.kind === "socks" ? "1080" : "443"}
                         onChange={(_, d) => set("port", d.value)}
@@ -662,21 +685,26 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
                     <>
                       <div className={styles.row}>
                         <Field label={t("proxies.form.username")} validationState={validation("username")} validationMessage={problem("username")}>
-                          <Input className={styles.fill} value={form.username} onChange={(_, d) => set("username", d.value)} />
+                          <Input className={styles.fill} value={form.username} disabled={locked} onChange={(_, d) => set("username", d.value)} />
                         </Field>
                         <Field label={t("proxies.form.password")} validationState={validation("password")} validationMessage={problem("password")}>
                           <Input
                             className={styles.fill}
                             type="password"
                             value={form.password}
-                            disabled={form.clearSecret}
+                            disabled={form.clearSecret || locked}
                             placeholder={form.clearSecret ? t("proxies.form.passwordCleared") : secretSaved ? t("proxies.form.passwordSaved") : undefined}
                             onChange={(_, d) => set("password", d.value)}
                           />
                         </Field>
                       </div>
                       {hasSecret && sameSecret(base.kind, form.kind) && (
-                        <Link as="button" type="button" onClick={() => change({ ...form, clearSecret: !form.clearSecret, password: "" }, ["password"])}>
+                        <Link
+                          as="button"
+                          type="button"
+                          disabled={locked}
+                          onClick={() => change({ ...form, clearSecret: !form.clearSecret, password: "" }, ["password"])}
+                        >
                           {form.clearSecret ? t("proxies.form.keepPassword") : t("proxies.form.clearPassword")}
                         </Link>
                       )}
@@ -702,6 +730,7 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
                         <Field label={t("proxies.form.flow")} validationState={validation("options.flow")} validationMessage={problem("options.flow")}>
                           <Dropdown
                             className={styles.fill}
+                            disabled={locked}
                             value={none(o.flow)}
                             selectedOptions={[o.flow || "none"]}
                             // Fluent cannot hold an empty value; "none" stands for no flow.
@@ -737,6 +766,7 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
                       <Textarea
                         textarea={{ className: styles.code }}
                         spellCheck={false}
+                        disabled={locked}
                         resize="vertical"
                         rows={12}
                         value={form.outbound}
@@ -748,9 +778,13 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
 
                   {advancedFields.length > 0 && (
                     <>
-                      <Link as="button" type="button" className={styles.section} onClick={() => setAdvanced(!advanced)}>
-                        {advanced ? t("proxies.form.hideAdvanced") : t("proxies.form.showAdvanced")}
-                      </Link>
+                      {/* Locked, there is nothing to unfold: settings with a value open unfolded (hasAdvanced).
+                          And the link would be the one thing to focus, which scrolls the editor to its end. */}
+                      {!locked && (
+                        <Link as="button" type="button" className={styles.section} onClick={() => setAdvanced(!advanced)}>
+                          {advanced ? t("proxies.form.hideAdvanced") : t("proxies.form.showAdvanced")}
+                        </Link>
+                      )}
                       {advanced && advancedFields}
                     </>
                   )}
@@ -775,9 +809,9 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
             </DialogActions>
             <DialogActions>
               <Button appearance="secondary" type="button" onClick={onClose}>
-                {t("common.cancel")}
+                {locked ? t("common.close") : t("common.cancel")}
               </Button>
-              <Button appearance="primary" type="submit" disabled={saving || !supported}>
+              <Button appearance="primary" type="submit" disabled={saving || !supported || locked}>
                 {t("common.save")}
               </Button>
             </DialogActions>

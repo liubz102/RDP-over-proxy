@@ -10,6 +10,8 @@ import {
   MenuList,
   MenuPopover,
   MenuTrigger,
+  MessageBar,
+  MessageBarBody,
   Spinner,
   Text,
   Tooltip,
@@ -35,6 +37,7 @@ import { errorText } from "../../lib/messages";
 import { useData } from "../../stores/data";
 import { kindName, proxyName, transportName } from "./names";
 import { ProxyDialog } from "./ProxyDialog";
+import { profileNames, proxyUsage } from "./usage";
 
 const useStyles = makeStyles({
   list: {
@@ -97,6 +100,11 @@ const useStyles = makeStyles({
   menuPlaceholder: {
     width: "32px",
   },
+  deleteBody: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px",
+  },
 });
 
 type Dialog = { kind: "edit"; view: ProxyView | null } | { kind: "delete"; view: ProxyView };
@@ -105,6 +113,8 @@ export function ProxiesPage() {
   const styles = useStyles();
   const { t } = useTranslation();
   const proxies = useData((s) => s.proxies);
+  const profiles = useData((s) => s.profiles);
+  const sessions = useData((s) => s.sessions);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [deleteError, setDeleteError] = useState<ErrorView | null>(null);
   const [busy, setBusy] = useState(false);
@@ -113,13 +123,19 @@ export function ProxiesPage() {
     setDeleteError(null);
   };
 
-  const remove = async (v: ProxyView) => {
+  // Who the proxy to delete leaves behind, as of now: the dialog follows the data.
+  const usage = dialog?.kind === "delete" ? proxyUsage(dialog.view.proxy.id, profiles, sessions) : null;
+  const separator = t("common.listSeparator");
+
+  const remove = async (v: ProxyView, moveToDirect: string[]) => {
     setBusy(true);
+    setDeleteError(null);
     try {
-      await ProxyService.Delete(v.proxy.id);
+      // Only the connections the dialog named switch to direct; if others
+      // have started using the proxy since, the Go side refuses and names them.
+      await ProxyService.Delete(v.proxy.id, moveToDirect);
       close();
     } catch (e) {
-      // A proxy that connections use stays; the error names them.
       setDeleteError(errorOf(e));
     } finally {
       setBusy(false);
@@ -150,11 +166,30 @@ export function ProxiesPage() {
         title={t("proxies.deleteTitle")}
         confirm={t("common.delete")}
         danger
-        busy={busy || deleteError !== null}
+        // While a connection runs through the proxy, it stays: that session could not follow the change.
+        busy={busy || (usage?.connected.length ?? 0) > 0}
         onClose={close}
-        onConfirm={() => dialog?.kind === "delete" && void remove(dialog.view)}
+        onConfirm={() => dialog?.kind === "delete" && usage && void remove(dialog.view, usage.users.map((u) => u.profile.id))}
       >
-        {dialog?.kind === "delete" && (deleteError ? <ErrorBar error={deleteError} /> : t("proxies.deleteBody", { name: dialog.view.proxy.name }))}
+        {dialog?.kind === "delete" && usage && (
+          <div className={styles.deleteBody}>
+            <ErrorBar error={deleteError} />
+            {usage.connected.length > 0 ? (
+              <MessageBar intent="warning" layout="multiline">
+                <MessageBarBody>{t("proxies.deleteConnected", { profiles: profileNames(usage.connected, separator) })}</MessageBarBody>
+              </MessageBar>
+            ) : (
+              <>
+                <div>{t("proxies.deleteBody", { name: dialog.view.proxy.name })}</div>
+                {usage.users.length > 0 && (
+                  <MessageBar intent="warning" layout="multiline">
+                    <MessageBarBody>{t("proxies.deleteMoves", { profiles: profileNames(usage.users, separator) })}</MessageBarBody>
+                  </MessageBar>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </ConfirmDialog>
     </Page>
   );

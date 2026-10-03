@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { SessionView } from "../../../src/api/backend";
-import { sessionStatus } from "../../../src/features/connections/status";
+import { isActive, sessionStatus } from "../../../src/features/connections/status";
 
 const base: SessionView = {
   profileId: "p",
@@ -64,5 +64,16 @@ describe("sessionStatus", () => {
 
   it("waits while ending", () => {
     expect(sessionStatus({ ...base, phase: "ending" })).toMatchObject({ tone: "busy", actions: "ending" });
+  });
+});
+
+describe("isActive", () => {
+  it("holds from the start of a session until it has ended", () => {
+    expect(isActive(undefined)).toBe(false);
+    for (const phase of ["preparing", "checking", "launching", "running", "ending"]) {
+      expect(isActive({ ...base, phase })).toBe(true);
+    }
+    expect(isActive({ ...base, phase: "ended", step: "done", outcome: "closed" })).toBe(false);
+    expect(isActive({ ...base, phase: "ended", step: "done", outcome: "failed", failedStep: "check" })).toBe(false);
   });
 });

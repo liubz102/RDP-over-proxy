@@ -473,20 +473,131 @@ func TestProxies(t *testing.T) {
 		t.Fatalf("stored %+v", stored)
 	}
 
-	// A proxy in use is not deleted; the error names its users.
-	h.profile(t, "PC one", px.ID, "192.0.2.20:3389", "")
-	h.profile(t, "PC two", px.ID, "192.0.2.21:3389", "")
-	err = h.proxies.Delete(px.ID)
-	var view ErrorView
-	if jerr := json.Unmarshal(MarshalError(err), &view); jerr != nil {
-		t.Fatal(jerr)
+	// Deleting a proxy in use moves the users the caller names to direct;
+	// any other user stops it, and the error names them.
+	one := h.profile(t, "PC one", px.ID, "192.0.2.20:3389", "")
+	two := h.profile(t, "PC two", px.ID, "192.0.2.21:3389", "")
+	if view := errorJSON(t, h.proxies.Delete(px.ID, nil)); view.Code != "proxy.inUse" || view.Args["profiles"] != "PC one, PC two" {
+		t.Fatalf("Delete of a used proxy naming none: %+v", view)
 	}
-	if view.Code != "proxy.inUse" || view.Args["profiles"] != "PC one, PC two" {
-		t.Fatalf("Delete of a used proxy: %+v", view)
+	if view := errorJSON(t, h.proxies.Delete(px.ID, []string{one.ID})); view.Code != "proxy.inUse" || view.Args["profiles"] != "PC two" {
+		t.Fatalf("Delete of a used proxy naming one of two: %+v", view)
 	}
-	if err := h.proxies.Delete(model.DirectProxyID); errcode.Of(err) != "store.builtIn" {
+	changes := len(h.events.named(EventDataChanged))
+	if err := h.proxies.Delete(px.ID, []string{one.ID, two.ID}); err != nil {
+		t.Fatalf("Delete naming every user: %v", err)
+	}
+	for _, v := range h.profiles.List() {
+		if v.Profile.ProxyID != model.DirectProxyID || v.ProxyMissing {
+			t.Fatalf("after Delete: %+v", v)
+		}
+	}
+	if list := h.proxies.List(); len(list) != 1 || list[0].UsedBy != 2 {
+		t.Fatalf("after Delete, proxies = %+v", list)
+	}
+	if len(h.events.named(EventDataChanged)) != changes+1 {
+		t.Fatal("Delete did not tell the frontend")
+	}
+	if err := h.proxies.Delete(model.DirectProxyID, nil); errcode.Of(err) != "store.builtIn" {
 		t.Fatalf("deleting the direct entry: %v", err)
 	}
+}
+
+func TestSetProxy(t *testing.T) {
+	h := newHarness(t)
+	office, home := h.proxy(t, "Office"), h.proxy(t, "Home")
+	p := h.profile(t, "PC", office.ID, "192.0.2.20:3389", "")
+	v, err := h.profiles.SetProxy(p.ID, home.ID)
+	if err != nil || v.Profile.ProxyID != home.ID || v.ProxyMissing {
+		t.Fatalf("SetProxy = %+v, %v", v, err)
+	}
+	// The editor does not change it back.
+	p.Name = "Renamed"
+	if v, err := h.profiles.Update(p, ""); err != nil || v.Profile.ProxyID != home.ID {
+		t.Fatalf("Update after SetProxy = %+v, %v", v.Profile, err)
+	}
+	if _, err := h.profiles.SetProxy(p.ID, "nosuchproxy"); errcode.Of(err) != "store.notFound" {
+		t.Fatalf("SetProxy to a missing proxy = %v", err)
+	}
+	if v, err := h.profiles.SetProxy(p.ID, model.DirectProxyID); err != nil || v.Profile.ProxyID != model.DirectProxyID {
+		t.Fatalf("SetProxy to direct = %+v, %v", v, err)
+	}
+}
+
+// While a profile is connected, neither it nor its proxy changes: its
+// session would go on with what it started with.
+func TestConnectedSettingsAreLocked(t *testing.T) {
+	srv := testutil.NewRDPServer(t, testutil.RDPOptions{Answer: testutil.AnswerConfirm})
+	h := newHarness(t)
+	px, other := h.proxy(t, "Office"), h.proxy(t, "Home")
+	p := h.profile(t, "PC", px.ID, srv.Addr, "secret")
+	idle := h.profile(t, "PC idle", px.ID, "192.0.2.21:3389", "")
+	if _, err := h.sessions.Connect(p.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+	proc := <-h.launched
+	h.events.session(p.ID, func(v SessionView) bool { return v.Phase == "running" })
+
+	edit := p
+	edit.Name = "Renamed"
+	if _, err := h.profiles.Update(edit, ""); errcode.Of(err) != "session.running" {
+		t.Fatalf("Update while connected = %v", err)
+	}
+	if _, err := h.profiles.SetProxy(p.ID, other.ID); errcode.Of(err) != "session.running" {
+		t.Fatalf("SetProxy while connected = %v", err)
+	}
+	if err := h.profiles.ForgetPassword(p.ID); errcode.Of(err) != "session.running" {
+		t.Fatalf("ForgetPassword while connected = %v", err)
+	}
+	proxy, _ := h.proxies.Get(px.ID)
+	proxy.Name = "Office 2"
+	_, err := h.proxies.Update(proxy, true)
+	if view := errorJSON(t, err); view.Code != "proxy.connected" || view.Args["profiles"] != "PC" {
+		t.Fatalf("proxy Update while a user is connected: %+v", view)
+	}
+	err = h.proxies.Delete(px.ID, []string{p.ID, idle.ID})
+	if view := errorJSON(t, err); view.Code != "proxy.connected" || view.Args["profiles"] != "PC" {
+		t.Fatalf("proxy Delete while a user is connected: %+v", view)
+	}
+	if got, _ := h.data.Profile(p.ID); got != p {
+		t.Fatalf("the connected profile changed: %+v", got)
+	}
+	if got, _ := h.data.Proxy(px.ID); got.Name != "Office" {
+		t.Fatalf("its proxy changed: %+v", got)
+	}
+	if c, ok := h.vault.get(p.Loopback); !ok || c.password != "secret" {
+		t.Fatal("the password went")
+	}
+	// A profile that is not connected changes as before.
+	if _, err := h.profiles.SetProxy(idle.ID, other.ID); err != nil {
+		t.Fatalf("SetProxy of a profile that is not connected: %v", err)
+	}
+
+	proc.Close()
+	h.events.session(p.ID, func(v SessionView) bool { return v.Phase == "ended" })
+	if _, err := h.profiles.Update(edit, ""); err != nil {
+		t.Fatalf("Update after the session ended: %v", err)
+	}
+	if _, err := h.proxies.Update(proxy, true); err != nil {
+		t.Fatalf("proxy Update after the session ended: %v", err)
+	}
+	if err := h.proxies.Delete(px.ID, []string{p.ID}); err != nil {
+		t.Fatalf("proxy Delete after the session ended: %v", err)
+	}
+	if err := h.profiles.ForgetPassword(p.ID); err != nil {
+		t.Fatalf("ForgetPassword after the session ended: %v", err)
+	}
+}
+
+// errorJSON is what the UI receives of err: the error in the rejected
+// call's cause.
+func errorJSON(t *testing.T, err error) ErrorView {
+	t.Helper()
+	var v ErrorView
+	if jerr := json.Unmarshal(MarshalError(err), &v); jerr != nil {
+		t.Fatalf("MarshalError(%v): %v", err, jerr)
+	}
+	return v
 }
 
 func TestLatency(t *testing.T) {

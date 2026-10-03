@@ -144,7 +144,8 @@ export function ConfirmDialog({
             </Button>
             <Button
               appearance="primary"
-              className={danger ? styles.danger : undefined}
+              // Red only while it can be pressed; disabled, it looks like any disabled button.
+              className={danger && !busy ? styles.danger : undefined}
               disabled={busy}
               onClick={onConfirm}
             >

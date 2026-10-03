@@ -41,7 +41,9 @@ func (s *ProfileService) Create(p model.Profile, password string) (ProfileView, 
 	return s.c.profileView(stored, true), nil
 }
 
-// Update stores the edited profile. Its ID and loopback address stay.
+// Update stores the edited profile. Its ID, loopback address and proxy stay
+// (SetProxy changes the proxy). A connected profile is not changed
+// (ErrSessionRunning): its session would go on with the old settings.
 //
 //   - Changing the target computer (host or port) deletes the saved
 //     passwords: they belong to the old computer, and mstsc would offer them
@@ -52,6 +54,13 @@ func (s *ProfileService) Create(p model.Profile, password string) (ProfileView, 
 func (s *ProfileService) Update(p model.Profile, password string) (ProfileView, error) {
 	if err := checkPassword(password); err != nil {
 		return ProfileView{}, err
+	}
+	// Held to the end: a session starting meanwhile could have its one-time
+	// password deleted along with the old computer's.
+	s.c.lifecycle.Lock()
+	defer s.c.lifecycle.Unlock()
+	if s.c.manager.Active(p.ID) {
+		return ProfileView{}, ErrSessionRunning
 	}
 	stored, previous, err := s.c.d.Data.UpdateProfile(p)
 	if err != nil {
@@ -71,6 +80,25 @@ func (s *ProfileService) Update(p model.Profile, password string) (ProfileView, 
 		if err := s.c.creds.rename(server, stored.Username); err != nil {
 			s.c.Notify(logging.LevelError, NoticeSaveFailed, map[string]string{"profile": stored.Name}, err)
 		}
+	}
+	s.c.dataChanged()
+	_, proxyOK := s.c.d.Data.Proxy(stored.ProxyID)
+	return s.c.profileView(stored, proxyOK), nil
+}
+
+// SetProxy chooses the proxy the profile connects through: a stored proxy's
+// ID, or model.DirectProxyID. A connected profile keeps its proxy
+// (ErrSessionRunning).
+func (s *ProfileService) SetProxy(id, proxyID string) (ProfileView, error) {
+	s.c.lifecycle.Lock()
+	if s.c.manager.Active(id) {
+		s.c.lifecycle.Unlock()
+		return ProfileView{}, ErrSessionRunning
+	}
+	stored, err := s.c.d.Data.SetProfileProxy(id, proxyID)
+	s.c.lifecycle.Unlock()
+	if err != nil {
+		return ProfileView{}, err
 	}
 	s.c.dataChanged()
 	_, proxyOK := s.c.d.Data.Proxy(stored.ProxyID)
@@ -100,8 +128,14 @@ func (s *ProfileService) Delete(id string) error {
 }
 
 // ForgetPassword deletes every saved password of the profile: the app's
-// and the one mstsc remembered.
+// and the one mstsc remembered. Not while it is connected
+// (ErrSessionRunning): the session's one-time password would go too.
 func (s *ProfileService) ForgetPassword(id string) error {
+	s.c.lifecycle.Lock()
+	defer s.c.lifecycle.Unlock()
+	if s.c.manager.Active(id) {
+		return ErrSessionRunning
+	}
 	p, ok := s.c.d.Data.Profile(id)
 	if !ok {
 		return store.ErrNotFound

@@ -10,7 +10,6 @@ export interface ProfileForm {
   group: string;
   /** host, host:port, [IPv6]:port */
   address: string;
-  proxyId: string;
   username: string;
   password: string;
   rememberPassword: boolean;
@@ -26,7 +25,6 @@ export function toForm(p: Profile): ProfileForm {
     name: p.name,
     group: p.group,
     address: joinHostPort(p.target.host, p.target.port, RDP_PORT),
-    proxyId: p.proxyId,
     username: p.username,
     password: "",
     rememberPassword: p.rememberPassword,
@@ -46,6 +44,8 @@ function toInt(text: string): number {
  * The profile to save: base with the form applied, and the problems the Go
  * side cannot see (it gets numbers, not the text typed). Field names are the
  * ones the Go side reports, so both kinds of problem land on the same field.
+ * The proxy is base's: it is chosen in the list (ProfileService.SetProxy),
+ * and Update keeps the stored one.
  */
 export function fromForm(base: Profile, f: ProfileForm): { profile: Profile; problems: Record<string, string> } {
   const problems: Record<string, string> = {};
@@ -58,7 +58,6 @@ export function fromForm(base: Profile, f: ProfileForm): { profile: Profile; pro
     name: f.name,
     group: f.group,
     target: { host: target.host, port: Number.isNaN(target.port) || target.port === 0 ? RDP_PORT : target.port },
-    proxyId: f.proxyId,
     username: f.username,
     rememberPassword: f.rememberPassword,
     display: {
@@ -82,7 +81,6 @@ export function formField(field: string): keyof ProfileForm | null {
     case "group":
     case "username":
     case "password":
-    case "proxyId":
       return field;
     case "target.host":
     case "target.port":

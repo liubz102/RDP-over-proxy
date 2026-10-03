@@ -15,6 +15,15 @@ export interface Status {
   actions: "connect" | "cancel" | "running" | "ending";
 }
 
+/**
+ * Whether the session has not ended. Until it has, the profile's settings
+ * and its proxy stay as they are (the Go side refuses changes): the session
+ * would go on with what it started with.
+ */
+export function isActive(s: SessionView | undefined): boolean {
+  return sessionStatus(s).actions !== "connect";
+}
+
 /** What a profile's latest session amounts to in its row. */
 export function sessionStatus(s: SessionView | undefined): Status {
   if (!s) return { tone: "idle", label: null, actions: "connect" };

@@ -143,6 +143,8 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 - **REALITY 服务端第一次有人连时，如果对目标站点的探测还没做完，会整整睡 5 秒**（上游行为，真实服务器启动时就探测了）。`xraytest` 的目标站点握手后就关连接，探测才能马上结束；同一进程里第一个 REALITY 用例仍要等这 5 秒。
 - **Fluent 对话框打开时如果里面没有可聚焦的东西（比如只有转圈），焦点陷阱（tabster modalizer）就不会激活**，之后每次在对话框里获得焦点都会被拉到对话框外面：下拉框一开就关，输入框只能打进一个字。要么等数据读完再渲染对话框（`ProxyDialog` 的做法），要么打开时就让某个输入框 autoFocus。
 - **Fluent 对话框内容区是可滚动的 flex 列时，子元素会被压扁重叠**：给子元素 `flexShrink: 0`（`ProxyDialog` 的 `content` 样式）。
+- **Fluent 对话框打开时聚焦它里面的第一个可聚焦元素**：只读（字段全禁用）的对话框里，焦点会落到内容区剩下的某个链接上，把内容滚过去，顶部的说明就看不见了。所以 `ProxyDialog` 锁住时不显示「显示高级设置」。
+- **Fluent `Dropdown` 默认至少 250px 宽，按钮里是裸文本（长文字不会出省略号），展开的列表和按钮一样宽**：`ProxyPicker`（连接列表）用 `button` 槽放一个带省略号的 span；要让列表按内容放宽，关掉 `matchTargetSize`，同时把 `autoSize` 限成 `"height"`，否则 Fluent 用内联 `max-width` 盖掉样式里的上限。
 - **`Caption1`、`Body1` 等是行内的 `span`，`maxWidth` 加省略号对它们不起作用**：要截断时加 `display: "inline-block"`（或放进 flex 容器）。
 - **浏览器预览里复制不到剪贴板**：网页剪贴板被拒，Wails 的 `Clipboard.SetText` 在 server 模式下是空操作却返回成功。桌面版两者都能用；要核对复制的内容，直接调服务（如 `ProxyService.ShareLink`）。
 - **测「代理不通」的用例要等约 1.5 秒**：这是 Xray 内部的重试，不是我们的超时。

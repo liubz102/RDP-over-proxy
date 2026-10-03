@@ -51,9 +51,12 @@ func MarshalError(err error) []byte {
 
 // Errors of the services themselves.
 var (
-	// ErrSessionRunning: the profile cannot be deleted while it is
-	// connected.
+	// ErrSessionRunning: the profile cannot be changed or deleted while it
+	// is connected.
 	ErrSessionRunning = errcode.New("session.running", "the connection is in use")
+	// ErrProxyConnected: the proxy cannot be changed or deleted while a
+	// connected profile uses it. Its args name those ("profiles").
+	ErrProxyConnected = errcode.New("proxy.connected", "the proxy is in use by a connected session")
 	// ErrProxyMissing: the profile's proxy no longer exists.
 	ErrProxyMissing = errcode.New("profile.proxyMissing", "the connection's proxy no longer exists")
 	// ErrNoSession: there is no session to stop or bring forward.

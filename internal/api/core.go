@@ -129,8 +129,10 @@ type Core struct {
 	manager *session.Manager
 	creds   *credStore
 
-	// lifecycle keeps "is it connected? then delete it" and "does it exist?
-	// then connect it" from interleaving.
+	// lifecycle keeps "is it connected? then change or delete it" and "does
+	// it exist? then connect it" from interleaving. While a profile is
+	// connected, neither it nor its proxy changes: the session goes on with
+	// what it started with, and the UI would show settings it does not use.
 	lifecycle sync.Mutex
 
 	mu       sync.Mutex

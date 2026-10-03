@@ -11,10 +11,11 @@ import {
   DialogSurface,
   DialogTitle,
   Divider,
-  Dropdown,
   Field,
   Input,
   Link,
+  MessageBar,
+  MessageBarBody,
   Option,
   Radio,
   RadioGroup,
@@ -28,8 +29,8 @@ import { errorOf, ProfileService, type ErrorView, type Profile, type ProfileView
 import { ErrorBar, useNotify } from "../../components/Feedback";
 import { fieldCodes, fieldText } from "../../lib/messages";
 import { useData } from "../../stores/data";
-import { proxyName } from "../proxies/names";
 import { formField, fromForm, toForm, type ProfileForm } from "./profileForm";
+import { isActive } from "./status";
 
 const useStyles = makeStyles({
   surface: {
@@ -87,9 +88,11 @@ export function ProfileDialog({ view, onClose }: { view: ProfileView | null; onC
   // Live: forgetting the password, or mstsc remembering one, updates it.
   const current = useData((s) => (view ? s.profiles.find((p) => p.profile.id === view.profile.id) : undefined));
   const savedNow = !!current && (current.passwordSaved || current.passwordByMstsc);
+  // A connected profile only shows its settings; they unlock when the session ends.
+  const locked = useData((s) => view !== null && isActive(s.sessions[view.profile.id]));
 
   // A new profile starts from the Go side's defaults, with the first proxy the
-  // user made (or direct, when there is none).
+  // user made (or direct, when there is none). The list changes it later.
   useEffect(() => {
     if (view) return;
     ProfileService.Draft().then(
@@ -131,6 +134,7 @@ export function ProfileDialog({ view, onClose }: { view: ProfileView | null; onC
   const addressChanged = editing && form.address !== toForm(base).address;
 
   const save = async () => {
+    if (locked) return;
     const { profile, problems: local } = fromForm(base, form);
     const mapped: Record<string, string> = {};
     for (const [field, code] of Object.entries(local)) {
@@ -157,7 +161,10 @@ export function ProfileDialog({ view, onClose }: { view: ProfileView | null; onC
       }
       setProblems(fields);
       // Field problems show next to their fields; anything else above them.
-      setError(v.code === "validation" && Object.keys(fields).length > 0 ? null : v);
+      // The proxy has no field here (the list chooses it): a problem with it,
+      // such as one from a file edited by hand, says to choose another.
+      if (v.fields?.some((f) => f.field === "proxyId")) setError({ code: "profile.proxyMissing", message: "" });
+      else setError(v.code === "validation" && Object.keys(fields).length > 0 ? null : v);
     } finally {
       setSaving(false);
     }
@@ -188,14 +195,20 @@ export function ProfileDialog({ view, onClose }: { view: ProfileView | null; onC
           <DialogBody>
             <DialogTitle>{editing ? t("connections.form.editTitle") : t("connections.form.newTitle")}</DialogTitle>
             <DialogContent className={styles.content}>
+              {locked && (
+                <MessageBar intent="info" layout="multiline">
+                  <MessageBarBody>{t("connections.form.locked")}</MessageBarBody>
+                </MessageBar>
+              )}
               <ErrorBar error={error} />
               <div className={styles.row}>
                 <Field label={t("connections.form.name")} required validationState={validation("name")} validationMessage={problem("name")}>
-                  <Input value={form.name} onChange={(_, d) => set("name", d.value)} autoFocus={!editing} />
+                  <Input value={form.name} disabled={locked} onChange={(_, d) => set("name", d.value)} autoFocus={!editing} />
                 </Field>
                 <Field label={t("connections.form.group")} validationState={validation("group")} validationMessage={problem("group")}>
                   <Combobox
                     freeform
+                    disabled={locked}
                     value={form.group}
                     selectedOptions={[form.group]}
                     placeholder={t("connections.form.groupPlaceholder")}
@@ -222,25 +235,10 @@ export function ProfileDialog({ view, onClose }: { view: ProfileView | null; onC
               >
                 <Input
                   value={form.address}
+                  disabled={locked}
                   placeholder="pc.example.com"
                   onChange={(_, d) => set("address", d.value)}
                 />
-              </Field>
-              <Field label={t("connections.form.proxy")} required validationState={validation("proxyId")} validationMessage={problem("proxyId")}>
-                <Dropdown
-                  value={(() => {
-                    const p = proxies.find((x) => x.proxy.id === form.proxyId);
-                    return p ? proxyName(t, p.proxy) : t("connections.proxyMissing");
-                  })()}
-                  selectedOptions={[form.proxyId]}
-                  onOptionSelect={(_, d) => d.optionValue && set("proxyId", d.optionValue)}
-                >
-                  {proxies.map((p) => (
-                    <Option key={p.proxy.id} value={p.proxy.id} text={proxyName(t, p.proxy)}>
-                      {proxyName(t, p.proxy)}
-                    </Option>
-                  ))}
-                </Dropdown>
               </Field>
 
               <Divider className={styles.section} />
@@ -251,10 +249,11 @@ export function ProfileDialog({ view, onClose }: { view: ProfileView | null; onC
                 validationMessage={problem("username")}
                 hint={t("connections.form.usernameHint")}
               >
-                <Input value={form.username} placeholder="DOMAIN\user" onChange={(_, d) => set("username", d.value)} />
+                <Input value={form.username} disabled={locked} placeholder="DOMAIN\user" onChange={(_, d) => set("username", d.value)} />
               </Field>
               <Checkbox
                 checked={form.rememberPassword}
+                disabled={locked}
                 label={t("connections.form.remember")}
                 onChange={(_, d) => set("rememberPassword", !!d.checked)}
               />
@@ -272,6 +271,7 @@ export function ProfileDialog({ view, onClose }: { view: ProfileView | null; onC
                   <Input
                     type="password"
                     value={form.password}
+                    disabled={locked}
                     placeholder={savedNow ? t("connections.form.passwordSaved") : undefined}
                     onChange={(_, d) => set("password", d.value)}
                   />
@@ -286,7 +286,7 @@ export function ProfileDialog({ view, onClose }: { view: ProfileView | null; onC
                       ? t("connections.form.savedByMstsc")
                       : t("connections.form.savedByApp")}
                   </Caption1>
-                  <Link as="button" type="button" onClick={() => void forget()}>
+                  <Link as="button" type="button" disabled={locked} onClick={() => void forget()}>
                     {t("connections.form.forget")}
                   </Link>
                 </div>
@@ -294,14 +294,14 @@ export function ProfileDialog({ view, onClose }: { view: ProfileView | null; onC
 
               <Divider className={styles.section} />
               <Subtitle2>{t("connections.form.display")}</Subtitle2>
-              <RadioGroup value={form.mode} onChange={(_, d) => set("mode", d.value)}>
+              <RadioGroup value={form.mode} disabled={locked} onChange={(_, d) => set("mode", d.value)}>
                 <Radio value="default" label={t("connections.form.modeDefault")} />
                 <Radio value="fullscreen" label={t("connections.form.modeFullscreen")} />
                 <Radio value="window" label={t("connections.form.modeWindow")} />
               </RadioGroup>
               {form.mode === "fullscreen" && (
                 <Field label={t("connections.form.screens")} validationState={validation("screens")} validationMessage={problem("screens")}>
-                  <RadioGroup value={form.screens} onChange={(_, d) => set("screens", d.value as ProfileForm["screens"])}>
+                  <RadioGroup value={form.screens} disabled={locked} onChange={(_, d) => set("screens", d.value as ProfileForm["screens"])}>
                     <Radio value="one" label={t("connections.form.screensOne")} />
                     <Radio value="multimon" label={t("connections.form.screensMultimon")} />
                     <Radio value="span" label={t("connections.form.screensSpan")} />
@@ -311,22 +311,22 @@ export function ProfileDialog({ view, onClose }: { view: ProfileView | null; onC
               {form.mode === "window" && (
                 <div className={styles.size}>
                   <Field label={t("connections.form.width")} validationState={validation("width")} validationMessage={problem("width")}>
-                    <Input className={styles.sizeInput} inputMode="numeric" value={form.width} onChange={(_, d) => set("width", d.value)} />
+                    <Input className={styles.sizeInput} inputMode="numeric" value={form.width} disabled={locked} onChange={(_, d) => set("width", d.value)} />
                   </Field>
                   <Field label={t("connections.form.height")} validationState={validation("height")} validationMessage={problem("height")}>
-                    <Input className={styles.sizeInput} inputMode="numeric" value={form.height} onChange={(_, d) => set("height", d.value)} />
+                    <Input className={styles.sizeInput} inputMode="numeric" value={form.height} disabled={locked} onChange={(_, d) => set("height", d.value)} />
                   </Field>
                 </div>
               )}
               {form.mode === "window" && <Caption1 className={styles.hint}>{t("connections.form.sizeHint")}</Caption1>}
               <Caption1 className={styles.hint}>{t("connections.form.displayHint")}</Caption1>
-              <Checkbox checked={form.admin} label={t("connections.form.admin")} onChange={(_, d) => set("admin", !!d.checked)} />
+              <Checkbox checked={form.admin} disabled={locked} label={t("connections.form.admin")} onChange={(_, d) => set("admin", !!d.checked)} />
             </DialogContent>
             <DialogActions>
               <Button appearance="secondary" type="button" onClick={onClose}>
-                {t("common.cancel")}
+                {locked ? t("common.close") : t("common.cancel")}
               </Button>
-              <Button appearance="primary" type="submit" disabled={saving}>
+              <Button appearance="primary" type="submit" disabled={saving || locked}>
                 {t("common.save")}
               </Button>
             </DialogActions>

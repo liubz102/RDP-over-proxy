@@ -1,15 +1,17 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Body1,
   Button,
   Caption1,
   Card,
+  Dropdown,
   Menu,
   MenuDivider,
   MenuItem,
   MenuList,
   MenuPopover,
   MenuTrigger,
+  Option,
   Spinner,
   Subtitle2,
   Text,
@@ -123,6 +125,20 @@ const useStyles = makeStyles({
     display: "flex",
     alignItems: "center",
     gap: "6px",
+  },
+  proxy: {
+    // Fluent's dropdowns are at least 250px wide.
+    minWidth: "0",
+    width: "160px",
+  },
+  proxyValue: {
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    minWidth: 0,
+  },
+  proxyList: {
+    maxWidth: "320px",
   },
 });
 
@@ -330,11 +346,16 @@ function Row({
         </Body1>
         <Caption1 className={styles.sub}>
           {joinHostPort(p.target.host, p.target.port, RDP_PORT)}
-          {" · "}
-          {view.proxyMissing || !proxy ? (
-            <span className={styles.missing}>{t("connections.proxyMissing")}</span>
-          ) : (
-            t("connections.via", { proxy: proxyName(t, proxy.proxy) })
+          {/* While connected the proxy is only said; otherwise the dropdown chooses it. */}
+          {active && (
+            <>
+              {" · "}
+              {view.proxyMissing || !proxy ? (
+                <span className={styles.missing}>{t("connections.proxyMissing")}</span>
+              ) : (
+                t("connections.via", { proxy: proxyName(t, proxy.proxy) })
+              )}
+            </>
           )}
           {p.username && ` · ${p.username}`}
         </Caption1>
@@ -353,6 +374,7 @@ function Row({
         )}
       </div>
       <div className={styles.buttons}>
+        {!active && <ProxyPicker view={view} />}
         {status.actions === "connect" && (
           <Button appearance="primary" icon={<DesktopArrowRight20Regular />} onClick={onConnect}>
             {t("connections.connect")}
@@ -392,7 +414,7 @@ function Row({
                 {t("connections.showLog")}
               </MenuItem>
               {(view.passwordSaved || view.passwordByMstsc) && (
-                <MenuItem icon={<Key20Regular />} onClick={onForget}>
+                <MenuItem icon={<Key20Regular />} disabled={active} onClick={onForget}>
                   {t("connections.form.forget")}
                 </MenuItem>
               )}
@@ -410,5 +432,55 @@ function Row({
         </Menu>
       </div>
     </div>
+  );
+}
+
+/** Chooses the proxy of a profile that is not connected; a connected one keeps its own. */
+function ProxyPicker({ view }: { view: ProfileView }) {
+  const styles = useStyles();
+  const { t } = useTranslation();
+  const notify = useNotify();
+  const proxies = useData((s) => s.proxies);
+  const p = view.profile;
+  // The choice shows while it is saved; then the data the Go side sends does.
+  const [saving, setSaving] = useState<string | null>(null);
+  const latest = useRef(0);
+  const shown = proxies.find((x) => x.proxy.id === (saving ?? p.proxyId));
+  const text = shown ? proxyName(t, shown.proxy) : t("connections.proxyMissing");
+
+  const choose = async (proxyId: string) => {
+    if (proxyId === (saving ?? p.proxyId)) return;
+    const call = ++latest.current;
+    setSaving(proxyId);
+    try {
+      await ProfileService.SetProxy(p.id, proxyId);
+    } catch (e) {
+      notify.error(e, t("connections.setProxyFailed", { name: p.name }));
+    } finally {
+      if (latest.current === call) setSaving(null);
+    }
+  };
+
+  return (
+    <Dropdown
+      className={styles.proxy}
+      aria-label={t("connections.proxy")}
+      value={text}
+      selectedOptions={shown ? [shown.proxy.id] : []}
+      // Fluent puts the bare text in the button, where a long name would not end in "…".
+      button={{ children: <span className={mergeClasses(styles.proxyValue, !shown && styles.missing)}>{text}</span> }}
+      // The list is as wide as its names need (from the button's width up to
+      // proxyList's), growing to the left: the button sits near the right edge.
+      // Fluent would size its width to the room left, over proxyList's.
+      positioning={{ matchTargetSize: undefined, align: "end", autoSize: "height" }}
+      listbox={{ className: styles.proxyList }}
+      onOptionSelect={(_, d) => d.optionValue && void choose(d.optionValue)}
+    >
+      {proxies.map((x) => (
+        <Option key={x.proxy.id} value={x.proxy.id} text={proxyName(t, x.proxy)}>
+          {proxyName(t, x.proxy)}
+        </Option>
+      ))}
+    </Dropdown>
   );
 }

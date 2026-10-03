@@ -53,7 +53,8 @@ func (s *ProxyService) Create(p model.Proxy) (ProxyView, error) {
 // Update stores an edited proxy, once Xray has accepted its settings. With
 // keepSecret the stored secret stays and p.Secret is ignored, so the form
 // does not need to know it; a proxy that changes its kind keeps none.
-// Sessions already using the proxy keep the settings they started with.
+// While a connected profile uses the proxy it is not changed
+// (ErrProxyConnected): that session would go on with the old settings.
 func (s *ProxyService) Update(p model.Proxy, keepSecret bool) (ProxyView, error) {
 	if keepSecret {
 		var err error
@@ -64,7 +65,13 @@ func (s *ProxyService) Update(p model.Proxy, keepSecret bool) (ProxyView, error)
 	if err := s.check(p); err != nil {
 		return ProxyView{}, err
 	}
-	stored, err := s.c.d.Data.UpdateProxy(p)
+	s.c.lifecycle.Lock()
+	err := s.connected(p.ID)
+	var stored model.Proxy
+	if err == nil {
+		stored, err = s.c.d.Data.UpdateProxy(p)
+	}
+	s.c.lifecycle.Unlock()
 	if err != nil {
 		return ProxyView{}, err
 	}
@@ -72,10 +79,26 @@ func (s *ProxyService) Update(p model.Proxy, keepSecret bool) (ProxyView, error)
 	return s.c.proxyView(stored, s.usedBy(stored.ID)), nil
 }
 
-// Delete removes a proxy. One that connections still use is not removed;
-// the error's args name them ("profiles").
-func (s *ProxyService) Delete(id string) error {
-	err := s.c.d.Data.DeleteProxy(id)
+// Delete removes a proxy. The profiles that use it switch to the built-in
+// direct entry, but only those in moveToDirect, the ones the user was shown
+// and agreed to: any other user leaves everything as it was, and the error
+// (proxy.inUse) names them in its args ("profiles") so the user can be
+// asked again. Nothing changes either while a connected profile uses the
+// proxy (ErrProxyConnected).
+func (s *ProxyService) Delete(id string, moveToDirect []string) error {
+	s.c.lifecycle.Lock()
+	err := s.connected(id)
+	var moved []string
+	if err == nil {
+		moved, err = s.c.d.Data.DeleteProxy(id, moveToDirect)
+	}
+	s.c.lifecycle.Unlock()
+	if len(moved) > 0 {
+		s.c.d.Log.Infof("profiles %s switched from proxy %s to direct", strings.Join(moved, ", "), id)
+	}
+	if err == nil || len(moved) > 0 {
+		s.c.dataChanged()
+	}
 	var inUse *store.InUseError
 	if errors.As(err, &inUse) {
 		var names []string
@@ -84,14 +107,31 @@ func (s *ProxyService) Delete(id string) error {
 				names = append(names, p.Name)
 			}
 		}
-		slices.Sort(names)
-		return errcode.WithArgs(err, map[string]string{"profiles": strings.Join(names, ", ")})
+		return errcode.WithArgs(err, map[string]string{"profiles": joinNames(names)})
 	}
-	if err != nil {
-		return err
+	return err
+}
+
+// connected refuses to change the proxy while a connected profile uses it,
+// naming those profiles. The caller holds c.lifecycle, under which no
+// profile connects or changes its proxy.
+func (s *ProxyService) connected(id string) error {
+	var names []string
+	for _, p := range s.c.d.Data.Profiles() {
+		if p.ProxyID == id && s.c.manager.Active(p.ID) {
+			names = append(names, p.Name)
+		}
 	}
-	s.c.dataChanged()
-	return nil
+	if len(names) == 0 {
+		return nil
+	}
+	return errcode.WithArgs(ErrProxyConnected, map[string]string{"profiles": joinNames(names)})
+}
+
+// joinNames lists names for a message, sorted.
+func joinNames(names []string) string {
+	slices.Sort(names)
+	return strings.Join(names, ", ")
 }
 
 // ParseLink reads a share link into a proxy for the editor to fill in;
