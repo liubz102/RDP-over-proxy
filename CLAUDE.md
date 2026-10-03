@@ -39,12 +39,14 @@
 | `internal/errcode` | 错误码：`New` / `Weak` / `Wrap`，`Of` 取最有用的代码；`Declare` / `All` 供翻译完整性测试 |
 | `internal/secret` | DPAPI 加密（`DPAPI`）；凭据管理器里 `TERMSRV/<回环地址>` 的密码（`Vault`） |
 | `internal/logging` | 日志文件（按大小轮转）、环形缓冲、脱敏、连续重复折叠、给 Wails 用的 slog 适配 |
-| `internal/testutil` | 测试共用：假 RDP 服务端；替身进程（`RunHelper` / `HelperCommand`）；`FreePort`。只能被 `_test.go` 引用 |
-| `internal/testutil/xraytest` | 测试用：进程内的 Xray SOCKS / HTTP 代理。单独成包，只有需要的测试才链接 Xray |
 | `internal/store` | 原子写 JSON；数据目录；`RDP_OVER_PROXY_HOME`；设置；代理和连接的文件存储（`Data`） |
 | `internal/i18n` | Go 侧文案（托盘、原生对话框）、系统语言检测 |
 | `internal/winx` | Win32 调用：WebView2 检测、错误框、系统深色模式 |
+| `tests/<包名>` | Go 测试，每个被测包一个目录（如 `tests/session`），包名 `<包名>_test`，只用导出的 API；`tests/rdpfile/testdata` 是 .rdp 样本 |
+| `tests/testutil` | 测试共用：假 RDP 服务端；替身进程（`RunHelper` / `HelperCommand`）；`FreePort`。只能被测试引用 |
+| `tests/testutil/xraytest` | 测试用：进程内的 Xray SOCKS / HTTP 代理。单独成包，只有需要的测试才链接 Xray |
 | `frontend/src` | `app/`（外壳、主题、首次语言选择）、`features/`、`components/`、`stores/`、`locales/` |
+| `frontend/tests` | 前端测试（vitest），目录结构和 `frontend/src` 对应 |
 | `frontend/bindings` | `wails3 generate bindings` 生成，不要手改 |
 | `build/` | Wails 构建配置，只保留 Windows |
 | `legacy/` | 旧脚本原型。已被 git 忽略，新版功能对等且用户确认后才删除 |
@@ -61,7 +63,7 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
   - 正式构建：`wails3 build`，产出 `bin\RDP-over-proxy.exe`
   - 开发模式：`wails3 dev`
 - **测试与检查**
-  - Go 测试：`go test ./internal/...`
+  - Go 测试：`go test ./...`（测试都在 `tests/` 下）
   - Go 全量检查：`go vet ./...`。`main` 包嵌入了 `frontend/dist`，所以要先构建一次前端
   - 前端：`npm --prefix frontend run typecheck`、`npm --prefix frontend test`
 - **重新生成绑定**：`wails3 generate bindings -clean=true -ts -i`
@@ -95,7 +97,11 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 6. **隐私**：仓库和日志里不出现个人主机名、IP、凭据。测试数据只用 `example.com` 和 `192.0.2.x`。
 7. **`wails3 init`**：绝不加 `-git`，它会执行 git init 和 add。
 8. **先征得同意**：安装软件、移动用户的文件、碰真实凭据之前，先问用户。
-9. **双语**：
+9. **测试和代码分开放**（用户要求，2026-10-03）：
+   - Go 测试放 `tests/<包名>/`，前端测试放 `frontend/tests/`，目录结构镜像源码。`internal/`、`frontend/src` 里不放任何测试文件、测试数据或测试辅助代码。
+   - Go 测试是外部测试包（`package <包名>_test`），只用导出的 API。原来写在包内的测试用点导入（`import . "…/internal/<包名>"`），正文不用加包名。
+   - 新代码要设计成能通过公开 API 测到（依赖用接口注入，见 `api.Deps`、`session.Options`）。不要为了测试导出内部细节；确实需要的检查清单按 `session.Messages`、`i18n.Keys` 的模式提供。
+10. **双语**：
    - 界面文案只放在 `frontend/src/locales/{zh-CN,en}.json`（有测试强制两边 key 一致）和 `internal/i18n`。
    - README、CONTRIBUTING、SECURITY、TROUBLESHOOTING、Issue 模板都要同时维护中英两版。
 
@@ -113,7 +119,7 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 - **`core.Dial`（Xray，M3）是异步的**：失败通过 `session.TrackedConnectionError` 事件送达；目标地址非法时会 panic，要先校验。
 - **2026-04 起，打开 .rdp 文件每次都会弹安全对话框**：所以只用 `mstsc /v:` 直连模式（用户已拍板）。剪贴板等设置沿用 mstsc 的全局 `Default.rdp`。
 - **Windows 上计时可能读到 0**：单调时钟的精度比本机回环往返还粗，测试里不要断言耗时大于 0。
-- **`probe` 的测试分两个包**：编解码测试是 `package probe`；用到 `testutil` 的 `Check` 测试必须是 `package probe_test`，否则会循环导入（`testutil` 依赖 `probe`）。
+- **测试在被测包之外，`go vet` 要求跨包的结构体字面量写字段名**：`model.Target{Host: "pc.example.com", Port: 3389}`，不能写成 `model.Target{"pc.example.com", 3389}`，CI 的 `go vet ./...` 会报错。
 - **本机跑不了 `-race`**：没有 gcc。
 - **Windows 上 `Wait` 之后再 `os.Process.Kill`，返回的是 `EINVAL`，不是 `ErrProcessDone`**：`mstsc.Process` 因此改用自己持有的句柄调 `TerminateProcess`。
 - **`windows.NewCallback` 创建的回调释放不掉，数量也有上限**：只能在包级变量里创建一次（见 `winx` 的 `enumCallback`），不要在函数里每次新建。

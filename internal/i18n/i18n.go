@@ -4,6 +4,8 @@
 package i18n
 
 import (
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/liubz102/RDP-over-proxy/internal/model"
@@ -48,4 +50,24 @@ func T(lang, key string) string {
 		return s
 	}
 	return key
+}
+
+// Lookup returns the string for key in lang (a supported language, not a
+// tag), without falling back. It is for checking that every language has
+// every string; the app itself uses T.
+func Lookup(lang, key string) (string, bool) {
+	s, ok := catalogs[lang][key]
+	return s, ok
+}
+
+// Keys lists every key of every language, sorted, for checking that each
+// language has them all.
+func Keys() []string {
+	set := map[string]bool{}
+	for _, cat := range catalogs {
+		for key := range cat {
+			set[key] = true
+		}
+	}
+	return slices.Sorted(maps.Keys(set))
 }

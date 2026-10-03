@@ -42,7 +42,7 @@ Status markers: **[M0]** to **[M5]** are implemented; everything else is planned
 | `internal/diag` | Read-only environment report | M7 |
 | `internal/logging` | Log file with size-based rotation, in-memory rings, redaction, repeat collapsing, slog bridge for the Wails runtime | [M4] |
 | `internal/errcode` | Stable error codes the UI translates; picks the most useful code in an error tree | [M4] |
-| `internal/testutil` | Fake RDP server [M1]; helper processes that stand in for mstsc [M2]; `xraytest`: in-process Xray SOCKS / HTTP proxy servers [M3] | [M3] |
+| `tests/testutil` | Fake RDP server [M1]; helper processes that stand in for mstsc [M2]; `xraytest`: in-process Xray SOCKS / HTTP proxy servers [M3]. Moved out of `internal/` with the tests [M5] | [M5] |
 | `tools/notices` | Generates `THIRD_PARTY_NOTICES.md` | M9 |
 
 ## Data
@@ -197,6 +197,15 @@ Xray reports why an outbound failed only as message text (its retry helper forma
 - The level comes from the settings and changes at once. Xray's info and debug lines are forwarded only at debug level.
 - Only the Wails runtime's warnings and errors are kept, at every level: some of its debug records carry the arguments of service calls, passwords included, and it logs every asset it serves. Its reports of errors that service methods returned are left out too (the UI gets them), and attributes that carry payloads (`args`, `result`, …) are written as `<omitted>`.
 
+## Tests [M5]
+
+Tests live apart from the code: the Go tests in `tests/<package>/`, one folder per package under test (`tests/session` tests `internal/session`), and the frontend tests in `frontend/tests/`, mirroring `frontend/src`. Nothing under `internal/` or `frontend/src` is test code.
+
+- A Go test folder holds an external test package (`package session_test`) and uses only what the package exports. Tests that used to sit inside their package dot-import it (`import . "…/internal/session"`), the use the Go FAQ gives for dot imports, so their bodies read as before.
+- Packages are tested through their public API: dependencies come in as interfaces (`api.Deps`, `session.Options`, `session.Process`), so tests pass stand-ins. Lists that exist for completeness checks are exported in the same spirit as the code lists (`session.Messages`, `api.NoticeCodes`, `errcode.All`, `i18n.Keys` with `i18n.Lookup`). Nothing is exported only for a test.
+- `tests/testutil` (fake RDP server, helper processes, `FreePort`) and `tests/testutil/xraytest` (in-process Xray proxies) are the shared test support; `tests/rdpfile/testdata` holds sample `.rdp` files.
+- `go test ./...` runs everything; the CI does the same after building the frontend.
+
 ## Frontend structure
 
 - `src/app` — shell with sidebar (Quit at the bottom), theme (follows Windows via `prefers-color-scheme`), first-run language picker [M0]; notices bar and quit confirmation [M5]
@@ -207,6 +216,7 @@ Xray reports why an outbound failed only as message text (its retry helper forma
 - `src/stores` — zustand stores fed by service calls and Go events: `settings` [M0]; `data` (profiles, proxies, sessions, session logs, notices, quit confirmation) [M5]. Replies and events travel separately: what an event changed while the first read was in flight is kept over the reply; session log lines carry a sequence number (`logging.Line.Seq`, given by `Core`) so a log read and the lines sent as events merge without duplicates; settings saves run one after another, each on top of the last stored settings.
 - `src/lib` [M5] — pure helpers with tests: address splitting, translating error / notice / log codes (`messages.ts`), session log merging (`sessionLog.ts`)
 - `src/locales` — `zh-CN.json` and `en.json`; a test enforces identical keys [M0]; another checks the keys the frontend builds from codes (phases, steps, outcomes, field errors) [M5]
+- `tests/` — the vitest tests, mirroring `src/` (`tests/lib/address.test.ts` tests `src/lib/address.ts`) [M5]
 
 **Conventions** [M5]
 - Forms send what the user typed; the Go side validates and returns field paths, which each form maps to its fields (`formField`). The forms set `noValidate`, so the browser's required-field bubbles do not pre-empt those messages. The frontend only reports what the Go side cannot see, such as a port that is not a number.

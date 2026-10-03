@@ -58,7 +58,6 @@ type Logger struct {
 	file   *File // nil: no file
 	redact *Redactor
 	recent *Ring
-	now    func() time.Time
 
 	mu      sync.Mutex
 	level   int
@@ -69,7 +68,7 @@ type Logger struct {
 // New returns a logger writing to file (which may be nil) at the given
 // level, keeping the last ringSize lines in memory.
 func New(file *File, level string, ringSize int) *Logger {
-	l := &Logger{file: file, redact: &Redactor{}, recent: NewRing(ringSize), now: time.Now}
+	l := &Logger{file: file, redact: &Redactor{}, recent: NewRing(ringSize)}
 	l.SetLevel(level)
 	return l
 }
@@ -117,7 +116,7 @@ func (l *Logger) Recent() []Line { return l.recent.Lines() }
 // Log records a line. A zero Time is set to now.
 func (l *Logger) Log(line Line) {
 	if line.Time.IsZero() {
-		line.Time = l.now()
+		line.Time = time.Now()
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -158,7 +157,7 @@ func (l *Logger) Close() error {
 	if l.file == nil {
 		return nil
 	}
-	l.flushRepeats(l.now())
+	l.flushRepeats(time.Now())
 	err := l.file.Close()
 	l.file = nil
 	return err
