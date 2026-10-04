@@ -24,7 +24,7 @@
 
 | 路径 | 内容 |
 |---|---|
-| `main.go` | 入口；嵌入 `frontend/dist` 和 `build/appicon.png`；`version` 默认值 |
+| `main.go` | 入口；嵌入 `frontend/dist` 和 `build/windows/icon.ico`（托盘图标）；`version` 默认值 |
 | `internal/app` | Wails 应用、窗口、托盘、单实例、关闭缩到托盘、启动与退出顺序。`desktop_windows.go` 和 `server.go` 用构建标签区分桌面版与 server 版；`platform_windows.go` 提供两版共用的 Windows 部件（DPAPI、凭据、mstsc） |
 | `internal/api` | 暴露给前端的服务（Settings、Profile、Proxy、Session、App）和它们共用的 `Core`；视图类型、事件、错误 JSON（`MarshalError`） |
 | `internal/model` | 数据结构（Settings、Proxy、Profile、Target）与校验，纯逻辑。Proxy / Profile 的校验返回 `FieldErrors`（字段 + 代码）。V2Ray 系的设置在 `ProxyOptions`（`options.go`），`Normalize` 只留下这种代理用得上的项并补默认值 |
@@ -52,6 +52,7 @@
 | `frontend/tests` | 前端测试（vitest），目录结构和 `frontend/src` 对应 |
 | `frontend/bindings` | `wails3 generate bindings` 生成，不要手改 |
 | `build/` | Wails 构建配置，只保留 Windows |
+| `build/icon` | 应用图标的源文件：`appicon.svg`（96px 及以上）和逐像素对齐重画的 `appicon-<尺寸>.svg`（16–64px）。`generate.go`（`//go:build ignore`）用 Edge 无头模式把它们画成 `build/appicon.png` 和 `build/windows/icon.ico`，生成结果入库 |
 | `legacy/` | 旧脚本原型。已被 git 忽略，新版功能对等且用户确认后才删除 |
 
 ## 常用命令（PowerShell）
@@ -70,6 +71,7 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
   - Go 全量检查：`go vet ./...`。`main` 包嵌入了 `frontend/dist`，所以要先构建一次前端
   - 前端：`npm --prefix frontend run typecheck`、`npm --prefix frontend test`
 - **重新生成绑定**：`wails3 generate bindings -clean=true -ts -i`
+- **重新生成图标**：改完 `build/icon` 里的 SVG 后运行 `wails3 task common:generate:icons`（要有 Edge），生成的 `build/appicon.png`、`build/windows/icon.ico` 一起提交。构建不会自动生成。
 - **浏览器预览界面**
   1. 运行 `wails3 task build:server DEV=true`。
   2. 用内置浏览器工具 `preview_start` 启动 `.claude/launch.json` 里的 `preview` 配置：端口 34115，数据目录 `data\preview`（已被 git 忽略）。
@@ -116,7 +118,8 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 - **托盘菜单改文字后要重新 `tray.SetMenu(menu)`**：`Menu.Update()` 刷不到托盘的弹出菜单。
 - **托盘右键菜单在 Wails v3 beta 上可能弹不出来**（#6161）：所以左键点击打开主窗口，所有功能都在窗口里。
 - **Wails server 模式不支持单实例**，会直接报错，这也是 `internal/app` 要用构建标签区分的原因。
-- **`wails3 generate icons` 要传 `-macfilename ""`**：否则会去写 `build/darwin/`，而本仓库已经删掉了这个目录。
+- **不要用 `wails3 generate icons`**：它把一张 PNG 缩放成各个尺寸，会盖掉逐像素对齐的 16–64px 小图（缩出来的边框落在半像素上，发虚），也没有 20、24、40 这几个尺寸。图标只用 `wails3 task common:generate:icons` 生成，构建也不再自动重建 `icon.ico`。改 `appicon.svg` 时，`appicon-<尺寸>.svg` 要跟着手工改。
+- **托盘图标传的是 `icon.ico`，不要换回 PNG**：Wails 从 ico 里挑最接近系统小图标尺寸（100%–200% 缩放下是 16、20、24、32）的那张；给它一张大 PNG 时由 Windows 现场缩小，很糊。
 - **`build/windows/info.json` 是手工改过的**：改成了 0409 字符串表，并加上固定的产品版本。运行 `wails3 task common:update:build-assets` 会按模板覆盖它，覆盖后要改回来。
 - **Task 并行执行依赖任务**：一个失败会取消其他任务，别的任务可能报出误导性的错误（比如 "npm isn't installed"）。要找第一个真正的错误。
 - **读取 JSON 配置时先用默认值填好结构体再解码**（见 `store.SettingsStore.Load`）：否则后来新增的 bool 字段会被读成 false。

@@ -153,18 +153,14 @@ tasks:
     cmds:
       - wails3 generate bindings -f '{{.BUILD_FLAGS}}' -clean=true{{if eq .OBFUSCATED "true"}} -obfuscated{{end}} -ts -i
 
+  # Run by hand after changing a drawing, then check in the results; the build
+  # only embeds them. It needs Microsoft Edge (see build/icon/generate.go).
+  # Not `wails3 generate icons`: that scales one PNG down to every size and
+  # loses the pixel-aligned small sizes.
   generate:icons:
-    summary: Generates the Windows `.ico` from build/appicon.png
-    run: once
-    dir: build
-    sources:
-      - "appicon.png"
-    generates:
-      - "windows/icon.ico"
+    summary: Renders build/appicon.png and build/windows/icon.ico from the drawings in build/icon
     cmds:
-      # An empty -macfilename turns off the macOS icon, which would otherwise be
-      # written to its default path under build/darwin (not kept in this repo).
-      - wails3 generate icons -input appicon.png -windowsfilename windows/icon.ico -macfilename ""
+      - go run build/icon/generate.go
 
   dev:frontend:
     summary: Runs the frontend in development mode

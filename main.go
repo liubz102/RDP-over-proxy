@@ -21,7 +21,10 @@ var version = "0.1.0"
 //go:embed all:frontend/dist
 var assets embed.FS
 
-//go:embed build/appicon.png
+// appIcon is the same icon the build puts into the exe. The tray takes the
+// image in it that matches the small icon size of the display.
+//
+//go:embed build/windows/icon.ico
 var appIcon []byte
 
 func main() {

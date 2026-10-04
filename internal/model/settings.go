@@ -40,7 +40,7 @@ const (
 const DefaultLocalPort = 13389
 
 // DefaultTestURL is fetched through a proxy to measure its latency.
-const DefaultTestURL = "https://www.gstatic.com/generate_204"
+const DefaultTestURL = "https://www.bing.com"
 
 // Log levels.
 const (

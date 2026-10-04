@@ -22,7 +22,7 @@ Status markers: **[M0]** to **[M7]** are implemented; everything else is planned
 
 | Package | Responsibility | Status |
 |---|---|---|
-| `main` | Embeds the frontend and icon; holds the default `version` (release builds override it with `-ldflags -X main.version=…`) | [M0] |
+| `main` | Embeds the frontend and the icon (`build/windows/icon.ico`, for the tray); holds the default `version` (release builds override it with `-ldflags -X main.version=…`) | [M0] |
 | `internal/app` | Wails application, main window, tray, single instance, close-to-tray, startup error box. `desktop_windows.go` and `server.go` split the desktop build from the browser-preview build (`-tags server`) | [M0] |
 | `internal/api` | Services bound to the frontend, their shared `Core`, views (DTOs), events, error JSON | [M4] |
 | `internal/model` | Settings [M0]; Proxy, Profile, Target, IDs and field-level validation [M1]; the V2Ray family's settings (`ProxyOptions`), their defaults and checks [M6] | [M6] |
@@ -269,4 +269,6 @@ Tests live apart from the code: the Go tests in `tests/<package>/`, one folder p
 
 ## Build
 
-`wails3 build` runs `build/Taskfile.yml` and `build/windows/Taskfile.yml`: install frontend deps, generate bindings, `vite build`, generate the icon and the Windows resource (`.syso` from `build/windows/info.json` and `wails.exe.manifest`), then `go build -tags production -trimpath -ldflags "-w -s -H windowsgui"`. Only Windows build files are kept.
+`wails3 build` runs `build/Taskfile.yml` and `build/windows/Taskfile.yml`: install frontend deps, generate bindings, `vite build`, generate the Windows resource (`.syso` from `build/windows/icon.ico`, `info.json` and `wails.exe.manifest`), then `go build -tags production -trimpath -ldflags "-w -s -H windowsgui"`. Only Windows build files are kept.
+
+The build does not generate the icon. `build/icon` holds the drawings: `appicon.svg` for 96 px and up, and a pixel-aligned redrawing for each size from 16 to 64 px (`appicon-<size>.svg`) so the title bar, taskbar and tray icons stay sharp. `wails3 task common:generate:icons` (`go run build/icon/generate.go`) has headless Edge draw them and writes `build/appicon.png` (1024 px) and `build/windows/icon.ico` (16, 20, 24, 32, 40, 48, 64, 96 as bitmaps, 256 as PNG); both are checked in. `main` embeds the same `icon.ico` for the tray, where Wails picks the image matching the small icon size.

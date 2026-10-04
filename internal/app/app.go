@@ -43,7 +43,9 @@ type Options struct {
 	Version string
 	// Assets is the built frontend (frontend/dist, embedded by main).
 	Assets fs.FS
-	// Icon is a PNG used for the tray icon.
+	// Icon is the tray icon, an .ico (or a PNG). Wails picks the image in an
+	// .ico closest to the small icon size, which is sharper than having
+	// Windows scale one big PNG down.
 	Icon []byte
 }
 

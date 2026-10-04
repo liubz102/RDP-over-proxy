@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <!--
+    The app icon: a monitor (the remote desktop) with an orbit around it and a
+    relay on the orbit (the proxy the connection goes through).
+    This drawing is used for 96 px and up. Sizes up to 64 px have their own
+    pixel-aligned drawings (appicon-<size>.svg); change them along with this one.
+    After editing, run `wails3 task common:generate:icons`.
+  -->
+  <defs>
+    <linearGradient id="tile" x1="64" y1="16" x2="192" y2="240" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F3F7FF"/>
+      <stop offset="1" stop-color="#D3E1FA"/>
+    </linearGradient>
+    <!-- In the orbit's own (rotated) coordinates, like the clip paths below -->
+    <linearGradient id="orbit" x1="28" y1="150" x2="228" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0891B2"/>
+      <stop offset=".5" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+    <!-- The orbit's far half (above its major axis) and near half -->
+    <clipPath id="far"><rect width="256" height="112"/></clipPath>
+    <clipPath id="near"><rect y="112" width="256" height="144"/></clipPath>
+  </defs>
+
+  <!-- Tile -->
+  <rect x="16" y="16" width="224" height="224" rx="52" fill="url(#tile)"/>
+  <rect x="17" y="17" width="222" height="222" rx="51" fill="none" stroke="#0F172A" stroke-opacity=".1" stroke-width="2"/>
+
+  <!-- Far half of the orbit, behind the monitor -->
+  <g transform="rotate(-18 128 112)">
+    <ellipse cx="128" cy="112" rx="100" ry="30" fill="none" stroke="url(#orbit)" stroke-width="10" stroke-opacity=".5" clip-path="url(#far)"/>
+  </g>
+
+  <!-- Monitor -->
+  <rect x="66" y="66" width="124" height="88" rx="16" fill="#FFFFFF"/>
+  <g fill="none" stroke="#1F2A5C" stroke-linecap="round" stroke-linejoin="round" stroke-width="12">
+    <rect x="66" y="66" width="124" height="88" rx="16"/>
+    <path d="M128 154v20M100 182h56"/>
+  </g>
+
+  <!-- Near half of the orbit, in front of the monitor, with the relay on it -->
+  <g transform="rotate(-18 128 112)">
+    <ellipse cx="128" cy="112" rx="100" ry="30" fill="none" stroke="url(#orbit)" stroke-width="10" clip-path="url(#near)"/>
+    <circle cx="217.9" cy="125.2" r="15" fill="#FFFFFF"/>
+    <circle cx="217.9" cy="125.2" r="11" fill="#7C3AED"/>
+  </g>
+</svg>

@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- appicon.svg drawn for 64 px: the monitor's edges on whole pixels. -->
+  <defs>
+    <linearGradient id="tile" x1="16" y1="4" x2="48" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F3F7FF"/>
+      <stop offset="1" stop-color="#D3E1FA"/>
+    </linearGradient>
+    <linearGradient id="orbit" x1="7" y1="37.5" x2="57" y2="20" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0891B2"/>
+      <stop offset=".5" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+    <clipPath id="far"><rect width="64" height="28"/></clipPath>
+    <clipPath id="near"><rect y="28" width="64" height="36"/></clipPath>
+  </defs>
+
+  <!-- Tile -->
+  <rect x="4" y="4" width="56" height="56" rx="13" fill="url(#tile)"/>
+  <rect x="4.5" y="4.5" width="55" height="55" rx="12.5" fill="none" stroke="#0F172A" stroke-opacity=".14"/>
+
+  <!-- Far half of the orbit -->
+  <g transform="rotate(-18 32 28)">
+    <ellipse cx="32" cy="28" rx="25" ry="7.5" fill="none" stroke="url(#orbit)" stroke-width="2.5" stroke-opacity=".5" clip-path="url(#far)"/>
+  </g>
+
+  <!-- Monitor -->
+  <rect x="15" y="15" width="34" height="25" rx="5.5" fill="#1F2A5C"/>
+  <rect x="18" y="18" width="28" height="19" rx="2.5" fill="#FFFFFF"/>
+  <rect x="30" y="40" width="4" height="4" fill="#1F2A5C"/>
+  <rect x="23" y="44" width="18" height="3" rx="1.5" fill="#1F2A5C"/>
+
+  <!-- Near half of the orbit and the relay -->
+  <g transform="rotate(-18 32 28)">
+    <ellipse cx="32" cy="28" rx="25" ry="7.5" fill="none" stroke="url(#orbit)" stroke-width="2.5" clip-path="url(#near)"/>
+    <circle cx="54.47" cy="31.29" r="3.75" fill="#FFFFFF"/>
+    <circle cx="54.47" cy="31.29" r="2.75" fill="#7C3AED"/>
+  </g>
+</svg>
