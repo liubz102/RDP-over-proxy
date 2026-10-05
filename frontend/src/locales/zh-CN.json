@@ -296,13 +296,26 @@
     "testUrlHint": "「代理」页测速时经代理访问的网址。",
     "urlInvalid": "请输入以 http:// 或 https:// 开头的网址。",
     "logLevel": "日志级别",
-    "logLevelHint": "日志文件在 %LOCALAPPDATA%\\RDP-over-proxy\\logs，写入前会隐去主机名、IP 地址和用户名。",
+    "logLevelHint": "写入日志文件前会隐去主机名、IP 地址和用户名。日志文件夹见下面的「数据」。",
     "logLevels": {
       "error": "只记错误",
       "warn": "警告和错误",
       "info": "一般（推荐）",
       "debug": "详细（排查问题时用）"
-    }
+    },
+    "data": "数据",
+    "dataIntro": "程序的全部数据都保存在它所在的文件夹里，打开就能看到。",
+    "dataFolder": "数据文件夹",
+    "logFolder": "日志文件夹",
+    "openFolder": "打开",
+    "openFolderFailed": "没能打开文件夹",
+    "dataFiles": {
+      "settings": "这一页的设置",
+      "proxies": "代理，每个一个文件",
+      "profiles": "连接，每个一个文件",
+      "webview2": "界面的缓存，程序退出后可以删除"
+    },
+    "dataSecrets": "代理的密码在文件里用 Windows 加密，只有这台电脑上的这个 Windows 账户能解开，复制到别处后要重新填写。远程桌面的密码由「远程桌面连接」从 Windows 凭据管理器读取，所以保存在那里，不在这个文件夹里。"
   },
   "diag": {
     "title": "诊断",
@@ -404,7 +417,10 @@
         "other": "未知的值：{{value}}。"
       },
       "logs": {
-        "label": "日志文件夹"
+        "label": "日志文件夹",
+        "local": "在这台电脑的磁盘上。",
+        "network": "在网络共享上。",
+        "detail": "{{text}}"
       }
     }
   },

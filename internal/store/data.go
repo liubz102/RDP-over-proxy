@@ -19,7 +19,7 @@ import (
 	"github.com/liubz102/RDP-over-proxy/internal/model"
 )
 
-// Folder names under the config folder.
+// Folder names in the data folder.
 const (
 	ProxiesDir  = "proxies"
 	ProfilesDir = "profiles"
@@ -82,7 +82,7 @@ const (
 
 // Problem is something wrong with one file, found while loading.
 type Problem struct {
-	// File is the file's path relative to the config folder.
+	// File is the file's path relative to the data folder.
 	File string
 	Code string
 	Err  error
@@ -103,12 +103,12 @@ type Data struct {
 	lost map[string]bool
 }
 
-// OpenData loads every proxy and profile under configDir. Loading never
+// OpenData loads every proxy and profile in dataDir. Loading never
 // fails as a whole: whatever cannot be used as it is comes back as a
 // problem, and the rest loads.
-func OpenData(configDir string, sealer Sealer) (*Data, []Problem) {
+func OpenData(dataDir string, sealer Sealer) (*Data, []Problem) {
 	d := &Data{
-		dir:      configDir,
+		dir:      dataDir,
 		sealer:   sealer,
 		proxies:  map[string]model.Proxy{},
 		profiles: map[string]model.Profile{},

@@ -18,8 +18,8 @@ func TestDefaultDirsHonoursEnvHome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DefaultDirs: %v", err)
 	}
-	if d.Config != filepath.Join(home, "config") || d.Local != filepath.Join(home, "local") {
-		t.Fatalf("DefaultDirs() = %+v, want both under %s", d, home)
+	if d.Data != filepath.Join(home, "data") || d.Logs != filepath.Join(home, "logs") {
+		t.Fatalf("DefaultDirs() = %+v, want data and logs in %s", d, home)
 	}
 }
 

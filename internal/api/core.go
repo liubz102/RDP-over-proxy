@@ -139,10 +139,13 @@ type Deps struct {
 	Diagnose        func() diag.Facts
 	CredentialGuard func() (bool, error)
 	// EditDefaults opens Remote Desktop Connection on Default.rdp
-	// (mstsc.EditDefaults), and OpenLogs the log folder. Optional.
+	// (mstsc.EditDefaults). Optional.
 	EditDefaults func() error
-	OpenLogs     func() error
-	Log          *logging.Logger
+	// Folders are where the app keeps its files, and OpenFolder shows a
+	// folder in File Explorer (winx.OpenFolder). Optional.
+	Folders    Folders
+	OpenFolder func(path string) error
+	Log        *logging.Logger
 	// Emit sends an event to the frontend. Optional: by default it goes to
 	// the running Wails application.
 	Emit func(name string, data any)

@@ -1,6 +1,7 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import {
   Body1,
+  Button,
   Caption1,
   Card,
   Dropdown,
@@ -17,8 +18,11 @@ import {
   makeStyles,
   tokens,
 } from "@fluentui/react-components";
+import { FolderOpen20Regular } from "@fluentui/react-icons";
 import { Browser } from "@wailsio/runtime";
 import { useTranslation } from "react-i18next";
+import { AppService, type FolderName } from "../../api/backend";
+import { useNotify } from "../../components/Feedback";
 import { Page } from "../../components/Page";
 import { isLanguage, languages } from "../../i18n";
 import { useSettings } from "../../stores/settings";
@@ -52,7 +56,36 @@ const useStyles = makeStyles({
   label: {
     color: tokens.colorNeutralForeground3,
   },
+  folders: {
+    display: "grid",
+    gridTemplateColumns: "max-content minmax(0, 1fr) max-content",
+    columnGap: "16px",
+    rowGap: "8px",
+    alignItems: "center",
+  },
+  path: {
+    overflowWrap: "anywhere",
+  },
+  files: {
+    gridColumn: "2 / 4",
+    display: "grid",
+    gridTemplateColumns: "max-content 1fr",
+    columnGap: "16px",
+    rowGap: "2px",
+  },
+  file: {
+    fontFamily: tokens.fontFamilyMonospace,
+    color: tokens.colorNeutralForeground2,
+  },
 });
+
+/** What the data folder holds: the name, and the key of what it is. */
+const dataFiles: [string, string][] = [
+  ["settings.json", "settings"],
+  ["proxies\\", "proxies"],
+  ["profiles\\", "profiles"],
+  ["WebView2\\", "webview2"],
+];
 
 /**
  * A text setting: edited freely, saved when the field loses focus or Enter is
@@ -109,9 +142,24 @@ export function SettingsPage() {
   const { t } = useTranslation();
   const settings = useSettings((s) => s.settings);
   const appInfo = useSettings((s) => s.appInfo);
+  const folders = useSettings((s) => s.folders);
   const save = useSettings((s) => s.save);
   const saveError = useSettings((s) => s.saveError);
+  const notify = useNotify();
   if (!settings) return null;
+
+  const openFolder = async (name: FolderName) => {
+    try {
+      await AppService.OpenFolder(name);
+    } catch (e) {
+      notify.error(e, t("settings.openFolderFailed"));
+    }
+  };
+  const openButton = (name: FolderName) => (
+    <Button icon={<FolderOpen20Regular />} onClick={() => void openFolder(name)}>
+      {t("settings.openFolder")}
+    </Button>
+  );
 
   return (
     <Page title={t("settings.title")} subtitle={t("settings.autosave")}>
@@ -201,6 +249,29 @@ export function SettingsPage() {
             ))}
           </Dropdown>
         </Field>
+      </Section>
+
+      <Section title={t("settings.data")}>
+        <Body1>{t("settings.dataIntro")}</Body1>
+        {folders && (
+          <div className={styles.folders}>
+            <Body1 className={styles.label}>{t("settings.dataFolder")}</Body1>
+            <Body1 className={styles.path}>{folders.data}</Body1>
+            {openButton("data")}
+            <div className={styles.files}>
+              {dataFiles.map(([name, key]) => (
+                <Fragment key={key}>
+                  <Caption1 className={styles.file}>{name}</Caption1>
+                  <Caption1 className={styles.hint}>{t(`settings.dataFiles.${key}`)}</Caption1>
+                </Fragment>
+              ))}
+            </div>
+            <Body1 className={styles.label}>{t("settings.logFolder")}</Body1>
+            <Body1 className={styles.path}>{folders.logs}</Body1>
+            {openButton("logs")}
+          </div>
+        )}
+        <Caption1 className={styles.hint}>{t("settings.dataSecrets")}</Caption1>
       </Section>
 
       <Section title={t("settings.about")}>

@@ -75,7 +75,8 @@ func TestDiagService(t *testing.T) {
 	answer := make(chan struct{})
 	var asked atomic.Int32
 	ev := &events{changed: make(chan struct{}, 1)}
-	var edits, opens int
+	var edits int
+	var opened []string
 	c := NewCore(Deps{
 		Diagnose: func() diag.Facts {
 			return diag.Facts{App: "0.1.0", Join: diag.JoinWorkgroup, EncryptionOracle: -1}
@@ -87,7 +88,8 @@ func TestDiagService(t *testing.T) {
 			return true, nil
 		},
 		EditDefaults: func() error { edits++; return nil },
-		OpenLogs:     func() error { opens++; return errors.New("no explorer") },
+		Folders:      Folders{Data: `D:\Tools\RDP-over-proxy\data`, Logs: `D:\Tools\RDP-over-proxy\logs`},
+		OpenFolder:   func(path string) error { opened = append(opened, path); return errors.New("no explorer") },
 		Log:          logging.New(nil, logging.LevelInfo, 10),
 		Emit:         ev.emit,
 	})
@@ -131,8 +133,8 @@ func TestDiagService(t *testing.T) {
 	if err := s.EditDefaults(); err != nil || edits != 1 {
 		t.Errorf("EditDefaults = %v, %d calls", err, edits)
 	}
-	if err := s.OpenLogs(); err == nil || opens != 1 {
-		t.Errorf("OpenLogs = %v, %d calls", err, opens)
+	if err := s.OpenLogs(); err == nil || !slices.Equal(opened, []string{`D:\Tools\RDP-over-proxy\logs`}) {
+		t.Errorf("OpenLogs = %v, opened %q", err, opened)
 	}
 
 	// Without them (a test's Core) the calls fail instead of panicking, and

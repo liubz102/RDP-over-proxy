@@ -20,6 +20,9 @@ func TestGather(t *testing.T) {
 	if f.Home == "" {
 		t.Error("no profile folder")
 	}
+	if !f.LogsLocal {
+		t.Error("the log folder, a temporary folder, is not on this PC")
+	}
 	for _, it := range Build(f) {
 		for _, s := range []string{it.Text, it.Detail, it.Args["error"]} {
 			if strings.Contains(strings.ToLower(s), strings.ToLower(f.Home)) {

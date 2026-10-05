@@ -12,42 +12,99 @@ import (
 	"path/filepath"
 )
 
-// AppDirName is the folder name used under %APPDATA% and %LOCALAPPDATA%.
-const AppDirName = "RDP-over-proxy"
-
-// Dirs are the two places the application keeps files.
+// Dirs are the two folders the application keeps files in. Both are in the
+// folder the exe is in, never in the user profile: whoever opens that folder
+// sees everything the app keeps, and it all goes where the app goes.
 type Dirs struct {
-	// Config holds what the user would want to back up: settings, proxies and
-	// connection profiles (%APPDATA%\RDP-over-proxy).
-	Config string
-	// Local holds machine-specific data: logs and the WebView2 profile
-	// (%LOCALAPPDATA%\RDP-over-proxy).
-	Local string
+	// Data holds the settings, the proxies, the connection profiles and the
+	// WebView2 profile (<exe folder>\data).
+	Data string
+	// Logs holds the log files (<exe folder>\logs).
+	Logs string
 }
 
-// EnvHome, when set, puts all data under that folder instead of %APPDATA% and
-// %LOCALAPPDATA%. Tests and development runs use it so they never touch the
-// user's real settings (or use up the first-run language picker).
+// The folders' names in the exe's folder.
+const (
+	DataDirName = "data"
+	LogsDirName = "logs"
+)
+
+// DirsIn returns the Dirs in base: base\data and base\logs.
+func DirsIn(base string) Dirs {
+	return Dirs{Data: filepath.Join(base, DataDirName), Logs: filepath.Join(base, LogsDirName)}
+}
+
+// EnvHome, when set, is used in place of the exe's folder. Tests and
+// development runs use it so they never touch the data of a copy that is in
+// use (or use up the first-run language picker).
 const EnvHome = "RDP_OVER_PROXY_HOME"
 
-// DefaultDirs resolves Dirs for the current Windows user, or under EnvHome
-// when that is set.
+// DefaultDirs returns the Dirs in the folder of the running exe, or in
+// EnvHome when that is set.
 func DefaultDirs() (Dirs, error) {
 	if home := os.Getenv(EnvHome); home != "" {
-		return Dirs{Config: filepath.Join(home, "config"), Local: filepath.Join(home, "local")}, nil
+		return DirsIn(home), nil
 	}
-	roaming, err := os.UserConfigDir()
+	dir, err := ExeDir()
 	if err != nil {
-		return Dirs{}, fmt.Errorf("locate %%APPDATA%%: %w", err)
+		return Dirs{}, err
 	}
-	local, err := os.UserCacheDir()
+	return DirsIn(dir), nil
+}
+
+// ExeDir is the folder the running exe is in. Started through a symbolic
+// link, it is the folder of the exe the link points to.
+func ExeDir() (string, error) {
+	exe, err := os.Executable()
 	if err != nil {
-		return Dirs{}, fmt.Errorf("locate %%LOCALAPPDATA%%: %w", err)
+		return "", fmt.Errorf("locate the program file: %w", err)
 	}
-	return Dirs{
-		Config: filepath.Join(roaming, AppDirName),
-		Local:  filepath.Join(local, AppDirName),
-	}, nil
+	if real, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = real
+	}
+	return filepath.Dir(exe), nil
+}
+
+// FolderError is a folder the app cannot use: it could not be created, or
+// files cannot be written in it.
+type FolderError struct {
+	Dir string
+	// Err is the system's reason, such as "Access is denied."
+	Err error
+}
+
+func (e *FolderError) Error() string { return fmt.Sprintf("%s: %v", e.Dir, e.Err) }
+
+func (e *FolderError) Unwrap() error { return e.Err }
+
+// Prepare creates both folders if they are missing and makes sure files can
+// be written in them, by writing a file and removing it again: a folder can
+// exist and still refuse writes (one in Program Files, on a read-only share).
+// It returns a *FolderError for the first folder that cannot be used.
+func (d Dirs) Prepare() error {
+	for _, dir := range []string{d.Data, d.Logs} {
+		if err := writable(dir); err != nil {
+			var pe *fs.PathError
+			if errors.As(err, &pe) {
+				err = pe.Err // the folder is named on its own
+			}
+			return &FolderError{Dir: dir, Err: err}
+		}
+	}
+	return nil
+}
+
+func writable(dir string) error {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	// A name of its own each time: another copy of the app may be starting
+	// in the same folder.
+	f, err := os.CreateTemp(dir, ".write-check-*")
+	if err != nil {
+		return err
+	}
+	return errors.Join(f.Close(), os.Remove(f.Name()))
 }
 
 // ReadJSON decodes the file at path into v. found is false, with a nil error,

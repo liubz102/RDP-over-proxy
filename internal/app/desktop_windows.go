@@ -5,7 +5,6 @@ package app
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -22,28 +21,25 @@ func buildDirs(d store.Dirs) store.Dirs { return d }
 
 // singleInstance keeps one copy of the app running per data folder;
 // launching it again brings the existing window forward.
-func singleInstance(show func()) *application.SingleInstanceOptions {
+func singleInstance(dataDir string, show func()) *application.SingleInstanceOptions {
 	return &application.SingleInstanceOptions{
-		UniqueID: instanceID(),
+		UniqueID: instanceID(dataDir),
 		OnSecondInstanceLaunch: func(application.SecondInstanceData) {
 			show()
 		},
 	}
 }
 
-// instanceID is uniqueID, made specific to the data folder when
-// RDP_OVER_PROXY_HOME sets one: a development or test run keeps its own data
-// and must neither hand over to the user's running app nor be blocked by it.
-func instanceID() string {
-	home := os.Getenv(store.EnvHome)
-	if home == "" {
-		return uniqueID
+// instanceID is uniqueID made specific to the data folder. Copies of the app
+// in different folders (and development or test runs with
+// RDP_OVER_PROXY_HOME) each keep their own data, so one must neither hand
+// over to another nor be blocked by it.
+func instanceID(dataDir string) string {
+	if abs, err := filepath.Abs(dataDir); err == nil {
+		dataDir = abs
 	}
-	if abs, err := filepath.Abs(home); err == nil {
-		home = abs
-	}
-	sum := sha256.Sum256([]byte(strings.ToLower(home)))
-	return uniqueID + ".home-" + hex.EncodeToString(sum[:6])
+	sum := sha256.Sum256([]byte(strings.ToLower(dataDir)))
+	return uniqueID + ".data-" + hex.EncodeToString(sum[:6])
 }
 
 // preflight checks what Wails needs before it can show a window. Without the

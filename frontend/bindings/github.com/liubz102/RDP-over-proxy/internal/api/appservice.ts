@@ -26,6 +26,13 @@ export function Dismiss(id: number): $CancellablePromise<void> {
 }
 
 /**
+ * Folders returns where the app keeps its files.
+ */
+export function Folders(): $CancellablePromise<$models.Folders> {
+    return $Call.ByID(1703987338);
+}
+
+/**
  * KeepRunning answers a request to quit with "no": the user cancelled the
  * confirmation.
  */
@@ -47,6 +54,14 @@ export function Log(): $CancellablePromise<logging$0.Line[] | null> {
  */
 export function Notices(): $CancellablePromise<$models.Notice[] | null> {
     return $Call.ByID(2339793414);
+}
+
+/**
+ * OpenFolder shows one of the app's folders in File Explorer: FolderData or
+ * FolderLogs.
+ */
+export function OpenFolder(name: string): $CancellablePromise<void> {
+    return $Call.ByID(2880170025, name);
 }
 
 /**

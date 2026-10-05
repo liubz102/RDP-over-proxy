@@ -95,7 +95,7 @@ var catalog = []struct {
 		SavedDeniedByDeny, SavedLimited, SavedUnknown}, true},
 	{keyCredentialGuard, []string{"running", "off", "unknown", "checking"}, false},
 	{keyEncryptionOracle, []string{"notConfigured", "forceUpdated", "mitigated", "vulnerable", "other"}, false},
-	{keyLogs, nil, false},
+	{keyLogs, []string{"local", "network"}, true},
 }
 
 // Codes lists the translation keys under "diag." that a report can use, for
@@ -195,8 +195,10 @@ type Facts struct {
 	// policy (AllowEncryptionOracle): 0 force updated clients, 1 mitigated,
 	// 2 vulnerable, -1 not configured.
 	EncryptionOracle int
-	// Logs is the app's log folder.
-	Logs string
+	// Logs is the app's log folder, and LogsLocal whether it is on a disk
+	// of this PC rather than a network share.
+	Logs      string
+	LogsLocal bool
 	// Home is the user's profile folder. Paths and messages show it as
 	// %USERPROFILE%: it names the Windows account.
 	Home string
@@ -213,7 +215,18 @@ func Build(f Facts) []Item {
 	}
 	items = append(items, defaults(f)...)
 	items = append(items, credentials(f)...)
-	return append(items, Item{Group: GroupFiles, Key: keyLogs, Status: StatusInfo, Text: f.unhome(f.Logs)})
+	return append(items, logs(f))
+}
+
+// logs says where the log folder is. It is next to the exe, in a folder the
+// user chose, whose name may say more than a bug report should (a company's
+// OneDrive): copies say only whether it is on this PC.
+func logs(f Facts) Item {
+	it := Item{Group: GroupFiles, Key: keyLogs, Status: StatusInfo, Value: "network", Detail: f.unhome(f.Logs), Private: true}
+	if f.LogsLocal {
+		it.Value = "local"
+	}
+	return it
 }
 
 func version(key, v string) Item {

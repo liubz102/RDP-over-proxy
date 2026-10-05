@@ -25,7 +25,7 @@
 | 路径 | 内容 |
 |---|---|
 | `main.go` | 入口；嵌入 `frontend/dist` 和 `build/windows/icon.ico`（托盘图标）；`version` 默认值 |
-| `internal/app` | Wails 应用、窗口、托盘、单实例、关闭缩到托盘、启动与退出顺序。`desktop_windows.go` 和 `server.go` 用构建标签区分桌面版与 server 版；`platform_windows.go` 提供两版共用的 Windows 部件（DPAPI、凭据、mstsc） |
+| `internal/app` | Wails 应用、窗口、托盘、单实例、关闭缩到托盘、启动与退出顺序。`desktop_windows.go` 和 `server.go` 用构建标签区分桌面版与 server 版；`platform_windows.go` 提供两版共用的 Windows 部件（DPAPI、凭据、mstsc）；`folders_windows.go`（桌面版）：启动时先准备 exe 旁的 `data`、`logs`，只有管理员能写时经 UAC 让提权的自己（`--prepare-folders <SID>`）建好并授权，其他问题弹中英双语的说明 |
 | `internal/api` | 暴露给前端的服务（Settings、Profile、Proxy、Session、App）和它们共用的 `Core`；视图类型、事件、错误 JSON（`MarshalError`） |
 | `internal/model` | 数据结构（Settings、Proxy、Profile、Target）与校验，纯逻辑。Proxy / Profile 的校验返回 `FieldErrors`（字段 + 代码）。V2Ray 系的设置在 `ProxyOptions`（`options.go`），`Normalize` 只留下这种代理用得上的项并补默认值 |
 | `internal/loopback` | 由 profile ID 派生 `127.a.b.c` 回环地址，冲突时顺延 |
@@ -40,9 +40,9 @@
 | `internal/errcode` | 错误码：`New` / `Weak` / `Wrap`，`Of` 取最有用的代码；`Declare` / `All` 供翻译完整性测试 |
 | `internal/secret` | DPAPI 加密（`DPAPI`）；凭据管理器里 `TERMSRV/<回环地址>` 的密码（`Vault`） |
 | `internal/logging` | 日志文件（按大小轮转）、环形缓冲、脱敏、连续重复折叠、给 Wails 用的 slog 适配 |
-| `internal/store` | 原子写 JSON；数据目录；`RDP_OVER_PROXY_HOME`；设置；代理和连接的文件存储（`Data`） |
-| `internal/i18n` | Go 侧文案（托盘、原生对话框）、系统语言检测 |
-| `internal/winx` | Win32 调用：WebView2 检测和版本、错误框、系统深色模式、窗口；文件版本、Credential Guard（WMI）、打开文件夹（`system_windows.go`） |
+| `internal/store` | 原子写 JSON；数据文件夹：exe 旁的 `data`、`logs`（`DefaultDirs`，`RDP_OVER_PROXY_HOME` 代替 exe 所在文件夹），`Dirs.Prepare` 建好并试写；设置；代理和连接的文件存储（`Data`） |
+| `internal/i18n` | Go 侧文案（托盘、原生对话框）、系统语言检测；`Both`：语言设置还读不到时用的中英双语文案 |
+| `internal/winx` | Win32 调用：WebView2 检测和版本、错误框、确认框、系统深色模式、窗口；文件版本、Credential Guard（WMI）、打开文件夹（`system_windows.go`）；提权（`elevate_windows.go`）：`Elevated`、`RunElevated`、`AllowModify`、`OnLocalDisk`；`ErrorText`（按界面语言取 Windows 的错误说明） |
 | `internal/diag` | 只读的环境报告：`Gather` 读 Windows，`Build`（纯函数）生成报告项；凭据委派策略的判定（`delegation.go`） |
 | `tests/<包名>` | Go 测试，每个被测包一个目录（如 `tests/session`），包名 `<包名>_test`，只用导出的 API；`tests/rdpfile/testdata` 是 .rdp 样本 |
 | `tests/winx`、`tests/diag` | 除了纯逻辑，还有读本机 Windows 的测试（文件版本、WMI、`diag.Gather`），只读 |
@@ -74,11 +74,12 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 - **重新生成图标**：改完 `build/icon` 里的 SVG 后运行 `wails3 task common:generate:icons`（要有 Edge），生成的 `build/appicon.png`、`build/windows/icon.ico` 一起提交。构建不会自动生成。
 - **浏览器预览界面**
   1. 运行 `wails3 task build:server DEV=true`。
-  2. 用内置浏览器工具 `preview_start` 启动 `.claude/launch.json` 里的 `preview` 配置：端口 34115，数据目录 `data\preview`（已被 git 忽略）。
+  2. 用内置浏览器工具 `preview_start` 启动 `.claude/launch.json` 里的 `preview` 配置：端口 34115，`RDP_OVER_PROXY_HOME` 是仓库里的开发目录 `data\preview`（已被 git 忽略），所以预览的数据在 `data\preview\data`、日志在 `data\preview\logs`。开头那个 `data\` 是仓库的开发目录，不是程序的数据文件夹，给用户看截图时要说明。
   3. 页面在 `http://localhost:34115`。
 
-  没有界面的服务可以在页面里用 `fetch("/wails/runtime")` 按方法全名调用（`object: 0`，`args: {"call-id", methodName, args}`；取消用 `object: 10`）。不经过 launch.json 手动运行时，预览版的数据放在 `%APPDATA%\RDP-over-proxy-preview`。
-- **原生自测**：设置 `RDP_OVER_PROXY_HOME=<临时目录>` 后再启动 exe，避免用掉用户的首次启动体验。
+  没有界面的服务可以在页面里用 `fetch("/wails/runtime")` 按方法全名调用（`object: 0`，`args: {"call-id", methodName, args}`；取消用 `object: 10`）。不经过 launch.json 手动运行时，预览版的数据放在 exe 旁的 `bin\data-preview`、`bin\logs-preview`，和桌面版的 `bin\data`、`bin\logs` 分开。
+- **原生自测**：把 exe 复制到临时文件夹再启动（数据就在它旁边），或者设置 `RDP_OVER_PROXY_HOME=<临时目录>`。
+- **`bin\data`、`bin\logs` 是用户自己在用的数据**（2026-10-06 从 `%APPDATA%` 挪过来，用户选的位置）：直接运行 `bin\RDP-over-proxy.exe` 或 `wails3 dev`（它构建并运行的就是这个 exe）都会读写它们，自测不要这样跑，更不要删它们。用户的程序从 `bin\` 运行时，`wails3 build` 覆盖不了正在运行的 exe，会构建失败：请用户先退出，不要结束用户的进程。
 
 ## 硬性规则（用户的全局规则 + 本项目约定）
 
@@ -97,7 +98,8 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
    - 测试只用自己的端口，隧道用 port 0，绝不用 13389。
    - 只结束测试自己启动的 PID，绝不按进程名杀进程。
    - 不替用户打开真实的 mstsc 会话。
-   - 测试和自测的数据用 `RDP_OVER_PROXY_HOME` 隔离（它同时让单实例 ID 按数据目录区分，自测不会和用户正在用的实例互相干扰）。
+   - 测试和自测的数据要隔离：exe 复制到临时文件夹，或者用 `RDP_OVER_PROXY_HOME`。单实例 ID 按数据文件夹区分，所以自测不会和用户正在用的实例互相干扰。
+   - 自测不要点提权说明框的「确定」（会弹 UAC），也不要往 Program Files 放东西：提权说明框和错误框可以用测试脚本读窗口文字后结束进程来验证；`--prepare-folders <自己的 SID>` 可以不提权直接在临时文件夹里跑。
    - 不碰用户真实的凭据和 mstsc 注册表：凭据测试只用 `TERMSRV/rdp-over-proxy-test-<随机>.invalid`，注册表测试只用 `HKCU\Software\RDP-over-proxy-test`，测试结束都要清掉。
    - 自测时不要往凭据管理器存密码，也不要调用 `Connect`（会启动 mstsc）。
 6. **隐私**：仓库和日志里不出现个人主机名、IP、凭据。测试数据只用 `example.com` 和 `192.0.2.x`。
@@ -163,3 +165,9 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 - **在 Go 里用 COM（WMI 经 go-ole、ShellExecute）**：都经过 `winx.withCOM`：锁住线程；`CoInitializeEx` 返回 S_FALSE（这个线程已经按同样方式初始化过）也要配对 `CoUninitialize`，返回 RPC_E_CHANGED_MODE（已按别的方式初始化）则照用、不反初始化。
 - **WMI 可能很久不回答（仓库损坏时）**：所以诊断报告不等 Credential Guard，它在后台只查一次，查完发 `diag:changed` 带着新报告；不设超时。
 - **Wails 运行时的 debug 日志带着服务调用的参数（也就是密码）**：`Binding call complete`、`Runtime call` 都会记 `args`。`logging.SlogHandler` 因此不收 Wails 的 debug、info 记录（任何级别），也不收服务方法返回的预期错误，载荷属性写成 `<omitted>`。改它时别放开。
+- **数据全部在 exe 所在的文件夹（用户要求，2026-10-06）**：`data\`（设置、代理、连接、WebView2 缓存）和 `logs\` 并列在 exe 旁边，`logs` 不在 `data` 里面。不要往 `%APPDATA%`、`%LOCALAPPDATA%` 写任何东西；WebView2 的 `WebviewUserDataPath` 也指向 `data\WebView2`，不用 Wails 的默认值（`%APPDATA%\<exe 名>`）。凭据管理器里的密码和 mstsc 的注册表记忆不得不在外面，因为 mstsc 只从那里读。
+- **程序本身绝不提权运行**：标准用户借管理员账户过 UAC 时，提权的进程是那个管理员，DPAPI 加密的密码和凭据管理器里的密码都会落到错的账户下。只有 `--prepare-folders` 这个助手提权，它只建 `data`、`logs` 并给原账户加「修改」权限，然后退出。
+- **UAC 提权的进程不继承调用者的环境变量，也看不到调用者映射的网络驱动器**：所以助手自己从 exe 位置算出文件夹，不读 `RDP_OVER_PROXY_HOME`；设了这个变量、或者 exe 在网络共享上（`winx.OnLocalDisk` 为假）时不提议提权，直接报错。
+- **提权进程在 Program Files 里建的文件夹继承「Users：只读」**：只建文件夹不够，要 `winx.AllowModify` 给原账户加可继承的「修改」权限，以后普通权限启动才写得进去。`AllowModify` 只接受用户账户的 SID，拒绝 Everyone、Users 这类组：提权进程照命令行办事，不能被人借去给所有人开写权限。
+- **Go 的 `syscall.Errno.Error()` 向 Windows 要的是英文说明**：中文的提示里要用 `winx.ErrorText(err, "zh-CN")`，系统没有该语言的文本时它退回英文。
+- **读到语言设置之前弹的框要中英双语**（`i18n.Both`，系统语言在前）：准备数据文件夹失败时 `settings.json` 可能根本还没法存在。

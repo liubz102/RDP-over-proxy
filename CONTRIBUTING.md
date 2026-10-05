@@ -28,7 +28,7 @@ npm --prefix frontend test                   # 前端单元测试
 wails3 generate bindings -clean=true -ts -i  # 修改 Go 服务后重新生成前端绑定
 ```
 
-开发和测试时可以设置环境变量 `RDP_OVER_PROXY_HOME=<某个目录>`，程序的全部数据都会写到这个目录下，不会碰你自己的设置；这样启动的程序也不会和你正在用的那个实例互相干扰。注意 Windows 凭据管理器和 mstsc 的注册表不在这个目录里，自测时不要保存远程桌面密码。
+程序把数据放在 exe 旁边的 `data` 和 `logs` 文件夹里。开发和测试时可以设置环境变量 `RDP_OVER_PROXY_HOME=<某个目录>` 代替 exe 所在的文件夹（数据写到 `<某个目录>\data` 和 `<某个目录>\logs`），或者把 exe 复制到一个临时文件夹里运行，都不会碰你自己的数据。每个数据文件夹只运行一个实例，所以这样启动的程序不会和你正在用的那个互相干扰。注意 Windows 凭据管理器和 mstsc 的注册表不在这些文件夹里，自测时不要保存远程桌面密码。
 
 ### 约定
 
@@ -72,7 +72,7 @@ npm --prefix frontend test                   # frontend unit tests
 wails3 generate bindings -clean=true -ts -i  # regenerate the frontend bindings after changing Go services
 ```
 
-While developing or testing, set `RDP_OVER_PROXY_HOME=<some folder>` and all of the app's data goes there instead of your own settings; an app started this way also runs alongside the copy you use day to day. Windows Credential Manager and mstsc's registry settings are not in that folder, so don't save Remote Desktop passwords in such runs.
+The app keeps its data in the `data` and `logs` folders next to the exe. While developing or testing, set `RDP_OVER_PROXY_HOME=<some folder>` to stand in for the exe's folder (the data goes to `<some folder>\data` and `<some folder>\logs`), or run a copy of the exe from a temporary folder; either way your own data is left alone. Each data folder runs one instance, so such a run goes alongside the copy you use day to day. Windows Credential Manager and mstsc's registry settings are not in those folders, so don't save Remote Desktop passwords in such runs.
 
 ### Conventions
 

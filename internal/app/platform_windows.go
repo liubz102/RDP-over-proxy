@@ -43,6 +43,4 @@ func diagnose(version, logDir string) func() diag.Facts {
 
 func credentialGuard() (bool, error) { return winx.CredentialGuardRunning() }
 
-func openFolder(path string) func() error {
-	return func() error { return winx.OpenFolder(path) }
-}
+func openFolder(path string) error { return winx.OpenFolder(path) }

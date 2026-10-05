@@ -4,6 +4,9 @@
 package winx
 
 import (
+	"errors"
+	"strings"
+
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 )
@@ -69,4 +72,46 @@ func ShowError(title, text string) {
 		return
 	}
 	_, _ = windows.MessageBox(0, m, t, windows.MB_OK|windows.MB_ICONERROR|windows.MB_SETFOREGROUND)
+}
+
+// Confirm asks in a modal message box with OK and Cancel, and reports
+// whether the user chose OK. Like ShowError, it is for the time before the
+// application window exists.
+func Confirm(title, text string) bool {
+	t, err := windows.UTF16PtrFromString(title)
+	if err != nil {
+		return false
+	}
+	m, err := windows.UTF16PtrFromString(text)
+	if err != nil {
+		return false
+	}
+	choice, _ := windows.MessageBox(0, m, t, windows.MB_OKCANCEL|windows.MB_ICONINFORMATION|windows.MB_SETFOREGROUND)
+	return choice == idOK
+}
+
+// idOK is what MessageBox returns for the OK button.
+const idOK = 1
+
+// ErrorText is Windows' own text for the Windows error in err, in lang (a UI
+// language: "zh-CN" or "en"), such as "拒绝访问。" for access denied. Go's
+// err.Error() asks Windows for English text; a message shown in Chinese
+// should give the reason in Chinese too. Without a Windows error inside, or
+// without that language's text on this system, it is err.Error().
+func ErrorText(err error, lang string) string {
+	var errno windows.Errno
+	if !errors.As(err, &errno) {
+		return err.Error()
+	}
+	langID := uint32(0x0409) // en-US
+	if lang == "zh-CN" {
+		langID = 0x0804
+	}
+	buf := make([]uint16, 512)
+	n, ferr := windows.FormatMessage(windows.FORMAT_MESSAGE_FROM_SYSTEM|windows.FORMAT_MESSAGE_IGNORE_INSERTS,
+		0, uint32(errno), langID, buf, nil)
+	if ferr != nil || n == 0 {
+		return err.Error()
+	}
+	return strings.TrimSpace(windows.UTF16ToString(buf[:n]))
 }

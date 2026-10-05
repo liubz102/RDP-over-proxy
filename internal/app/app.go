@@ -51,13 +51,23 @@ type Options struct {
 
 // Run starts the application and blocks until it quits.
 func Run(opts Options) error {
+	// Started by prepareDirs with administrator rights, the app only
+	// creates its folders.
+	if code, ok := elevatedTask(os.Args[1:]); ok {
+		os.Exit(code)
+	}
 	dirs, err := store.DefaultDirs()
 	if err != nil {
 		reportStartupError(i18n.Detect(), err)
 		return err
 	}
 	dirs = buildDirs(dirs)
-	settings := store.NewSettingsStore(dirs.Config)
+	// Nothing works without the folders, and creating them may take
+	// administrator rights, so they come first.
+	if err := prepareDirs(dirs); err != nil {
+		return err
+	}
+	settings := store.NewSettingsStore(dirs.Data)
 	// Read only: until the single-instance check below, another instance may
 	// own these files.
 	early := settings.Peek()
@@ -88,12 +98,12 @@ func Run(opts Options) error {
 			Handler: application.AssetFileServerFS(opts.Assets),
 		},
 		Windows: application.WindowsOptions{
-			// Keep the WebView2 profile with our other machine-local data
-			// instead of next to the exe.
-			WebviewUserDataPath: filepath.Join(dirs.Local, "WebView2"),
+			// The WebView2 profile goes with everything else the app keeps,
+			// not into Wails' default under %APPDATA%.
+			WebviewUserDataPath: filepath.Join(dirs.Data, "WebView2"),
 		},
 		Logger:         slog.New(logging.SlogHandler(logger, logging.SourceUI)),
-		SingleInstance: singleInstance(sh.showWindow),
+		SingleInstance: singleInstance(dirs.Data, sh.showWindow),
 		OnShutdown:     func() { stop() },
 		PostShutdown:   func() { logger.Close() },
 	})
@@ -102,11 +112,10 @@ func Run(opts Options) error {
 	current, settingsErr := settings.Load()
 	logger.SetLevel(current.LogLevel)
 	// Without a log file the app still runs; the in-memory log remains.
-	logDir := filepath.Join(dirs.Local, "logs")
-	logFile, logErr := logging.OpenFile(logDir, logMaxBytes, logKeep)
+	logFile, logErr := logging.OpenFile(dirs.Logs, logMaxBytes, logKeep)
 	logger.Attach(logFile)
 
-	data, problems := store.OpenData(dirs.Config, sealer())
+	data, problems := store.OpenData(dirs.Data, sealer())
 	eng, err := engine.Start(engine.Options{
 		Log: func(level, msg string) {
 			logger.Log(logging.Line{Level: level, Source: logging.SourceEngine, Msg: msg})
@@ -129,10 +138,11 @@ func Run(opts Options) error {
 		Servers:         servers(),
 		Launch:          launchMstsc,
 		Defaults:        readDefaults,
-		Diagnose:        diagnose(opts.Version, logDir),
+		Diagnose:        diagnose(opts.Version, dirs.Logs),
 		CredentialGuard: credentialGuard,
 		EditDefaults:    editDefaults,
-		OpenLogs:        openFolder(logDir),
+		Folders:         api.Folders{Data: dirs.Data, Logs: dirs.Logs},
+		OpenFolder:      openFolder,
 		Log:             logger,
 	})
 	core.Start(problems)

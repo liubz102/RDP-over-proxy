@@ -16,6 +16,7 @@ export type {
   ConnectResult,
   DataView,
   ErrorView,
+  Folders,
   LatencyResult,
   LinkView,
   Notice,
@@ -48,6 +49,9 @@ export const Events = {
   quitRequested: "app:quitRequested",
   diagChanged: "diag:changed",
 } as const;
+
+/** The folders AppService.OpenFolder opens (api.FolderData, api.FolderLogs). */
+export type FolderName = "data" | "logs";
 
 /** The built-in "no proxy" entry (model.DirectProxyID). */
 export const DIRECT_PROXY_ID = "direct";

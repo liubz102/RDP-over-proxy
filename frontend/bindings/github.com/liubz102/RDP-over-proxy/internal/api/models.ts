@@ -73,6 +73,18 @@ export interface ErrorView {
 }
 
 /**
+ * Folders are where the app keeps its files (store.Dirs), for the user to
+ * see and open.
+ */
+export interface Folders {
+    /**
+     * Data holds settings.json, proxies\, profiles\ and WebView2\.
+     */
+    "data": string;
+    "logs": string;
+}
+
+/**
  * LatencyResult is a proxy latency test's result.
  */
 export interface LatencyResult {

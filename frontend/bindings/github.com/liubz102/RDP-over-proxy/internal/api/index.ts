@@ -22,6 +22,7 @@ export type {
     ConnectResult,
     DataView,
     ErrorView,
+    Folders,
     LatencyResult,
     LinkView,
     Notice,

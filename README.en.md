@@ -42,12 +42,28 @@ Done (✓) and planned:
 - ✓ One-click connect; the tunnel closes when the Remote Desktop window does
 - ✓ Import connections from `.rdp` files
 - ✓ Diagnostics page: the versions of Windows and Remote Desktop, the default Remote Desktop settings that affect connections, whether saved passwords can be used; copy the diagnostics without server names
+- ✓ Everything the app keeps is in its own folder; nothing goes into your user profile
 - Installer
 
 ## Requirements
 
 - Windows 10 or 11 (64-bit)
 - Microsoft Edge WebView2 Runtime. Windows 11 includes it; most Windows 10 PCs already have it through Edge.
+
+## Where the data is
+
+All of it is in the folder the app runs from, in plain sight:
+
+```
+RDP-over-proxy\
+├─ RDP-over-proxy.exe
+├─ data\      settings, proxies, connections, and the window's cache (WebView2)
+└─ logs\      the log
+```
+
+Put the app in a folder you can write to (such as `D:\Tools\RDP-over-proxy`). In a place that needs administrator rights, such as `C:\Program Files`, the app explains on its first start and asks for administrator rights once, only to create those two folders.
+
+Proxy passwords are encrypted with Windows in these files, so only the same Windows user on the same PC can read them. Remote Desktop passwords are kept in Windows Credential Manager, because Remote Desktop Connection reads them only from there.
 
 ## Building from source
 

@@ -29,7 +29,8 @@ func healthy() Facts {
 		Join:             JoinWorkgroup,
 		CredentialGuard:  RunningNo,
 		EncryptionOracle: -1,
-		Logs:             `C:\Users\Alice\AppData\Local\RDP-over-proxy\logs`,
+		Logs:             `C:\Users\Alice\OneDrive - Contoso\Tools\RDP-over-proxy\logs`,
+		LogsLocal:        true,
 		Home:             `C:\Users\Alice`,
 	}
 }
@@ -44,6 +45,7 @@ func troubled() Facts {
 	f.Join = JoinDomain
 	f.CredentialGuard = RunningYes
 	f.EncryptionOracle = 2
+	f.Logs, f.LogsLocal = `\\files.example.com\tools\RDP-over-proxy\logs`, false
 	return f
 }
 
@@ -78,8 +80,10 @@ func TestBuildOnAHealthyComputer(t *testing.T) {
 	if d := find(t, items, "defaultRdp"); d.Value != "found" || d.Detail != `%USERPROFILE%\Documents\Default.rdp` || !d.Private {
 		t.Errorf("defaultRdp = %+v", d)
 	}
-	if l := find(t, items, "logs"); l.Text != `%USERPROFILE%\AppData\Local\RDP-over-proxy\logs` {
-		t.Errorf("logs = %q", l.Text)
+	// The log folder is wherever the user put the app, and its path may say
+	// as much: shown, but not copied.
+	if l := find(t, items, "logs"); l.Value != "local" || l.Detail != `%USERPROFILE%\OneDrive - Contoso\Tools\RDP-over-proxy\logs` || !l.Private {
+		t.Errorf("logs = %+v", l)
 	}
 	if s := find(t, items, "savedCredentials"); s.Value != SavedAllowedDefault || s.Status != StatusOK {
 		t.Errorf("savedCredentials = %+v", s)
@@ -108,6 +112,7 @@ func TestBuildOnATroubledComputer(t *testing.T) {
 		"savedCredentials": {StatusWarn, SavedDeniedDefault},
 		"credentialGuard":  {StatusInfo, "running"},
 		"encryptionOracle": {StatusWarn, "vulnerable"},
+		"logs":             {StatusInfo, "network"},
 	}
 	for key, w := range want {
 		if it := find(t, items, key); it.Status != w[0] || it.Value != w[1] {

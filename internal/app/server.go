@@ -16,16 +16,30 @@ import (
 // in a browser. Wails does not support single-instance mode there, and no
 // native window is shown, so these hooks do nothing.
 
-// buildDirs keeps the browser preview's data apart from the real app's, unless
+// buildDirs keeps the browser preview's data apart from the desktop build's
+// next to it (bin\data-preview and bin\logs-preview), unless
 // RDP_OVER_PROXY_HOME already points somewhere else.
 func buildDirs(d store.Dirs) store.Dirs {
 	if os.Getenv(store.EnvHome) != "" {
 		return d
 	}
-	return store.Dirs{Config: d.Config + "-preview", Local: d.Local + "-preview"}
+	return store.Dirs{Data: d.Data + "-preview", Logs: d.Logs + "-preview"}
 }
 
-func singleInstance(func()) *application.SingleInstanceOptions { return nil }
+// elevatedTask: the preview never asks for administrator rights.
+func elevatedTask([]string) (int, bool) { return 0, false }
+
+// prepareDirs says what keeps the folders from being used; there is no one
+// to ask for administrator rights.
+func prepareDirs(d store.Dirs) error {
+	if err := d.Prepare(); err != nil {
+		log.Printf("the data folders cannot be used: %v", err)
+		return err
+	}
+	return nil
+}
+
+func singleInstance(string, func()) *application.SingleInstanceOptions { return nil }
 
 func preflight(string) bool { return true }
 

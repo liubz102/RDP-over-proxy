@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"slices"
 
 	"github.com/liubz102/RDP-over-proxy/internal/logging"
@@ -52,4 +53,21 @@ func (s *AppService) Dismiss(id int) {
 // masked: they are for the user's own screen.
 func (s *AppService) Log() []logging.Line {
 	return s.c.d.Log.Recent()
+}
+
+// Folders returns where the app keeps its files.
+func (s *AppService) Folders() Folders {
+	return s.c.d.Folders
+}
+
+// OpenFolder shows one of the app's folders in File Explorer: FolderData or
+// FolderLogs.
+func (s *AppService) OpenFolder(name string) error {
+	switch name {
+	case FolderData:
+		return s.c.openFolder(s.c.d.Folders.Data)
+	case FolderLogs:
+		return s.c.openFolder(s.c.d.Folders.Logs)
+	}
+	return fmt.Errorf("no folder called %q", name)
 }

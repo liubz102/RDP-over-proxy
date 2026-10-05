@@ -145,3 +145,17 @@ type QuitView struct {
 	// above zero and the request was not confirmed, the app keeps running.
 	Connected int `json:"connected"`
 }
+
+// Folders are where the app keeps its files (store.Dirs), for the user to
+// see and open.
+type Folders struct {
+	// Data holds settings.json, proxies\, profiles\ and WebView2\.
+	Data string `json:"data"`
+	Logs string `json:"logs"`
+}
+
+// The folders AppService.OpenFolder opens.
+const (
+	FolderData = "data"
+	FolderLogs = "logs"
+)

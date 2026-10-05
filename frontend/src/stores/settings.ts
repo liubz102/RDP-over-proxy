@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { Events as WailsEvents } from "@wailsio/runtime";
-import { Events, SettingsService, type AppInfo, type Settings } from "../api/backend";
+import { AppService, Events, SettingsService, type AppInfo, type Folders, type Settings } from "../api/backend";
 import { applyLanguage, isLanguage, type Language } from "../i18n";
 
 type Status = "loading" | "ready" | "error";
@@ -13,6 +13,8 @@ interface SettingsState {
   /** The Windows display language, used until the user picks one. */
   systemLanguage: Language;
   appInfo: AppInfo | null;
+  /** Where the app keeps its files. */
+  folders: Folders | null;
   load: () => Promise<void>;
   save: (patch: Partial<Settings>) => Promise<void>;
 }
@@ -36,17 +38,19 @@ export const useSettings = create<SettingsState>((set, get) => ({
   settings: null,
   systemLanguage: "en",
   appInfo: null,
+  folders: null,
 
   async load() {
     try {
-      const [settings, system, appInfo] = await Promise.all([
+      const [settings, system, appInfo, folders] = await Promise.all([
         SettingsService.Get(),
         SettingsService.SystemLanguage(),
         SettingsService.AppInfo(),
+        AppService.Folders(),
       ]);
       const systemLanguage = isLanguage(system) ? system : "en";
       applyLanguage(uiLanguage(settings, systemLanguage));
-      set({ status: "ready", settings, systemLanguage, appInfo, loadError: null });
+      set({ status: "ready", settings, systemLanguage, appInfo, folders, loadError: null });
     } catch (e) {
       set({ status: "error", loadError: errorMessage(e) });
     }

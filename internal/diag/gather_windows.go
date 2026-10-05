@@ -26,7 +26,7 @@ type Options struct {
 // unknown; reading never fails as a whole. Whether Credential Guard runs is
 // left out (see Facts.CredentialGuard).
 func Gather(o Options) Facts {
-	f := Facts{App: o.App, Xray: o.Xray, Logs: o.Logs, EncryptionOracle: -1}
+	f := Facts{App: o.App, Xray: o.Xray, Logs: o.Logs, LogsLocal: winx.OnLocalDisk(o.Logs), EncryptionOracle: -1}
 	f.Home, _ = os.UserHomeDir()
 	f.Windows = windowsVersion()
 	if exe, err := mstsc.Path(); err == nil {

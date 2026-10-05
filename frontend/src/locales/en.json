@@ -296,13 +296,26 @@
     "testUrlHint": "Fetched through a proxy when you test it on the Proxies page.",
     "urlInvalid": "Enter a URL starting with http:// or https://.",
     "logLevel": "Log level",
-    "logLevelHint": "The log file is in %LOCALAPPDATA%\\RDP-over-proxy\\logs. Host names, IP addresses and user names are masked before they are written.",
+    "logLevelHint": "Host names, IP addresses and user names are masked before they are written to the log file. The log folder is under Data below.",
     "logLevels": {
       "error": "Errors only",
       "warn": "Warnings and errors",
       "info": "Normal (recommended)",
       "debug": "Detailed (for troubleshooting)"
-    }
+    },
+    "data": "Data",
+    "dataIntro": "Everything the app keeps is in the folder it runs from, where you can look at it.",
+    "dataFolder": "Data folder",
+    "logFolder": "Log folder",
+    "openFolder": "Open",
+    "openFolderFailed": "Could not open the folder",
+    "dataFiles": {
+      "settings": "The settings on this page",
+      "proxies": "Proxies, one file each",
+      "profiles": "Connections, one file each",
+      "webview2": "The window's cache; can be deleted while the app isn't running"
+    },
+    "dataSecrets": "Proxy passwords are encrypted with Windows in these files: only this Windows account on this PC can read them, so after copying the folder elsewhere they need to be entered again. Remote Desktop passwords are kept in Windows Credential Manager, where Remote Desktop Connection reads them, not in this folder."
   },
   "diag": {
     "title": "Diagnostics",
@@ -404,7 +417,10 @@
         "other": "Unknown value: {{value}}."
       },
       "logs": {
-        "label": "Log folder"
+        "label": "Log folder",
+        "local": "On a disk of this PC.",
+        "network": "On a network share.",
+        "detail": "{{text}}"
       }
     }
   },

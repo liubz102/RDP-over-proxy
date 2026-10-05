@@ -10,6 +10,29 @@
 
 如果没有，请从 [微软官网](https://developer.microsoft.com/microsoft-edge/webview2/) 下载 Evergreen Bootstrapper，安装后再启动本程序。
 
+### 数据保存在哪里
+
+全部在程序所在的文件夹里，不往 `%APPDATA%` 等用户目录写任何东西：
+
+```
+RDP-over-proxy\
+├─ RDP-over-proxy.exe
+├─ data\      settings.json（设置）、proxies\（代理，每个一个文件）、profiles\（连接，每个一个文件）、WebView2\（界面的缓存）
+└─ logs\      app.log（日志）
+```
+
+「设置」页的「数据」一节显示这两个文件夹，可以直接打开。远程桌面的密码不在这里：「远程桌面连接」只从 Windows 凭据管理器读密码，所以密码存在那里。
+
+### 启动时提示「需要管理员权限」
+
+程序放在了只有管理员才能写入的地方（例如 `C:\Program Files`），建不了 `data` 和 `logs` 文件夹。点「确定」后 Windows 会请求一次管理员权限，只用来建这两个文件夹并允许你的账户写入；程序本身仍以普通权限运行，以后启动不会再问。
+
+不想给管理员权限的话，点「取消」，把整个程序文件夹移到别处（例如 `D:\Tools`）再启动。
+
+### 启动时提示「无法保存数据」
+
+程序所在的文件夹不能写入，例如在只读的盘、光盘或只读的网络共享上，或者你拒绝了管理员权限。提示里会写出是哪个文件夹、Windows 给的原因。把整个程序文件夹移到可以写入的地方再启动。
+
 ### 杀毒软件或 SmartScreen 报警
 
 程序没有代码签名，而且内嵌了代理核心，所以部分安全软件会误报。
@@ -20,7 +43,7 @@
 
 ### 双击后没看到窗口
 
-程序只允许运行一个实例，关闭主窗口后会缩到任务栏右下角的托盘里继续运行。有两种方法找回窗口：
+同一个文件夹里的程序只运行一个实例，关闭主窗口后会缩到任务栏右下角的托盘里继续运行。有两种方法找回窗口：
 
 - 单击托盘图标。
 - 再双击一次程序，已经在运行的窗口会被切到前台。
@@ -29,7 +52,7 @@
 
 ### 想把设置恢复成默认值
 
-先退出程序（托盘图标 → 退出），然后删除 `%APPDATA%\RDP-over-proxy\settings.json`。
+先退出程序（托盘图标 → 退出），然后删除程序文件夹里的 `data\settings.json`。
 
 如果设置文件损坏，程序会自动把它改名为 `settings.json.corrupt` 留作备份，然后使用默认设置启动。
 
@@ -86,13 +109,13 @@ Hyper-V、WSL、Docker 等会保留一些端口范围，程序不能在这些端
 
 ### 日志文件在哪里
 
-在 `%LOCALAPPDATA%\RDP-over-proxy\logs\app.log`（「诊断」页的「打开日志文件夹」，或者把这个路径粘贴到资源管理器的地址栏）。文件写满 2 MB 后改名为 `app.1.log`，最多保留两个旧文件。
+在程序文件夹里的 `logs\app.log`（「设置」页「数据」一节或「诊断」页都能打开日志文件夹）。文件写满 2 MB 后改名为 `app.1.log`，最多保留两个旧文件。
 
 写入日志前，程序会把你填写过的主机名、代理服务器地址、用户名、连接和代理的名称，以及代理的用户 ID、服务器名称（SNI）、路径、密钥等替换成 `<redacted>`，把用户目录（路径里有你的 Windows 账户名）替换成 `%USERPROFILE%`，把除本机回环地址以外的 IP 地址替换成 `<ip>`，方便附到 Issue 里。密码不会写进日志。附上之前仍请自己检查一遍。
 
 ### 换了电脑或 Windows 用户后，代理的密码没了
 
-代理的密码（以及 VMess、VLESS 的用户 ID 和传输、TLS 等设置）在文件里是用 Windows 的 DPAPI 按当前用户加密的，只有同一个 Windows 用户才能解开。把 `%APPDATA%\RDP-over-proxy` 复制到别的电脑或别的用户下，代理和连接都还在，但这些内容需要重新填写（重新粘贴分享链接最快）。代理页会在这类代理旁标出「需要重新填写」，重新保存之前不会用它连接：留下的只是默认设置，照着默认设置连接的话，用户 ID 可能不经加密就发出去。程序启动时会记下是哪些文件（写在日志里，界面完成后也会在窗口里提示）。
+代理的密码（以及 VMess、VLESS 的用户 ID 和传输、TLS 等设置）在文件里是用 Windows 的 DPAPI 按当前用户加密的，只有同一个 Windows 用户才能解开。把程序文件夹复制到别的电脑，或者换一个 Windows 用户运行，代理和连接都还在，但这些内容需要重新填写（重新粘贴分享链接最快）。代理页会在这类代理旁标出「需要重新填写」，重新保存之前不会用它连接：留下的只是默认设置，照着默认设置连接的话，用户 ID 可能不经加密就发出去。程序启动时会记下是哪些文件（写在日志里，界面完成后也会在窗口里提示）。
 
 如果某个文件损坏、无法读取，程序会把它改名为 `.corrupt` 保留下来，其余的照常载入。
 
@@ -125,6 +148,29 @@ The window needs the Microsoft Edge WebView2 Runtime. Windows 11 includes it, an
 
 If yours doesn't, download the Evergreen Bootstrapper from [Microsoft](https://developer.microsoft.com/microsoft-edge/webview2/), install it, then start the app again.
 
+### Where is my data?
+
+All of it is in the folder the app runs from; nothing goes into `%APPDATA%` or anywhere else in your user profile:
+
+```
+RDP-over-proxy\
+├─ RDP-over-proxy.exe
+├─ data\      settings.json (settings), proxies\ (one file per proxy), profiles\ (one file per connection), WebView2\ (the window's cache)
+└─ logs\      app.log (the log)
+```
+
+The Data section of the Settings page shows both folders and opens them. Remote Desktop passwords aren't there: Remote Desktop Connection reads passwords only from Windows Credential Manager, so that's where they're kept.
+
+### "Administrator rights needed" at startup
+
+The app is in a folder only administrators can write to (such as `C:\Program Files`), so it can't create its `data` and `logs` folders. Choose OK and Windows asks for administrator rights once; they're used only to create those two folders and let your account write to them. The app itself keeps running without them and won't ask again.
+
+If you'd rather not, choose Cancel, move the whole app folder somewhere else (such as `D:\Tools`), and start it again.
+
+### "Can't save data" at startup
+
+The app's folder can't be written to: it's on a read-only drive, a disc or a read-only network share, or administrator rights were declined. The message names the folder and the reason Windows gave. Move the whole app folder somewhere you can write to and start it again.
+
 ### Antivirus or SmartScreen warnings
 
 The program isn't code-signed and embeds a proxy core, so some security products flag it by mistake.
@@ -135,7 +181,7 @@ The program isn't code-signed and embeds a proxy core, so some security products
 
 ### Nothing appears when I start it
 
-The app runs as a single instance and minimizes to the notification area (tray) when you close its window. To bring the window back, either:
+The app in a given folder runs as a single instance and minimizes to the notification area (tray) when you close its window. To bring the window back, either:
 
 - click the tray icon, or
 - start the app again; the window that's already running comes to the front.
@@ -144,7 +190,7 @@ To quit when the window is closed instead, choose "Quit the app" under Settings 
 
 ### Resetting the settings
 
-Quit the app (tray icon → Quit), then delete `%APPDATA%\RDP-over-proxy\settings.json`.
+Quit the app (tray icon → Quit), then delete `data\settings.json` in the app's folder.
 
 If the settings file is ever unreadable, the app renames it to `settings.json.corrupt` as a backup and starts with the defaults.
 
@@ -201,13 +247,13 @@ Hyper-V, WSL, Docker and others reserve port ranges, and the app can't listen on
 
 ### Where's the log file?
 
-It's `%LOCALAPPDATA%\RDP-over-proxy\logs\app.log` ("Open the log folder" on the Diagnostics page, or paste that path into File Explorer's address bar). When it reaches 2 MB it's renamed to `app.1.log`; at most two older files are kept.
+It's `logs\app.log` in the app's folder (both the Data section of the Settings page and the Diagnostics page open the log folder). When it reaches 2 MB it's renamed to `app.1.log`; at most two older files are kept.
 
 Before writing a line, the app replaces the host names, proxy server addresses, user names and connection and proxy names you entered, and proxies' user IDs, server names (SNI), paths and keys, with `<redacted>`, your user folder (its path contains your Windows account name) with `%USERPROFILE%`, and every IP address other than this computer's loopback addresses with `<ip>`, so the log can be attached to an issue. Passwords never go into the log. Please still look it over before you attach it.
 
 ### Proxy passwords are gone after moving to another PC or Windows user
 
-Proxy passwords (and the user IDs and transport and TLS settings of VMess and VLESS proxies) are encrypted in their files with Windows DPAPI for the current user, and only the same Windows user can decrypt them. If you copy `%APPDATA%\RDP-over-proxy` to another PC or user, the proxies and connections are all there, but these have to be entered again (pasting the share links again is quickest). The Proxies page marks such proxies "Needs re-entering", and they aren't used until saved again: what's left are default settings, and connecting with them could send a user ID without the encryption it was meant to travel in. The app notes which files are affected when it starts (in the log, and in the window once the connection pages are done).
+Proxy passwords (and the user IDs and transport and TLS settings of VMess and VLESS proxies) are encrypted in their files with Windows DPAPI for the current user, and only the same Windows user can decrypt them. If you copy the app's folder to another PC, or run it as another Windows user, the proxies and connections are all there, but these have to be entered again (pasting the share links again is quickest). The Proxies page marks such proxies "Needs re-entering", and they aren't used until saved again: what's left are default settings, and connecting with them could send a user ID without the encryption it was meant to travel in. The app notes which files are affected when it starts (in the log, and in the window once the connection pages are done).
 
 If a file is damaged and can't be read, the app renames it to `.corrupt` and keeps it; everything else loads as usual.
 

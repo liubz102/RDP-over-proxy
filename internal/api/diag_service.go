@@ -38,10 +38,15 @@ func (s *DiagService) EditDefaults() error {
 // OpenLogs shows the log folder in File Explorer, for attaching the log to
 // a bug report. The log file has names and addresses masked.
 func (s *DiagService) OpenLogs() error {
-	if s.c.d.OpenLogs == nil {
+	return s.c.openFolder(s.c.d.Folders.Logs)
+}
+
+// openFolder shows one of the app's folders in File Explorer.
+func (c *Core) openFolder(path string) error {
+	if c.d.OpenFolder == nil || path == "" {
 		return errUnavailable
 	}
-	return s.c.d.OpenLogs()
+	return c.d.OpenFolder(path)
 }
 
 // report gathers the environment report.

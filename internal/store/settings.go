@@ -24,11 +24,11 @@ type SettingsStore struct {
 	current model.Settings
 }
 
-// NewSettingsStore returns a store for settings.json inside configDir.
+// NewSettingsStore returns a store for settings.json in dataDir.
 // Call Load before Get.
-func NewSettingsStore(configDir string) *SettingsStore {
+func NewSettingsStore(dataDir string) *SettingsStore {
 	return &SettingsStore{
-		path:    filepath.Join(configDir, "settings.json"),
+		path:    filepath.Join(dataDir, "settings.json"),
 		current: model.DefaultSettings(),
 	}
 }
