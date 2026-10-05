@@ -222,6 +222,7 @@ func (m *Manager) params(req Request) Params {
 		Target:     req.Profile.Target.String(),
 		CheckFirst: req.CheckFirst,
 		Args:       func(entrance netip.AddrPort) []string { return mstsc.Args(entrance, req.Profile) },
+		Name:       req.Profile.Name,
 	}
 }
 

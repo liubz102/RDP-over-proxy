@@ -487,11 +487,12 @@ type fakeMstsc struct {
 	once sync.Once
 }
 
-func (p *fakeMstsc) PID() int             { return 4242 }
-func (p *fakeMstsc) Wait() (int, error)   { return <-p.exit, nil }
-func (p *fakeMstsc) Close() (bool, error) { p.once.Do(func() { p.exit <- 0 }); return true, nil }
-func (p *fakeMstsc) Kill() error          { p.once.Do(func() { p.exit <- 1 }); return nil }
-func (p *fakeMstsc) Focus() error         { return nil }
+func (p *fakeMstsc) PID() int              { return 4242 }
+func (p *fakeMstsc) Wait() (int, error)    { return <-p.exit, nil }
+func (p *fakeMstsc) Close() (bool, error)  { p.once.Do(func() { p.exit <- 0 }); return true, nil }
+func (p *fakeMstsc) Kill() error           { p.once.Do(func() { p.exit <- 1 }); return nil }
+func (p *fakeMstsc) Focus() error          { return nil }
+func (p *fakeMstsc) ShowName(string) error { return nil }
 
 func TestSessionThroughSocks(t *testing.T) {
 	srv := testutil.NewRDPServer(t, testutil.RDPOptions{Answer: testutil.AnswerConfirm})

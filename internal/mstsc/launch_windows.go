@@ -48,6 +48,9 @@ type Process struct {
 	// not to a later one that got the same ID. Wait closes it.
 	mu     sync.Mutex
 	handle windows.Handle
+	// unwatch ends ShowName's watch over the windows. Wait calls it once
+	// the process has exited.
+	unwatch func()
 }
 
 // Launch starts mstsc with args.
@@ -111,7 +114,12 @@ func (p *Process) Wait() (int, error) {
 	p.mu.Lock()
 	_ = windows.CloseHandle(p.handle)
 	p.handle = 0
+	unwatch := p.unwatch
+	p.unwatch = nil
 	p.mu.Unlock()
+	if unwatch != nil {
+		unwatch() // the windows have gone with the process
+	}
 	var exit *exec.ExitError
 	if err == nil || errors.As(err, &exit) {
 		return p.cmd.ProcessState.ExitCode(), nil
@@ -162,6 +170,56 @@ func (p *Process) Focus() error {
 		}
 		return winx.BringToFront(target)
 	})
+}
+
+// ShowName puts name in front of the title of the remote session window
+// (see Title), so the window says which computer it shows. It stays there
+// until the process exits: when mstsc sets its title again, or opens another
+// session window, the name goes back in front. A window that puts its own
+// title back the moment it gets another is left alone after that one try,
+// rather than taking turns with it for ever. Call ShowName once; once the
+// process has exited it does nothing.
+func (p *Process) ShowName(name string) error {
+	return p.whileRunning(func(pid int) error {
+		if p.unwatch != nil {
+			return errors.New("the name is shown already")
+		}
+		t := &titler{class: p.sessionClass, name: name, refused: map[windows.HWND]bool{}}
+		stop, err := winx.WatchWindows(pid, t.changed)
+		if err != nil {
+			return err
+		}
+		p.unwatch = stop
+		return nil
+	})
+}
+
+// titler keeps a name in front of the session window's title. It runs on
+// the thread of its watch only.
+type titler struct {
+	class, name string
+	// refused holds the windows that put their own title back while being
+	// given the new one.
+	refused map[windows.HWND]bool
+}
+
+func (t *titler) changed(w windows.HWND) {
+	if t.refused[w] || winx.ClassName(w) != t.class {
+		return
+	}
+	current := winx.Title(w)
+	want := Title(t.name, current)
+	if want == current {
+		return // the name is in front already, this change included
+	}
+	if err := winx.SetTitle(w, want); err != nil {
+		return // the window is gone, or it did not take the title; mstsc's stays
+	}
+	// SetTitle returns once mstsc has handled the change, so its own title
+	// back by then was put back in answer to it.
+	if winx.Title(w) == current {
+		t.refused[w] = true
+	}
 }
 
 // Kill ends the process: only this one, through the handle from starting it,

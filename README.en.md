@@ -82,8 +82,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for more.
 **Why does my antivirus or SmartScreen warn about it?**
 The program isn't code-signed and embeds a proxy core, which some security products flag by mistake. Every release is built by GitHub Actions from the public source and comes with SHA256 checksums.
 
-**Why does the Remote Desktop title bar show 127.x.y.z?**
-mstsc connects to the local tunnel entrance, so that's the only address it knows. Each connection's loopback address never changes, so the passwords and certificate trust mstsc remembers stay separate for each computer.
+**Why is there a 127.x.y.z in the Remote Desktop title bar?**
+The title starts with the connection's name; the 127.x.y.z after it is the local tunnel entrance mstsc actually connects to: mstsc knows nothing of the proxy, only this address. Each connection's loopback address never changes, so the passwords and certificate trust mstsc remembers stay separate for each computer.
 
 More in [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 

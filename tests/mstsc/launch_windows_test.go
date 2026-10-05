@@ -5,10 +5,15 @@ package mstsc_test
 import (
 	"bufio"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+
+	"golang.org/x/sys/windows"
 
 	"github.com/liubz102/RDP-over-proxy/internal/mstsc"
 	"github.com/liubz102/RDP-over-proxy/internal/winx"
@@ -143,6 +148,104 @@ func TestCloseAndFocusWithoutAWindow(t *testing.T) {
 	}
 	if _, err := p.Wait(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// titled is a testutil.HelperTitledWindows, started as mstsc is.
+type titled struct {
+	p                         *mstsc.Process
+	in                        io.WriteCloser
+	session, stubborn, prompt windows.HWND
+}
+
+func startTitled(t *testing.T) *titled {
+	t.Helper()
+	cmd := testutil.HelperCommand(t, testutil.HelperTitledWindows)
+	in, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := mstsc.Start(cmd, testutil.HelperWindowClass)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := &titled{p: p, in: in}
+	line, err := bufio.NewReader(out).ReadString('\n')
+	if _, serr := fmt.Sscanf(line, "ready %d %d %d", &h.session, &h.stubborn, &h.prompt); serr != nil {
+		t.Fatalf("the helper said %q (%v) instead of ready and its windows", line, err)
+	}
+	return h
+}
+
+// retitle has the helper set the title of one of its windows itself, as
+// mstsc sets its own.
+func (h *titled) retitle(t *testing.T, which, title string) {
+	t.Helper()
+	if _, err := fmt.Fprintf(h.in, "%s %s\n", which, title); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// waitTitle waits until the window's title is want.
+func waitTitle(t *testing.T, pid int, hwnd windows.HWND, want string) {
+	t.Helper()
+	reached := make(chan struct{})
+	var once sync.Once
+	stop, err := winx.WatchWindows(pid, func(w windows.HWND) {
+		if w == hwnd && winx.Title(w) == want {
+			once.Do(func() { close(reached) })
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stop()
+	<-reached
+}
+
+func TestShowNameKeepsTheNameInFront(t *testing.T) {
+	h := startTitled(t)
+	pid := h.p.PID()
+	if err := h.p.ShowName("Office"); err != nil {
+		t.Fatal(err)
+	}
+	waitTitle(t, pid, h.session, "Office - "+testutil.HelperSessionTitle)
+	if err := h.p.ShowName("Again"); err == nil {
+		t.Error("a second ShowName should fail")
+	}
+
+	// mstsc sets its own title again, say when it reconnects: the name goes
+	// back in front. Its windows of another class, such as the credential
+	// prompt, keep their titles.
+	h.retitle(t, "prompt", "Windows Security")
+	// The watch takes the changes in order, so by the end of the second
+	// round it has seen all that came before the first.
+	for _, own := range []string{"127.0.0.2:13389 - Reconnecting", testutil.HelperSessionTitle} {
+		h.retitle(t, "session", own)
+		waitTitle(t, pid, h.session, "Office - "+own)
+	}
+	if got := winx.Title(h.prompt); got != "Windows Security" {
+		t.Errorf("the prompt's title became %q", got)
+	}
+	// The window that puts its own title back was given the name once, and
+	// then left alone instead of the two taking turns for ever.
+	if n := testutil.HelperRefusals(h.stubborn); n != 1 {
+		t.Errorf("the stubborn window was given a title %d times, want 1", n)
+	}
+	if got := winx.Title(h.stubborn); got != testutil.HelperStubbornTitle {
+		t.Errorf("the stubborn window's title is %q", got)
+	}
+
+	h.in.Close() // the helper exits
+	if code, err := h.p.Wait(); err != nil || code != 0 {
+		t.Fatalf("Wait = %d, %v", code, err)
+	}
+	if err := h.p.ShowName("Office"); err != nil {
+		t.Errorf("ShowName after the exit: %v", err)
 	}
 }
 

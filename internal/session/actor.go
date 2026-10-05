@@ -25,6 +25,10 @@ type Process interface {
 	Kill() error
 	// Focus brings mstsc's window to the front.
 	Focus() error
+	// ShowName keeps name (the profile's) in the title of mstsc's window
+	// while it runs. Started with /v:, mstsc titles it with the tunnel
+	// entrance only, which says nothing about the computer behind it.
+	ShowName(name string) error
 }
 
 // Credentials writes and removes what mstsc signs in with.
@@ -52,6 +56,8 @@ type Params struct {
 	CheckFirst bool
 	// Args returns mstsc's arguments for the tunnel's actual address.
 	Args func(entrance netip.AddrPort) []string
+	// Name is the profile's name, for mstsc's window title.
+	Name string
 }
 
 // Deps are the parts of the outside world a session uses. Tests replace
@@ -174,6 +180,9 @@ func (a *actor) perform(effects []Effect) {
 				continue
 			}
 			a.proc = p
+			// A title without the name is no reason to stop: the warning is
+			// enough.
+			a.action("showName", p.ShowName(a.params.Name))
 			a.post(ClientStarted{PID: p.PID()})
 			go func() {
 				code, err := p.Wait()

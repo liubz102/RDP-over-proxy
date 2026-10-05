@@ -35,6 +35,8 @@ type fakeProcess struct {
 	closes       atomic.Int32
 	kills        atomic.Int32
 	focuses      atomic.Int32
+	name         atomic.Pointer[string] // the name ShowName was given
+	nameErr      error                  // what ShowName returns
 }
 
 func (p *fakeProcess) PID() int           { return p.pid }
@@ -42,6 +44,10 @@ func (p *fakeProcess) Wait() (int, error) { return <-p.exit, nil }
 func (p *fakeProcess) exitWith(code int)  { p.once.Do(func() { p.exit <- code }) }
 func (p *fakeProcess) Kill() error        { p.kills.Add(1); p.exitWith(1); return nil }
 func (p *fakeProcess) Focus() error       { p.focuses.Add(1); return nil }
+func (p *fakeProcess) ShowName(name string) error {
+	p.name.Store(&name)
+	return p.nameErr
+}
 func (p *fakeProcess) Close() (bool, error) {
 	if p.noWindow.Load() {
 		return false, nil
@@ -57,13 +63,15 @@ type launcher struct {
 	pids    atomic.Int32
 	started chan *fakeProcess
 	fail    error
+	// nameFails is what the processes' ShowName returns.
+	nameFails error
 }
 
 func (l *launcher) launch(args []string) (Process, error) {
 	if l.fail != nil {
 		return nil, l.fail
 	}
-	p := &fakeProcess{pid: 1000 + int(l.pids.Add(1)), args: args, exit: make(chan int, 1)}
+	p := &fakeProcess{pid: 1000 + int(l.pids.Add(1)), args: args, exit: make(chan int, 1), nameErr: l.nameFails}
 	l.started <- p
 	return p, nil
 }
@@ -144,6 +152,12 @@ func (r *recorder) logKeys(id string) []string {
 		keys = append(keys, l.Msg)
 	}
 	return keys
+}
+
+func (r *recorder) lines(id string) []Log {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.logs[id])
 }
 
 func (r *recorder) phases(id string) []Phase {
@@ -244,6 +258,9 @@ func TestSessionEndToEnd(t *testing.T) {
 	st := h.rec.wait("e2e", func(s State) bool { return s.Phase() == PhaseRunning })
 	if want := []string{"/v:" + st.Addr, "/w:1024", "/h:768"}; !slices.Equal(p.args, want) {
 		t.Fatalf("mstsc arguments = %q, want %q", p.args, want)
+	}
+	if name := p.name.Load(); name == nil || *name != req.Profile.Name {
+		t.Fatalf("mstsc's window shows the name %v, want the profile's %q", name, req.Profile.Name)
 	}
 	if ap := netip.MustParseAddrPort(st.Addr); ap.Addr().String() != req.Profile.Loopback {
 		t.Fatalf("the tunnel listens on %s, not on the profile's loopback address %s", st.Addr, req.Profile.Loopback)
@@ -382,6 +399,29 @@ func TestStopWithNoWindowToAskEndsMstsc(t *testing.T) {
 	}
 	if !slices.Contains(h.rec.logKeys("prompt"), MsgNothingToClose) {
 		t.Fatalf("log %q does not say why mstsc was ended", h.rec.logKeys("prompt"))
+	}
+}
+
+// A window title without the profile's name is worth a warning, not the
+// session.
+func TestNameNotShownOnlyWarns(t *testing.T) {
+	srv := testutil.NewRDPServer(t, testutil.RDPOptions{Answer: testutil.AnswerConfirm})
+	h := newHarness(t)
+	h.launcher.nameFails = errors.New("no window events")
+	connect(t, h, request(t, "title", srv))
+	p := <-h.launcher.started
+	h.rec.wait("title", func(s State) bool { return s.Phase() == PhaseRunning })
+
+	warned := slices.ContainsFunc(h.rec.lines("title"), func(l Log) bool {
+		return l.Msg == MsgActionFailed && l.Level == LevelWarn && l.Args["action"] == "showName" &&
+			l.Args["error"] == "no window events"
+	})
+	if !warned {
+		t.Fatalf("log %+v has no warning about the window title", h.rec.lines("title"))
+	}
+	p.exitWith(0)
+	if end := h.rec.ended("title"); end.Outcome != OutcomeClosed || end.Failure != nil {
+		t.Fatalf("final state %+v", end)
 	}
 }
 

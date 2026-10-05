@@ -56,9 +56,11 @@ RDP-over-proxy\
 
 如果设置文件损坏，程序会自动把它改名为 `settings.json.corrupt` 留作备份，然后使用默认设置启动。
 
-### 远程桌面窗口标题显示 127.x.y.z
+### 远程桌面窗口标题里为什么有 127.x.y.z
 
-这是正常的。mstsc 实际连接的是本机的隧道入口，所以它只知道这个地址。每个连接的回环地址是固定的，mstsc 记住的密码和证书信任不会在不同电脑之间混用。
+标题最前面是连接的名称，例如「办公室 - 127.x.y.z:13389 - 远程桌面连接」。名称后面的 `127.x.y.z:端口` 是 mstsc 实际连接的地址，也就是本机的隧道入口：mstsc 不知道代理的存在，它只知道这个地址。每个连接的回环地址是固定的，mstsc 记住的密码和证书信任不会在不同电脑之间混用。
+
+名称是本程序加上去的（mstsc 用 `/v:` 启动时标题里只有地址），mstsc 自己改回标题时会马上补上。如果标题里没有名称，看这个连接的会话日志里有没有「showName」失败的警告。
 
 ### 先看「诊断」页
 
@@ -194,9 +196,11 @@ Quit the app (tray icon → Quit), then delete `data\settings.json` in the app's
 
 If the settings file is ever unreadable, the app renames it to `settings.json.corrupt` as a backup and starts with the defaults.
 
-### The Remote Desktop title bar shows 127.x.y.z
+### Why the Remote Desktop title bar has 127.x.y.z in it
 
-That's expected. mstsc connects to the local tunnel entrance, so that's the only address it knows. Each connection's loopback address never changes, so the passwords and certificate trust mstsc remembers stay separate for each computer.
+The title starts with the connection's name, as in "Office - 127.x.y.z:13389 - Remote Desktop Connection". The `127.x.y.z:port` after the name is the address mstsc actually connects to, the local tunnel entrance: mstsc knows nothing of the proxy, only this address. Each connection's loopback address never changes, so the passwords and certificate trust mstsc remembers stay separate for each computer.
+
+The app adds the name (started with `/v:`, mstsc puts only the address in the title) and adds it again right away whenever mstsc sets its title back. If the name is missing, look for a warning about "showName" in that connection's session log.
 
 ### Start with the Diagnostics page
 

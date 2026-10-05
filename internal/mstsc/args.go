@@ -5,7 +5,9 @@
 // shows a warning dialog every time and turns every redirection off, while
 // /v: is unaffected. The price is that only what the command line offers can
 // differ per connection; clipboard, drives, audio and performance settings
-// come from the user's Default.rdp for every connection alike.
+// come from the user's Default.rdp for every connection alike. Without a file
+// name the window's title has only the address, so the app adds the
+// connection's name to it (Process.ShowName).
 package mstsc
 
 import (

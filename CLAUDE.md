@@ -30,7 +30,7 @@
 | `internal/model` | 数据结构（Settings、Proxy、Profile、Target）与校验，纯逻辑。Proxy / Profile 的校验返回 `FieldErrors`（字段 + 代码）。V2Ray 系的设置在 `ProxyOptions`（`options.go`），`Normalize` 只留下这种代理用得上的项并补默认值 |
 | `internal/loopback` | 由 profile ID 派生 `127.a.b.c` 回环地址，冲突时顺延 |
 | `internal/rdpfile` | 只读解析 .rdp：导入草稿、RD 网关判定、服务器身份验证和「始终要求凭据」 |
-| `internal/mstsc` | mstsc 启动参数（`Args`，纯函数）；启动 / 等待 / 关闭 / 结束 / 聚焦（`launch_windows.go`）；`Servers` 注册表记忆（UsernameHint）；Default.rdp 和网关策略（`DecideGateway`、`DecideDefaults` 纯函数 + `ReadDefaults`）；`EditDefaults`（`mstsc /edit Default.rdp`） |
+| `internal/mstsc` | mstsc 启动参数（`Args`，纯函数）；启动 / 等待 / 关闭 / 结束 / 聚焦，窗口标题前加连接名（`ShowName`，格式见纯函数 `Title`）（`launch_windows.go`）；`Servers` 注册表记忆（UsernameHint）；Default.rdp 和网关策略（`DecideGateway`、`DecideDefaults` 纯函数 + `ReadDefaults`）；`EditDefaults`（`mstsc /edit Default.rdp`） |
 | `internal/probe` | X.224 CR/CC 编解码、线路检查 `Check` |
 | `internal/route` | `Dialer` / `Provider` 接口、直连 |
 | `internal/engine` | 内嵌的 Xray 实例，也是应用实际使用的 `route.Provider`：outbound 引用计数、强制 tag 派发、错误原因回传、日志桥接；各类代理的出站生成（`outbound.go`）和保存前的 `Check` |
@@ -42,11 +42,11 @@
 | `internal/logging` | 日志文件（按大小轮转）、环形缓冲、脱敏、连续重复折叠、给 Wails 用的 slog 适配 |
 | `internal/store` | 原子写 JSON；数据文件夹：exe 旁的 `data`、`logs`（`DefaultDirs`，`RDP_OVER_PROXY_HOME` 代替 exe 所在文件夹），`Dirs.Prepare` 建好并试写；设置；代理和连接的文件存储（`Data`） |
 | `internal/i18n` | Go 侧文案（托盘、原生对话框）、系统语言检测；`Both`：语言设置还读不到时用的中英双语文案 |
-| `internal/winx` | Win32 调用：WebView2 检测和版本、错误框、确认框、系统深色模式、窗口；文件版本、Credential Guard（WMI）、打开文件夹（`system_windows.go`）；提权（`elevate_windows.go`）：`Elevated`、`RunElevated`、`AllowModify`、`OnLocalDisk`；`ErrorText`（按界面语言取 Windows 的错误说明） |
+| `internal/winx` | Win32 调用：WebView2 检测和版本、错误框、确认框、系统深色模式、窗口；窗口标题（`Title`、`SetTitle`）和盯着一个进程的窗口事件（`WatchWindows`，WinEvent 钩子，`watch_windows.go`）；文件版本、Credential Guard（WMI）、打开文件夹（`system_windows.go`）；提权（`elevate_windows.go`）：`Elevated`、`RunElevated`、`AllowModify`、`OnLocalDisk`；`ErrorText`（按界面语言取 Windows 的错误说明） |
 | `internal/diag` | 只读的环境报告：`Gather` 读 Windows，`Build`（纯函数）生成报告项；凭据委派策略的判定（`delegation.go`） |
 | `tests/<包名>` | Go 测试，每个被测包一个目录（如 `tests/session`），包名 `<包名>_test`，只用导出的 API；`tests/rdpfile/testdata` 是 .rdp 样本 |
 | `tests/winx`、`tests/diag` | 除了纯逻辑，还有读本机 Windows 的测试（文件版本、WMI、`diag.Gather`），只读 |
-| `tests/testutil` | 测试共用：假 RDP 服务端；替身进程（`RunHelper` / `HelperCommand`）；`FreePort`。只能被测试引用 |
+| `tests/testutil` | 测试共用：假 RDP 服务端；替身进程（`RunHelper` / `HelperCommand`，其中 `HelperTitledWindows` 有三个带标题的窗口，测窗口标题用）；`FreePort`。只能被测试引用 |
 | `tests/testutil/xraytest` | 测试用：进程内的 Xray 代理服务端，SOCKS / HTTP 和 V2Ray 系各协议、各传输、TLS / REALITY。按客户端设置起对应的服务端，`Model` 填上证书指纹和 REALITY 公钥。单独成包，只有需要的测试才链接 Xray |
 | `frontend/src` | `app/`（外壳、主题、首次语言选择）、`features/`、`components/`、`stores/`、`locales/` |
 | `frontend/tests` | 前端测试（vitest），目录结构和 `frontend/src` 对应 |
@@ -131,7 +131,9 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 - **测试在被测包之外，`go vet` 要求跨包的结构体字面量写字段名**：`model.Target{Host: "pc.example.com", Port: 3389}`，不能写成 `model.Target{"pc.example.com", 3389}`，CI 的 `go vet ./...` 会报错。
 - **本机跑不了 `-race`**：没有 gcc。
 - **Windows 上 `Wait` 之后再 `os.Process.Kill`，返回的是 `EINVAL`，不是 `ErrProcessDone`**：`mstsc.Process` 因此改用自己持有的句柄调 `TerminateProcess`。
-- **`windows.NewCallback` 创建的回调释放不掉，数量也有上限**：只能在包级变量里创建一次（见 `winx` 的 `enumCallback`），不要在函数里每次新建。
+- **`windows.NewCallback` 创建的回调释放不掉，数量也有上限**：只能在包级变量里创建一次（见 `winx` 的 `enumCallback`、`winEventCallback`），不要在函数里每次新建。
+- **跨进程的 `SetWindowText` 不给对方发 `WM_SETTEXT`**（2026-10-06 实验）：它只改 Windows 存的文字，对方的窗口过程收不到，盯着对方进程的 WinEvent 钩子也收不到名称变化事件。要像对方自己改标题那样，就直接 `SendMessage(WM_SETTEXT)`（`winx.SetTitle`）。读标题用 `InternalGetWindowText`（`winx.Title`）：`GetWindowText` 读别的进程的窗口时，没有标题栏（比如全屏）就返回空。
+- **out-of-context 的 WinEvent 钩子要求装钩子的线程有消息循环**：事件在这个线程等消息时送到。`winx.WatchWindows` 每次开一个锁定的线程，`stop` 用 `PostThreadMessage(WM_QUIT)` 结束它。测试里等标题变化也用 `WatchWindows`，不要轮询。
 - **用替身进程的测试包必须有 `TestMain`，并且第一行调用 `testutil.RunHelper()`**：否则子进程会把整套测试再跑一遍。`HelperCommand` 带了 `-test.run=^$` 作为兜底。
 - **会话 / 隧道的回调里不能阻塞**：`tunnel.Reporter` 的方法不能等任何东西，因为 `Close` 要等它们返回；`Manager` 的 `Changed` / `Log` 回调里不能调 `Quit`。
 - **Xray 的几个行为**（engine 已经处理，改动 engine 时要记得）：

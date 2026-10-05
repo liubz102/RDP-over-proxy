@@ -140,11 +140,12 @@ type fakeProcess struct {
 	once sync.Once
 }
 
-func (p *fakeProcess) PID() int             { return p.pid }
-func (p *fakeProcess) Wait() (int, error)   { return <-p.exit, nil }
-func (p *fakeProcess) Close() (bool, error) { p.once.Do(func() { p.exit <- 0 }); return true, nil }
-func (p *fakeProcess) Kill() error          { p.once.Do(func() { p.exit <- 1 }); return nil }
-func (p *fakeProcess) Focus() error         { return nil }
+func (p *fakeProcess) PID() int              { return p.pid }
+func (p *fakeProcess) Wait() (int, error)    { return <-p.exit, nil }
+func (p *fakeProcess) Close() (bool, error)  { p.once.Do(func() { p.exit <- 0 }); return true, nil }
+func (p *fakeProcess) Kill() error           { p.once.Do(func() { p.exit <- 1 }); return nil }
+func (p *fakeProcess) Focus() error          { return nil }
+func (p *fakeProcess) ShowName(string) error { return nil }
 
 // anyRoute reaches every target directly, whatever the proxy: it stands in
 // for the Xray engine.
