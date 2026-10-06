@@ -280,10 +280,21 @@ export function SettingsPage() {
           <Body1>
             {appInfo?.name} {appInfo?.version}
           </Body1>
+          <Body1 className={styles.label}>{t("settings.licenseLabel")}</Body1>
+          <Body1>MIT</Body1>
           <Body1 className={styles.label}>{t("settings.homepage")}</Body1>
           <Link onClick={() => appInfo && void Browser.OpenURL(appInfo.repo)}>{appInfo?.repo}</Link>
+          {appInfo?.xray && (
+            <>
+              <Body1 className={styles.label}>Xray-core</Body1>
+              <Body1>
+                {appInfo.xray} · MPL-2.0 ·{" "}
+                <Link onClick={() => void Browser.OpenURL(appInfo.xraySource)}>{t("settings.source")}</Link>
+              </Body1>
+            </>
+          )}
         </div>
-        <Caption1 className={styles.hint}>{t("settings.license")}</Caption1>
+        <Caption1 className={styles.hint}>{t("settings.thirdParty")}</Caption1>
       </Section>
     </Page>
   );

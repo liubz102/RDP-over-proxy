@@ -36,6 +36,7 @@ import { joinHostPort } from "../../lib/address";
 import { copyText } from "../../lib/clipboard";
 import { errorText } from "../../lib/messages";
 import { useData } from "../../stores/data";
+import { LocalProxies } from "./LocalProxies";
 import { kindName, proxyName, transportName } from "./names";
 import { ProxyDialog } from "./ProxyDialog";
 import { profileNames, proxyUsage } from "./usage";
@@ -158,7 +159,10 @@ export function ProxiesPage() {
         ))}
       </Card>
       {own.length === 0 && (
-        <EmptyState icon={<Globe24Regular />} title={t("proxies.emptyTitle")} body={t("proxies.emptyBody")} action={add} />
+        <>
+          <EmptyState compact icon={<Globe24Regular />} title={t("proxies.emptyTitle")} body={t("proxies.emptyBody")} action={add} />
+          <LocalProxies />
+        </>
       )}
 
       {dialog?.kind === "edit" && <ProxyDialog view={dialog.view} onClose={close} />}
@@ -284,8 +288,9 @@ function Row({ view, onDialog }: { view: ProxyView; onDialog: (kind: "edit" | "d
         <Caption1 className={styles.sub}>{sub.join(" · ")}</Caption1>
       </div>
       <div className={styles.buttons}>
-        <div className={styles.latency}>
-          {latency.kind === "running" && <Spinner size="extra-tiny" />}
+        {/* The result is read out when it comes. */}
+        <div className={styles.latency} aria-live="polite">
+          {latency.kind === "running" && <Spinner size="extra-tiny" aria-label={t("proxies.testing")} />}
           {latency.kind === "done" && <Caption1 className={styles.good}>{t("proxies.latencyMs", { ms: latency.ms })}</Caption1>}
           {latency.kind === "failed" && (
             <Tooltip content={latency.error.message || errorText(i18n, latency.error)} relationship="description">

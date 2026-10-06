@@ -133,6 +133,13 @@
         "hybridRequired": "{{name}}: the remote computer requires Network Level Authentication (NLA).",
         "sslWithUserAuthRequired": "{{name}}: the remote computer requires TLS with user authentication.",
         "other": "{{name}}: the remote computer refused the security protocols offered. Remote Desktop may still connect."
+      },
+      "states": {
+        "running": "Checking",
+        "ok": "Passed",
+        "warn": "Note",
+        "error": "Failed",
+        "skipped": "Skipped"
       }
     },
     "log": {
@@ -264,7 +271,21 @@
       "reality": "REALITY"
     },
     "secretsLost": "Needs re-entering",
-    "secretsLostHint": "Its password and settings can't be decrypted (they come from another computer or Windows user). It isn't used until saved again."
+    "secretsLostHint": "Its password and settings can't be decrypted (they come from another computer or Windows user). It isn't used until saved again.",
+    "local": {
+      "title": "Proxies running on this computer",
+      "body": "These proxy programs are running on this computer. Add one as a proxy, and new connections go through it.",
+      "fromSettings": "Windows' proxy setting",
+      "unknownProgram": "Another program",
+      "add": "Add",
+      "addWithAccount": "Add…",
+      "needsAccount": "needs a user name and password",
+      "proxyName": "Local {{name}}",
+      "proxyNameUnknown": "Local proxy",
+      "added": "Added the proxy “{{name}}”.",
+      "addFailed": "Couldn't add the proxy"
+    },
+    "testing": "Testing"
   },
   "settings": {
     "title": "Settings",
@@ -283,7 +304,9 @@
     "about": "About",
     "version": "Version",
     "homepage": "Project page",
-    "license": "License: MIT",
+    "licenseLabel": "License",
+    "source": "Source code",
+    "thirdParty": "The proxy protocols come from Xray-core, embedded unmodified as a library. The license texts of all third-party components come with each release.",
     "saveFailed": "Couldn't save: {{message}}",
     "connection": "Connections",
     "localPort": "Local entrance port",
@@ -422,6 +445,13 @@
         "network": "On a network share.",
         "detail": "{{text}}"
       }
+    },
+    "showLog": "View log",
+    "statuses": {
+      "ok": "OK",
+      "info": "Note",
+      "warn": "May get in the way",
+      "error": "Gets in the way"
     }
   },
   "common": {
@@ -511,6 +541,9 @@
       "unsupported": "This app doesn't support “{{what}}” from the link.",
       "transportRemoved": "Xray no longer has the “{{network}}” transport (HTTP/2, QUIC). Ask the server's provider to switch to XHTTP or another transport.",
       "notShareable": "A custom Xray outbound has no share link."
+    },
+    "localproxy": {
+      "notLocal": "Only ports on this computer can be checked."
     }
   },
   "notices": {
@@ -616,5 +649,31 @@
     "alterId": "VMess alterId {{value}} was ignored: Xray speaks only VMess AEAD. A server that still requires the old authentication won't accept the connection.",
     "ignored": "These parameters weren't used: {{params}}.",
     "ports": "The link uses port hopping ({{ports}}); this app uses port {{port}} only."
+  },
+  "appLog": {
+    "title": "App log",
+    "intro": "The app's latest lines (up to 1000), as they happen. Log level: {{level}}; change it in Settings. They are shown here in full; in the log file, host names, IP addresses and user names are masked.",
+    "filter": "Show",
+    "filters": {
+      "all": "All lines",
+      "warn": "Warnings and errors",
+      "error": "Errors only"
+    },
+    "search": "Search",
+    "empty": "Nothing logged yet.",
+    "noMatch": "No lines match.",
+    "session": "Session {{name}}",
+    "sources": {
+      "app": "App",
+      "engine": "Xray",
+      "session": "Session",
+      "ui": "Window"
+    },
+    "levels": {
+      "debug": "Debug",
+      "info": "Info",
+      "warn": "Warning",
+      "error": "Error"
+    }
   }
 }

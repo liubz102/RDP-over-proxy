@@ -6,6 +6,7 @@ import (
 	"github.com/liubz102/RDP-over-proxy/internal/api"
 	"github.com/liubz102/RDP-over-proxy/internal/diag"
 	"github.com/liubz102/RDP-over-proxy/internal/engine"
+	"github.com/liubz102/RDP-over-proxy/internal/localproxy"
 	"github.com/liubz102/RDP-over-proxy/internal/mstsc"
 	"github.com/liubz102/RDP-over-proxy/internal/secret"
 	"github.com/liubz102/RDP-over-proxy/internal/session"
@@ -44,3 +45,6 @@ func diagnose(version, logDir string) func() diag.Facts {
 func credentialGuard() (bool, error) { return winx.CredentialGuardRunning() }
 
 func openFolder(path string) error { return winx.OpenFolder(path) }
+
+// localProxies reads what tells the proxies running on this computer.
+func localProxies() (localproxy.Facts, error) { return localproxy.Gather() }

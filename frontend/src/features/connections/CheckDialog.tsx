@@ -219,10 +219,11 @@ type RowTone = Tone | "running" | "skipped" | "waiting";
 /** One step: an icon for how it went, its name and what it found. */
 function Row({ tone, label, aside, children }: { tone: RowTone; label: string; aside?: ReactNode; children: ReactNode }) {
   const styles = useStyles();
+  const { t } = useTranslation();
   let icon: ReactNode = null;
   switch (tone) {
     case "running":
-      icon = <Spinner size="extra-tiny" />;
+      icon = <Spinner size="extra-tiny" aria-hidden />;
       break;
     case "ok":
       icon = <CheckmarkCircle20Filled className={styles.ok} />;
@@ -237,9 +238,13 @@ function Row({ tone, label, aside, children }: { tone: RowTone; label: string; a
       icon = <SubtractCircle20Regular className={styles.muted} />;
       break;
   }
+  // The icon's meaning, for screen readers; "waiting" shows none.
+  const state = icon ? t(`connections.test.states.${tone}`, { defaultValue: "" }) : "";
   return (
     <div className={styles.step}>
-      <span className={styles.icon}>{icon}</span>
+      <span className={styles.icon} role={state ? "img" : undefined} aria-label={state || undefined}>
+        {icon}
+      </span>
       <div className={styles.text}>
         <Body1>
           <Text weight="semibold">{label}</Text>

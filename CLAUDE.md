@@ -39,14 +39,15 @@
 | `internal/session` | 会话：纯 reducer（`session.go`、`reduce.go`），外壳是 actor（`actor.go`）和 `Manager`（`manager.go`） |
 | `internal/errcode` | 错误码：`New` / `Weak` / `Wrap`，`Of` 取最有用的代码；`Declare` / `All` 供翻译完整性测试 |
 | `internal/secret` | DPAPI 加密（`DPAPI`）；凭据管理器里 `TERMSRV/<回环地址>` 的密码（`Vault`） |
-| `internal/logging` | 日志文件（按大小轮转）、环形缓冲、脱敏、连续重复折叠、给 Wails 用的 slog 适配 |
+| `internal/logging` | 日志文件（按大小轮转）、环形缓冲、脱敏、连续重复折叠、给 Wails 用的 slog 适配；每行编号（`Line.Seq`），`Logger.Watch` 按顺序把行交给日志查看器 |
 | `internal/store` | 原子写 JSON；数据文件夹：exe 旁的 `data`、`logs`（`DefaultDirs`，`RDP_OVER_PROXY_HOME` 代替 exe 所在文件夹），`Dirs.Prepare` 建好并试写；设置；代理和连接的文件存储（`Data`） |
 | `internal/i18n` | Go 侧文案（托盘、原生对话框）、系统语言检测；`Both`：语言设置还读不到时用的中英双语文案 |
-| `internal/winx` | Win32 调用：WebView2 检测和版本、错误框、确认框、系统深色模式、窗口；窗口标题（`Title`、`SetTitle`）和盯着一个进程的窗口事件（`WatchWindows`，WinEvent 钩子，`watch_windows.go`）；文件版本、Credential Guard（WMI）、打开文件夹（`system_windows.go`）；提权（`elevate_windows.go`）：`Elevated`、`RunElevated`、`AllowModify`、`OnLocalDisk`；`ErrorText`（按界面语言取 Windows 的错误说明） |
+| `internal/winx` | Win32 调用：WebView2 检测和版本、错误框、确认框、系统深色模式、窗口；窗口标题（`Title`、`SetTitle`）和盯着一个进程的窗口事件（`WatchWindows`，WinEvent 钩子，`watch_windows.go`）；文件版本、Credential Guard（WMI）、打开文件夹（`system_windows.go`）；提权（`elevate_windows.go`）：`Elevated`、`RunElevated`、`AllowModify`、`OnLocalDisk`；`ErrorText`（按界面语言取 Windows 的错误说明）；在监听的 TCP 端口和所属进程（`Listeners`）、进程列表（`Processes`）、Internet 设置里的系统代理（`SystemProxy`）（`net_windows.go`） |
 | `internal/diag` | 只读的环境报告：`Gather` 读 Windows，`Build`（纯函数）生成报告项；凭据委派策略的判定（`delegation.go`） |
+| `internal/localproxy` | 本机正在运行的代理（空状态里一键添加）：`Gather` 读 Windows，`Candidates`（纯函数）挑出已知代理软件的端口和系统代理，`Probe` 用 SOCKS5 握手问一个本机端口（只发问候，不设超时，由界面取消） |
 | `tests/<包名>` | Go 测试，每个被测包一个目录（如 `tests/session`），包名 `<包名>_test`，只用导出的 API；`tests/rdpfile/testdata` 是 .rdp 样本 |
 | `tests/winx`、`tests/diag` | 除了纯逻辑，还有读本机 Windows 的测试（文件版本、WMI、`diag.Gather`），只读 |
-| `tests/testutil` | 测试共用：假 RDP 服务端；替身进程（`RunHelper` / `HelperCommand`，其中 `HelperTitledWindows` 有三个带标题的窗口，测窗口标题用）；`FreePort`。只能被测试引用 |
+| `tests/testutil` | 测试共用：假 RDP 服务端；替身进程（`RunHelper` / `HelperCommand`，其中 `HelperTitledWindows` 有三个带标题的窗口，测窗口标题用；`HelperSocks` 扮演代理软件，配 `HelperCommandNamed` 以 `xray.exe` 等文件名运行）；`FreePort`。只能被测试引用 |
 | `tests/testutil/xraytest` | 测试用：进程内的 Xray 代理服务端，SOCKS / HTTP 和 V2Ray 系各协议、各传输、TLS / REALITY。按客户端设置起对应的服务端，`Model` 填上证书指纹和 REALITY 公钥。单独成包，只有需要的测试才链接 Xray |
 | `frontend/src` | `app/`（外壳、主题、首次语言选择）、`features/`、`components/`、`stores/`、`locales/` |
 | `frontend/tests` | 前端测试（vitest），目录结构和 `frontend/src` 对应 |
@@ -152,7 +153,7 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 - **REALITY 服务端第一次有人连时，如果对目标站点的探测还没做完，会整整睡 5 秒**（上游行为，真实服务器启动时就探测了）。`xraytest` 的目标站点握手后就关连接，探测才能马上结束；同一进程里第一个 REALITY 用例仍要等这 5 秒。
 - **Fluent 对话框打开时如果里面没有可聚焦的东西（比如只有转圈），焦点陷阱（tabster modalizer）就不会激活**，之后每次在对话框里获得焦点都会被拉到对话框外面：下拉框一开就关，输入框只能打进一个字。要么等数据读完再渲染对话框（`ProxyDialog` 的做法），要么打开时就让某个输入框 autoFocus。
 - **Fluent 对话框内容区是可滚动的 flex 列时，子元素会被压扁重叠**：给子元素 `flexShrink: 0`（`ProxyDialog` 的 `content` 样式）。
-- **Fluent 对话框打开时聚焦它里面的第一个可聚焦元素**：只读（字段全禁用）的对话框里，焦点会落到内容区剩下的某个链接上，把内容滚过去，顶部的说明就看不见了。所以 `ProxyDialog` 锁住时不显示「显示高级设置」。
+- **Fluent 对话框打开时聚焦它里面的第一个可聚焦元素**：只读（字段全禁用）的对话框里，焦点会落到内容区剩下的某个链接上，把内容滚过去，顶部的说明就看不见了。所以 `ProxyDialog` 锁住时不显示「显示高级设置」。别的输入框上的 `autoFocus` 也会被它盖掉：要让别的框先拿到焦点，在渲染对话框的那个组件的 `useEffect` 里 `focus()`（父组件的 effect 在 Fluent 的之后执行），见 `ProxyDialog` 打开草稿时聚焦用户名。
 - **Fluent `Dropdown` 默认至少 250px 宽，按钮里是裸文本（长文字不会出省略号），展开的列表和按钮一样宽**：`ProxyPicker`（连接列表）用 `button` 槽放一个带省略号的 span；要让列表按内容放宽，关掉 `matchTargetSize`，同时把 `autoSize` 限成 `"height"`，否则 Fluent 用内联 `max-width` 盖掉样式里的上限。
 - **`Caption1`、`Body1` 等是行内的 `span`，`maxWidth` 加省略号对它们不起作用**：要截断时加 `display: "inline-block"`（或放进 flex 容器）。
 - **浏览器预览里复制不到剪贴板**：网页剪贴板被拒，Wails 的 `Clipboard.SetText` 在 server 模式下是空操作却返回成功。桌面版两者都能用；要核对复制的内容，直接调服务（如 `ProxyService.ShareLink`）。
@@ -172,4 +173,9 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 - **UAC 提权的进程不继承调用者的环境变量，也看不到调用者映射的网络驱动器**：所以助手自己从 exe 位置算出文件夹，不读 `RDP_OVER_PROXY_HOME`；设了这个变量、或者 exe 在网络共享上（`winx.OnLocalDisk` 为假）时不提议提权，直接报错。
 - **提权进程在 Program Files 里建的文件夹继承「Users：只读」**：只建文件夹不够，要 `winx.AllowModify` 给原账户加可继承的「修改」权限，以后普通权限启动才写得进去。`AllowModify` 只接受用户账户的 SID，拒绝 Everyone、Users 这类组：提权进程照命令行办事，不能被人借去给所有人开写权限。
 - **Go 的 `syscall.Errno.Error()` 向 Windows 要的是英文说明**：中文的提示里要用 `winx.ErrorText(err, "zh-CN")`，系统没有该语言的文本时它退回英文。
+- **文件名不能只差大小写**：Windows 不分大小写，`LocalProxies.tsx` 和 `localProxies.ts` 会被 tsc 当成同一个文件（TS1261），import 也会串。
+- **`Logger.Log` 里不能同步发 Wails 事件**：日志可能是 Wails 自己在主线程上记的，在那里发事件可能卡住或递归。`Logger.Watch` 用自己的 goroutine 按顺序转交；`app:log` 不发 Wails（source `ui`）的行，因为发事件可能让 Wails 再记一行，循环下去。
+- **探测本机端口不设超时**：别的协议的服务端收到 SOCKS5 问候后可能一直等下去。`localproxy.Probe` 只靠取消结束，界面在卡片消失时取消还没回答的；取消没送到时（预览版里服务端放弃了的请求取消不了），下一次 `LocalProxies` 或退出会结束上一轮的探测。只发问候、不发请求，代理不会去连任何地方；只有转发端口（dokodemo-door 之类）会把这 4 个字节转给它的固定目标。
+- **按父进程认软件时，父进程 ID 可能已被重用**：只认比子进程先启动的父进程（`winx.Process.Created`）。
+- **浏览器预览的窗格不可见时 `requestAnimationFrame` 不触发**：日志抽屉按帧合并新行，窗格没画出来时新行不会出现，截一次图（逼它画一帧）再看。
 - **读到语言设置之前弹的框要中英双语**（`i18n.Both`，系统语言在前）：准备数据文件夹失败时 `settings.json` 可能根本还没法存在。

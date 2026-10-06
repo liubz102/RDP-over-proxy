@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/netip"
 	"slices"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/liubz102/RDP-over-proxy/internal/diag"
 	"github.com/liubz102/RDP-over-proxy/internal/errcode"
+	"github.com/liubz102/RDP-over-proxy/internal/localproxy"
 	"github.com/liubz102/RDP-over-proxy/internal/logging"
 	"github.com/liubz102/RDP-over-proxy/internal/model"
 	"github.com/liubz102/RDP-over-proxy/internal/mstsc"
@@ -45,6 +47,9 @@ const (
 	// EventDiagChanged carries the environment report again once a part of
 	// it that takes long (Credential Guard) is known (DiagService.Report).
 	EventDiagChanged = "diag:changed"
+	// EventAppLog carries each line the app's log keeps (AppService.Log),
+	// but those of the Wails runtime (see Core.Start).
+	EventAppLog = "app:log"
 )
 
 func init() {
@@ -54,6 +59,7 @@ func init() {
 	application.RegisterEvent[Notice](EventNotice)
 	application.RegisterEvent[QuitView](EventQuitRequested)
 	application.RegisterEvent[[]diag.Item](EventDiagChanged)
+	application.RegisterEvent[logging.Line](EventAppLog)
 }
 
 // Session log keys the services add to the reducer's (session.Msg*).
@@ -145,7 +151,10 @@ type Deps struct {
 	// folder in File Explorer (winx.OpenFolder). Optional.
 	Folders    Folders
 	OpenFolder func(path string) error
-	Log        *logging.Logger
+	// LocalProxies reads what tells the proxies running on this computer
+	// (localproxy.Gather). Optional: without it none are found.
+	LocalProxies func() (localproxy.Facts, error)
+	Log          *logging.Logger
 	// Emit sends an event to the frontend. Optional: by default it goes to
 	// the running Wails application.
 	Emit func(name string, data any)
@@ -177,6 +186,16 @@ type Core struct {
 	// once (credentialGuard).
 	guardOnce sync.Once
 	guard     atomic.Int32
+
+	// stopLog ends sending the app's log lines as events (Start, Quit).
+	stopLog func()
+
+	// look is the current look for proxies on this computer
+	// (ProxyService.LocalProxies). A new look, and Quit, end the probes of
+	// the one before (see ProxyService.ProbeLocal).
+	lookMu   sync.Mutex
+	look     context.Context
+	stopLook context.CancelFunc
 }
 
 // sessionLogSize is how many lines of a session's log the UI can show.
@@ -185,6 +204,7 @@ const sessionLogSize = 500
 // NewCore returns the services' shared core.
 func NewCore(d Deps) *Core {
 	c := &Core{d: d, creds: &credStore{v: d.Vault}, logs: map[string]*logging.Ring{}}
+	c.look, c.stopLook = context.WithCancel(context.Background())
 	if c.d.Emit == nil {
 		c.d.Emit = emitToApp
 	}
@@ -206,9 +226,19 @@ func emitToApp(name string, data any) {
 }
 
 // Start prepares the core once the data has loaded: problems found while
-// loading become notices, and one-time passwords a crash may have left in
-// Credential Manager are removed (no session runs yet, so none is in use).
+// loading become notices, one-time passwords a crash may have left in
+// Credential Manager are removed (no session runs yet, so none is in use),
+// and the app's log lines go to the frontend as they come (EventAppLog).
+//
+// The Wails runtime's lines are left out of the events: sending an event
+// may make Wails log, which would send another event, and so on. They
+// still show when the frontend reads the log.
 func (c *Core) Start(problems []store.Problem) {
+	c.stopLog = c.d.Log.Watch(func(line logging.Line) {
+		if line.Source != logging.SourceUI {
+			c.d.Emit(EventAppLog, line)
+		}
+	})
 	for _, p := range problems {
 		c.Notify(logging.LevelWarn, p.Code, map[string]string{"file": p.File}, p.Err)
 	}
@@ -236,8 +266,34 @@ func (c *Core) AskToQuit() bool {
 }
 
 // Quit ends every session and waits until each has given back everything
-// it held. Call it before closing the engine.
-func (c *Core) Quit() { c.manager.Quit() }
+// it held. Call it before closing the engine. The log's lines are no longer
+// sent to the frontend afterwards.
+func (c *Core) Quit() {
+	c.manager.Quit()
+	if c.stopLog != nil {
+		c.stopLog()
+	}
+	c.lookMu.Lock()
+	c.stopLook()
+	c.lookMu.Unlock()
+}
+
+// newLook starts a look for proxies on this computer: the probes of the one
+// before end.
+func (c *Core) newLook() {
+	c.lookMu.Lock()
+	defer c.lookMu.Unlock()
+	c.stopLook()
+	c.look, c.stopLook = context.WithCancel(context.Background())
+}
+
+// currentLook is the context of the current look for proxies on this
+// computer.
+func (c *Core) currentLook() context.Context {
+	c.lookMu.Lock()
+	defer c.lookMu.Unlock()
+	return c.look
+}
 
 // server is the name mstsc looks up a profile's saved password under:
 // TERMSRV/<loopback address>, without the port. Tools that pre-store mstsc

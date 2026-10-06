@@ -137,6 +137,13 @@ describe("catalogs", () => {
     ...editableKinds.map((k) => `proxies.kinds.${k}`),
     ...networks.map((n) => `proxies.networks.${n}`),
     ...securities.map((s) => `proxies.securities.${s}`),
+    // The app's log: logging.Level* and logging.Source*, and the filter.
+    ...["error", "warn", "info", "debug"].map((l) => `appLog.levels.${l}`),
+    ...["app", "engine", "session", "ui"].map((s) => `appLog.sources.${s}`),
+    ...["all", "warn", "error"].map((f) => `appLog.filters.${f}`),
+    // What the status icons mean, for screen readers.
+    ...["ok", "info", "warn", "error"].map((s) => `diag.statuses.${s}`),
+    ...["running", "ok", "warn", "error", "skipped"].map((s) => `connections.test.states.${s}`),
   ];
 
   it.each(["en", "zh-CN"])("%s has every key built from a code", (lng) => {

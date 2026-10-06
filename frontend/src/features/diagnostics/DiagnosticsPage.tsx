@@ -17,6 +17,7 @@ import {
   FolderOpen20Regular,
   Info20Regular,
   Settings20Regular,
+  TextBulletListLtr20Regular,
   Warning20Filled,
 } from "@fluentui/react-icons";
 import { Events as WailsEvents } from "@wailsio/runtime";
@@ -25,6 +26,7 @@ import { DiagService, errorOf, Events, type DiagItem, type ErrorView } from "../
 import { ErrorBar, useNotify } from "../../components/Feedback";
 import { Page } from "../../components/Page";
 import { copyText } from "../../lib/clipboard";
+import { AppLog } from "./AppLog";
 import { useEditDefaults } from "./editDefaults";
 import { byGroup, detailText, reportText, valueText } from "./report";
 
@@ -94,6 +96,7 @@ export function DiagnosticsPage() {
   const [items, setItems] = useState<DiagItem[] | null>(null);
   const [error, setError] = useState<ErrorView | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showLog, setShowLog] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -147,9 +150,14 @@ export function DiagnosticsPage() {
       </Button>
     ),
     files: (
-      <Button icon={<FolderOpen20Regular />} onClick={() => void openLogs()}>
-        {t("diag.openLogs")}
-      </Button>
+      <>
+        <Button icon={<TextBulletListLtr20Regular />} onClick={() => setShowLog(true)}>
+          {t("diag.showLog")}
+        </Button>
+        <Button icon={<FolderOpen20Regular />} onClick={() => void openLogs()}>
+          {t("diag.openLogs")}
+        </Button>
+      </>
     ),
   };
 
@@ -186,6 +194,7 @@ export function DiagnosticsPage() {
             {groupActions[group] && <div className={styles.actions}>{groupActions[group]}</div>}
           </Card>
         ))}
+      {showLog && <AppLog onClose={() => setShowLog(false)} />}
     </Page>
   );
 }
@@ -210,7 +219,9 @@ function ItemRow({ item }: { item: DiagItem }) {
   const detail = detailText(t, item);
   return (
     <div className={styles.item}>
-      <span className={styles.icon}>{icon}</span>
+      <span className={styles.icon} role="img" aria-label={t(`diag.statuses.${item.status}`, { defaultValue: item.status })}>
+        {icon}
+      </span>
       <Body1 className={styles.label}>{t(`diag.items.${item.key}.label`)}</Body1>
       <div className={styles.value}>
         <Body1>{valueText(t, item)}</Body1>

@@ -21,6 +21,7 @@ import type * as model$0 from "../../../../liubz102/RDP-over-proxy/internal/mode
 declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
+            "app:log": logging$0.Line;
             "app:notice": api$0.Notice;
             "app:quitRequested": api$0.QuitView;
             "data:changed": api$0.DataView;

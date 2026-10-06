@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import {
   Body1,
   Button,
@@ -42,6 +42,7 @@ import { EmptyState, Page } from "../../components/Page";
 import { joinHostPort } from "../../lib/address";
 import { errorText } from "../../lib/messages";
 import { useData } from "../../stores/data";
+import { LocalProxies } from "../proxies/LocalProxies";
 import { proxyName } from "../proxies/names";
 import { CheckDialog } from "./CheckDialog";
 import { PasswordDialog } from "./PasswordDialog";
@@ -121,7 +122,11 @@ const useStyles = makeStyles({
   statusError: { color: tokens.colorStatusDangerForeground1 },
   statusLink: {
     cursor: "pointer",
+    borderRadius: tokens.borderRadiusSmall,
     ":hover": { textDecoration: "underline" },
+    ":focus-visible": {
+      outline: `${tokens.strokeWidthThick} solid ${tokens.colorStrokeFocus2}`,
+    },
   },
   buttons: {
     display: "flex",
@@ -172,6 +177,7 @@ export function ConnectionsPage() {
   const { t } = useTranslation();
   const notify = useNotify();
   const profiles = useData((s) => s.profiles);
+  const ownProxies = useData((s) => s.proxies.some((p) => !p.builtIn));
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [busy, setBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -289,17 +295,21 @@ export function ConnectionsPage() {
         }}
       />
       {profiles.length === 0 && (
-        <EmptyState
-          icon={<DesktopArrowRight24Regular />}
-          title={t("connections.emptyTitle")}
-          body={t("connections.emptyBody")}
-          action={
-            <div className={styles.emptyActions}>
-              {add}
-              {importButton}
-            </div>
-          }
-        />
+        <>
+          <EmptyState
+            icon={<DesktopArrowRight24Regular />}
+            title={t("connections.emptyTitle")}
+            body={t("connections.emptyBody")}
+            action={
+              <div className={styles.emptyActions}>
+                {add}
+                {importButton}
+              </div>
+            }
+          />
+          {/* A first proxy to go through, from what already runs on this computer. */}
+          {!ownProxies && <LocalProxies />}
+        </>
       )}
       {groups.map(([group, list]) => (
         <section key={group} className={styles.group}>
@@ -392,8 +402,10 @@ function Row({
 
   return (
     <div className={styles.row}>
-      <span className={mergeClasses(styles.dot, toneClass[status.tone])} />
-      <div className={styles.text}>
+      {/* The status line says in words what the colour says. */}
+      <span className={mergeClasses(styles.dot, toneClass[status.tone])} aria-hidden />
+      {/* Changes of the status are read out as they happen. */}
+      <div className={styles.text} aria-live="polite">
         <Body1 className={styles.name}>
           <Text weight="semibold">{p.name}</Text>
         </Body1>
@@ -414,11 +426,19 @@ function Row({
         </Caption1>
         {statusLine && (
           <div className={styles.status}>
-            {status.tone === "busy" && <Spinner size="extra-tiny" />}
+            {status.tone === "busy" && <Spinner size="extra-tiny" aria-hidden />}
             <Tooltip content={t("connections.showLog")} relationship="description">
               <Caption1
                 className={mergeClasses(styles.statusText, styles.statusLink, textClass)}
+                role="button"
+                tabIndex={0}
                 onClick={() => onDialog("log")}
+                onKeyDown={(e: KeyboardEvent<HTMLElement>) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onDialog("log");
+                  }
+                }}
               >
                 {statusLine}
               </Caption1>

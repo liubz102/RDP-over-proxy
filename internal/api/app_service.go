@@ -50,7 +50,8 @@ func (s *AppService) Dismiss(id int) {
 }
 
 // Log returns the app's recent log lines, oldest first, with nothing
-// masked: they are for the user's own screen.
+// masked: they are for the user's own screen. Lines kept later come as
+// EventAppLog; Seq tells where each goes.
 func (s *AppService) Log() []logging.Line {
 	return s.c.d.Log.Recent()
 }

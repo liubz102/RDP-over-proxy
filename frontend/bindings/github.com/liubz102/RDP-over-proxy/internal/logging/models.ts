@@ -18,8 +18,9 @@ export interface Line {
     "args"?: { [_ in string]?: any } | null;
 
     /**
-     * Seq numbers session lines in the order they happened, across all
-     * profiles, so the UI can merge a log it read with lines it was sent.
+     * Seq numbers the lines of a log in the order they were kept, so the UI
+     * can merge a log it read with the lines it was sent. The app's log
+     * (Logger) and the session logs, across all profiles, count apart.
      */
     "seq"?: number;
 }

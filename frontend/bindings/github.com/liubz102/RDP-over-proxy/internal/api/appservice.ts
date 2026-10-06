@@ -42,7 +42,8 @@ export function KeepRunning(): $CancellablePromise<void> {
 
 /**
  * Log returns the app's recent log lines, oldest first, with nothing
- * masked: they are for the user's own screen.
+ * masked: they are for the user's own screen. Lines kept later come as
+ * EventAppLog; Seq tells where each goes.
  */
 export function Log(): $CancellablePromise<logging$0.Line[] | null> {
     return $Call.ByID(3122046705);

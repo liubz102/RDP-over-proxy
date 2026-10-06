@@ -164,13 +164,17 @@ type Test =
   | { kind: "done"; ms: number }
   | { kind: "failed"; error: ErrorView };
 
-/** Creates a proxy (view is null) or edits one. */
-export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose: () => void }) {
+/**
+ * Creates a proxy (view is null), filled in from draft if given, or edits
+ * one.
+ */
+export function ProxyDialog({ view, draft, onClose }: { view: ProxyView | null; draft?: Proxy; onClose: () => void }) {
   const styles = useStyles();
   const { t, i18n } = useTranslation();
   const editing = view !== null;
-  const [base, setBase] = useState<Proxy | null>(editing ? null : newProxy);
-  const [form, setForm] = useState<ProxyForm | null>(editing ? null : toForm(newProxy));
+  const start = draft ?? newProxy;
+  const [base, setBase] = useState<Proxy | null>(editing ? null : start);
+  const [form, setForm] = useState<ProxyForm | null>(editing ? null : toForm(start));
   const [problems, setProblems] = useState<Partial<Record<FieldKey, string>>>({});
   const [error, setError] = useState<ErrorView | null>(null);
   const [saving, setSaving] = useState(false);
@@ -180,6 +184,7 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
   const [imported, setImported] = useState<Imported | null>(null);
   const [test, setTest] = useState<Test>({ kind: "idle" });
   const testing = useRef<CancellablePromise<LatencyResult> | null>(null);
+  const username = useRef<HTMLInputElement>(null);
   // While a connection runs through the proxy, the editor only shows it: that
   // session would go on with the old settings. It unlocks when they end.
   const profiles = useData((s) => s.profiles);
@@ -200,6 +205,13 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
       (e: unknown) => setError(errorOf(e)),
     );
   }, [view]);
+
+  // A draft (a proxy found on this computer) lacks only the account. Fluent
+  // focuses the dialog's first field once it opens, whatever autoFocus says;
+  // this runs after that, being the dialog's parent.
+  useEffect(() => {
+    if (draft) username.current?.focus();
+  }, [draft]);
 
   // Closing the editor stops a test still running.
   useEffect(
@@ -685,7 +697,13 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
                     <>
                       <div className={styles.row}>
                         <Field label={t("proxies.form.username")} validationState={validation("username")} validationMessage={problem("username")}>
-                          <Input className={styles.fill} value={form.username} disabled={locked} onChange={(_, d) => set("username", d.value)} />
+                          <Input
+                            className={styles.fill}
+                            ref={username}
+                            value={form.username}
+                            disabled={locked}
+                            onChange={(_, d) => set("username", d.value)}
+                          />
                         </Field>
                         <Field label={t("proxies.form.password")} validationState={validation("password")} validationMessage={problem("password")}>
                           <Input
@@ -792,13 +810,13 @@ export function ProxyDialog({ view, onClose }: { view: ProxyView | null; onClose
               )}
             </DialogContent>
             <DialogActions position="start">
-              <div className={styles.test}>
+              <div className={styles.test} aria-live="polite">
                 <Tooltip content={t("proxies.latencyHint")} relationship="description">
                   <Button type="button" disabled={!supported} onClick={runTest}>
                     {test.kind === "running" ? t("common.cancel") : t("proxies.form.test")}
                   </Button>
                 </Tooltip>
-                {test.kind === "running" && <Spinner size="extra-tiny" />}
+                {test.kind === "running" && <Spinner size="extra-tiny" aria-label={t("proxies.testing")} />}
                 {test.kind === "done" && <Caption1 className={styles.good}>{t("proxies.latencyMs", { ms: test.ms })}</Caption1>}
                 {test.kind === "failed" && (
                   <Tooltip content={errorDetails(test.error) || errorText(i18n, test.error)} relationship="description">

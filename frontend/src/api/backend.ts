@@ -27,6 +27,10 @@ export type {
   SessionView,
 } from "../../bindings/github.com/liubz102/RDP-over-proxy/internal/api";
 export type { Item as DiagItem } from "../../bindings/github.com/liubz102/RDP-over-proxy/internal/diag";
+export type {
+  Candidate as LocalCandidate,
+  Result as LocalProbe,
+} from "../../bindings/github.com/liubz102/RDP-over-proxy/internal/localproxy";
 export type { Line as LogLine } from "../../bindings/github.com/liubz102/RDP-over-proxy/internal/logging";
 export type {
   Display,
@@ -48,6 +52,7 @@ export const Events = {
   notice: "app:notice",
   quitRequested: "app:quitRequested",
   diagChanged: "diag:changed",
+  appLog: "app:log",
 } as const;
 
 /** The folders AppService.OpenFolder opens (api.FolderData, api.FolderLogs). */
@@ -61,6 +66,9 @@ export const RDP_PORT = 3389;
 
 /** The largest file taken for an .rdp file (rdpfile.MaxSize). */
 export const RDP_MAX_SIZE = 1 << 20;
+
+/** Where a local proxy candidate was found (localproxy.SourceProgram, localproxy.SourceSystem). */
+export const LOCAL_SOURCE = { program: "program", system: "system" } as const;
 
 /**
  * The structured error a rejected service call carries in its `cause`

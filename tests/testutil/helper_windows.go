@@ -6,8 +6,10 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -47,6 +49,12 @@ const (
 	HelperTitledWindows = "titled-windows"
 	// HelperBlock has no window and runs until its standard input closes.
 	HelperBlock = "block"
+	// HelperSocks stands in for a proxy program: it listens on 127.0.0.1
+	// and answers every SOCKS5 greeting with "no authentication", then
+	// closes the connection. It prints "ready <port>" once it listens, and
+	// exits when its standard input closes. Run it under a proxy program's
+	// file name with HelperCommandNamed.
+	HelperSocks = "socks"
 )
 
 // HelperWindowClass is the class of HelperWindow's window.
@@ -76,6 +84,8 @@ func RunHelper() {
 	case HelperBlock:
 		_, _ = io.Copy(io.Discard, os.Stdin)
 		os.Exit(0)
+	case HelperSocks:
+		os.Exit(socksHelper())
 	default:
 		fmt.Fprintf(os.Stderr, "unknown %s %q\n", EnvHelper, os.Getenv(EnvHelper))
 		os.Exit(2)
@@ -97,6 +107,35 @@ func HelperCommand(t testing.TB, role string) *exec.Cmd {
 	t.Cleanup(func() {
 		if cmd.Process != nil {
 			_ = cmd.Process.Kill() // fails harmlessly once it has exited and been waited for
+		}
+	})
+	return cmd
+}
+
+// HelperCommandNamed is HelperCommand with the test binary copied to a
+// temporary folder as name, such as "xray.exe", for tests that tell
+// programs by their file names.
+func HelperCommandNamed(t testing.TB, role, name string) *exec.Cmd {
+	t.Helper()
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(exe)
+	if err != nil {
+		t.Fatal(err)
+	}
+	named := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(named, data, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(named, "-test.run=^$")
+	cmd.Env = append(os.Environ(), EnvHelper+"="+role)
+	t.Cleanup(func() {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+			// The copy can be removed only once its process has exited.
+			_, _ = cmd.Process.Wait()
 		}
 	})
 	return cmd
@@ -163,6 +202,37 @@ type msg struct {
 	time    uint32
 	pt      struct{ x, y int32 }
 	private uint32
+}
+
+func socksHelper() int {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	fmt.Printf("ready %d\n", ln.Addr().(*net.TCPAddr).Port)
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			go func() {
+				defer c.Close()
+				var greeting [2]byte
+				if _, err := io.ReadFull(c, greeting[:]); err != nil || greeting[0] != 5 {
+					return
+				}
+				methods := make([]byte, greeting[1])
+				if _, err := io.ReadFull(c, methods); err != nil {
+					return
+				}
+				_, _ = c.Write([]byte{5, 0})
+			}()
+		}
+	}()
+	_, _ = io.Copy(io.Discard, os.Stdin)
+	return 0
 }
 
 func windowHelper(class string, disabled bool) int {

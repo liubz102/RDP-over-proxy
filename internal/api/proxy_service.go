@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/liubz102/RDP-over-proxy/internal/errcode"
+	"github.com/liubz102/RDP-over-proxy/internal/localproxy"
 	"github.com/liubz102/RDP-over-proxy/internal/model"
 	"github.com/liubz102/RDP-over-proxy/internal/probe"
 	"github.com/liubz102/RDP-over-proxy/internal/sharelink"
@@ -207,6 +208,36 @@ func (s *ProxyService) latency(ctx context.Context, p model.Proxy) (LatencyResul
 		return LatencyResult{}, err
 	}
 	return LatencyResult{Ms: elapsed.Milliseconds()}, nil
+}
+
+// LocalProxies lists the ports on this computer that may be proxies
+// (localproxy.Candidates): those of known proxy programs, for ProbeLocal to
+// ask, and the proxy server in Windows' Internet settings, an HTTP proxy.
+// It only reads. It starts a new look: the probes of the one before end.
+func (s *ProxyService) LocalProxies() ([]localproxy.Candidate, error) {
+	s.c.newLook()
+	if s.c.d.LocalProxies == nil {
+		return []localproxy.Candidate{}, nil
+	}
+	facts, err := s.c.d.LocalProxies()
+	if err != nil {
+		return nil, err
+	}
+	return localproxy.Candidates(facts), nil
+}
+
+// ProbeLocal asks a port on this computer whether it is a SOCKS5 proxy,
+// at the first of hosts that takes the connection (localproxy.Probe). A
+// port of another kind may never answer, so there is no timeout: the
+// frontend cancels the call. Should the cancel not get here (in the browser
+// preview, a request the server gave up on cannot be cancelled), the next
+// look (LocalProxies) or quitting ends the probe.
+func (s *ProxyService) ProbeLocal(ctx context.Context, hosts []string, port int) (localproxy.Result, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stop := context.AfterFunc(s.c.currentLook(), cancel)
+	defer stop()
+	return localproxy.Probe(ctx, hosts, port)
 }
 
 // withStoredSecret gives p the stored proxy's secret. A secret belongs to

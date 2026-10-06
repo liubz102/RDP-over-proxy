@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from "react";
-import { Body1, Caption1, Subtitle1, Title3, makeStyles, tokens } from "@fluentui/react-components";
+import { Body1, Caption1, Subtitle1, Title3, makeStyles, mergeClasses, tokens } from "@fluentui/react-components";
 
 const useStyles = makeStyles({
   page: {
@@ -35,6 +35,9 @@ const useStyles = makeStyles({
     alignItems: "center",
     textAlign: "center",
     gap: "8px",
+  },
+  emptyCompact: {
+    marginTop: "16px",
   },
   emptyIcon: {
     fontSize: "48px",
@@ -77,21 +80,26 @@ export function Page({
   );
 }
 
-/** Shown when a list has nothing in it yet. */
+/**
+ * Shown when a list has nothing in it yet. compact: it follows content of
+ * its own (a list's built-in entries), so it needs less room above.
+ */
 export function EmptyState({
   icon,
   title,
   body,
   action,
+  compact,
 }: {
   icon: ReactElement<{ className?: string }>;
   title: string;
   body: string;
   action?: ReactNode;
+  compact?: boolean;
 }) {
   const styles = useStyles();
   return (
-    <div className={styles.empty}>
+    <div className={mergeClasses(styles.empty, compact && styles.emptyCompact)}>
       <span className={styles.emptyIcon}>{icon}</span>
       <Subtitle1 as="h2" align="center">
         {title}

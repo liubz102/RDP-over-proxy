@@ -133,6 +133,13 @@
         "hybridRequired": "{{name}}：远程计算机要求网络级身份验证（NLA）。",
         "sslWithUserAuthRequired": "{{name}}：远程计算机要求 TLS 加用户身份验证。",
         "other": "{{name}}：远程计算机拒绝了提供的安全协议。远程桌面仍可能连得上。"
+      },
+      "states": {
+        "running": "正在检查",
+        "ok": "通过",
+        "warn": "注意",
+        "error": "失败",
+        "skipped": "跳过"
       }
     },
     "log": {
@@ -264,7 +271,21 @@
       "reality": "REALITY"
     },
     "secretsLost": "需要重新填写",
-    "secretsLostHint": "密码和设置解不开（来自别的电脑或 Windows 用户），保存之前不会用它连接。"
+    "secretsLostHint": "密码和设置解不开（来自别的电脑或 Windows 用户），保存之前不会用它连接。",
+    "local": {
+      "title": "这台电脑上正在运行的代理",
+      "body": "检测到这台电脑上正在运行下面的代理软件。添加为代理后，新建的连接默认经它连接。",
+      "fromSettings": "Windows 的系统代理设置",
+      "unknownProgram": "其他程序",
+      "add": "添加",
+      "addWithAccount": "添加…",
+      "needsAccount": "需要账号和密码",
+      "proxyName": "本机 {{name}}",
+      "proxyNameUnknown": "本机代理",
+      "added": "已添加代理「{{name}}」。",
+      "addFailed": "无法添加代理"
+    },
+    "testing": "正在测速"
   },
   "settings": {
     "title": "设置",
@@ -283,7 +304,9 @@
     "about": "关于",
     "version": "版本",
     "homepage": "项目主页",
-    "license": "开源许可：MIT",
+    "licenseLabel": "开源许可",
+    "source": "源代码",
+    "thirdParty": "代理协议由以库的形式内嵌、未经修改的 Xray-core 提供。全部第三方组件的许可证全文随发布版本一起提供。",
     "saveFailed": "保存失败：{{message}}",
     "connection": "连接",
     "localPort": "本机入口端口",
@@ -422,6 +445,13 @@
         "network": "在网络共享上。",
         "detail": "{{text}}"
       }
+    },
+    "showLog": "查看日志",
+    "statuses": {
+      "ok": "正常",
+      "info": "提示",
+      "warn": "可能有影响",
+      "error": "会有影响"
     }
   },
   "common": {
@@ -511,6 +541,9 @@
       "unsupported": "不支持链接里的「{{what}}」。",
       "transportRemoved": "Xray 已经不支持「{{network}}」传输方式（HTTP/2、QUIC），请服务提供者改用 XHTTP 等其他方式。",
       "notShareable": "自定义的 Xray 出站没有分享链接。"
+    },
+    "localproxy": {
+      "notLocal": "只能检查这台电脑上的端口。"
     }
   },
   "notices": {
@@ -616,5 +649,31 @@
     "alterId": "VMess 的 alterId（{{value}}）被忽略了：Xray 只支持 VMess AEAD。服务器如果还要求旧的验证方式，就会连不上。",
     "ignored": "这些参数没有用上：{{params}}。",
     "ports": "链接用了端口跳跃（{{ports}}），本程序只用端口 {{port}}。"
+  },
+  "appLog": {
+    "title": "程序日志",
+    "intro": "本程序最近的日志（最多 1000 行），实时更新。记录级别：{{level}}，可以在「设置」里改。这里显示原文；写入日志文件时会隐去主机名、IP 地址和用户名。",
+    "filter": "显示",
+    "filters": {
+      "all": "全部",
+      "warn": "警告和错误",
+      "error": "只看错误"
+    },
+    "search": "搜索",
+    "empty": "还没有日志。",
+    "noMatch": "没有符合条件的行。",
+    "session": "会话 {{name}}",
+    "sources": {
+      "app": "程序",
+      "engine": "Xray",
+      "session": "会话",
+      "ui": "窗口"
+    },
+    "levels": {
+      "debug": "调试",
+      "info": "信息",
+      "warn": "警告",
+      "error": "错误"
+    }
   }
 }

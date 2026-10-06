@@ -12,6 +12,9 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import * as localproxy$0 from "../localproxy/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as model$0 from "../model/models.js";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -73,12 +76,34 @@ export function List(): $CancellablePromise<$models.ProxyView[] | null> {
 }
 
 /**
+ * LocalProxies lists the ports on this computer that may be proxies
+ * (localproxy.Candidates): those of known proxy programs, for ProbeLocal to
+ * ask, and the proxy server in Windows' Internet settings, an HTTP proxy.
+ * It only reads. It starts a new look: the probes of the one before end.
+ */
+export function LocalProxies(): $CancellablePromise<localproxy$0.Candidate[] | null> {
+    return $Call.ByID(1401179599);
+}
+
+/**
  * ParseLink reads a share link into a proxy for the editor to fill in;
  * nothing is saved. The notes say what the link asks for that the proxy does
  * without.
  */
 export function ParseLink(link: string): $CancellablePromise<$models.LinkView> {
     return $Call.ByID(434563073, link);
+}
+
+/**
+ * ProbeLocal asks a port on this computer whether it is a SOCKS5 proxy,
+ * at the first of hosts that takes the connection (localproxy.Probe). A
+ * port of another kind may never answer, so there is no timeout: the
+ * frontend cancels the call. Should the cancel not get here (in the browser
+ * preview, a request the server gave up on cannot be cancelled), the next
+ * look (LocalProxies) or quitting ends the probe.
+ */
+export function ProbeLocal(hosts: string[] | null, port: number): $CancellablePromise<localproxy$0.Result> {
+    return $Call.ByID(2302602975, hosts, port);
 }
 
 /**

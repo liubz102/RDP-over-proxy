@@ -15,6 +15,13 @@ export interface AppInfo {
     "name": string;
     "version": string;
     "repo": string;
+
+    /**
+     * Xray is the embedded Xray-core's version ("26.3.27"), and XraySource
+     * where its source is: Xray-core is MPL-2.0, which asks for that.
+     */
+    "xray": string;
+    "xraySource": string;
 }
 
 /**

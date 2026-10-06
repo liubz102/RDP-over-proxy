@@ -1,6 +1,6 @@
-// Package logging records what the app does: a log file under
-// %LOCALAPPDATA%\RDP-over-proxy\logs for troubleshooting, and in-memory
-// rings of recent lines for the UI.
+// Package logging records what the app does: a log file in the logs folder
+// next to the app, for troubleshooting, and in-memory rings of recent lines
+// for the UI.
 //
 // The file is meant to be attachable to a bug report, so personal data is
 // masked before it is written (see Redactor). The rings feed the user's own
@@ -45,8 +45,9 @@ type Line struct {
 	Profile string         `json:"profile,omitempty"` // the profile ID of a session line
 	Msg     string         `json:"msg"`
 	Args    map[string]any `json:"args,omitempty"`
-	// Seq numbers session lines in the order they happened, across all
-	// profiles, so the UI can merge a log it read with lines it was sent.
+	// Seq numbers the lines of a log in the order they were kept, so the UI
+	// can merge a log it read with the lines it was sent. The app's log
+	// (Logger) and the session logs, across all profiles, count apart.
 	Seq uint64 `json:"seq,omitempty"`
 }
 
@@ -59,10 +60,12 @@ type Logger struct {
 	redact *Redactor
 	recent *Ring
 
-	mu      sync.Mutex
-	level   int
-	last    *Line // the last line written to the file
-	repeats int   // how many times it has repeated since
+	mu       sync.Mutex
+	level    int
+	seq      uint64 // the last kept line's Seq
+	last     *Line  // the last line written to the file
+	repeats  int    // how many times it has repeated since
+	watchers []*watcher
 }
 
 // New returns a logger writing to file (which may be nil) at the given
@@ -113,7 +116,8 @@ func (l *Logger) Redactor() *Redactor { return l.redact }
 // Recent returns the lines in the ring, oldest first.
 func (l *Logger) Recent() []Line { return l.recent.Lines() }
 
-// Log records a line. A zero Time is set to now.
+// Log records a line. A zero Time is set to now. A line kept gets the next
+// Seq of the app's log.
 func (l *Logger) Log(line Line) {
 	if line.Time.IsZero() {
 		line.Time = time.Now()
@@ -123,7 +127,12 @@ func (l *Logger) Log(line Line) {
 	if levelRank[line.Level] < l.level {
 		return
 	}
+	l.seq++
+	line.Seq = l.seq
 	l.recent.Add(line)
+	for _, w := range l.watchers {
+		w.post(line)
+	}
 	if l.file == nil {
 		return
 	}
@@ -161,6 +170,69 @@ func (l *Logger) Close() error {
 	err := l.file.Close()
 	l.file = nil
 	return err
+}
+
+// Watch calls f with each line the logger keeps from now on, in the order
+// they were kept. The calls come one at a time from a goroutine of the
+// watch's own, so Log never waits for f, and f may log. stop ends the
+// calls: no line kept after it returns is passed on, and lines still
+// waiting are dropped; a call already under way may finish after it.
+func (l *Logger) Watch(f func(Line)) (stop func()) {
+	w := &watcher{signal: make(chan struct{}, 1), done: make(chan struct{})}
+	l.mu.Lock()
+	l.watchers = append(l.watchers, w)
+	l.mu.Unlock()
+	go w.run(f)
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			l.mu.Lock()
+			l.watchers = slices.DeleteFunc(l.watchers, func(x *watcher) bool { return x == w })
+			l.mu.Unlock()
+			close(w.done)
+		})
+	}
+}
+
+// watcher is an unbounded queue of lines for one Watch. Posting never
+// blocks.
+type watcher struct {
+	mu     sync.Mutex
+	queue  []Line
+	signal chan struct{}
+	done   chan struct{}
+}
+
+func (w *watcher) post(line Line) {
+	w.mu.Lock()
+	w.queue = append(w.queue, line)
+	w.mu.Unlock()
+	select {
+	case w.signal <- struct{}{}:
+	default: // a wake-up is already pending
+	}
+}
+
+func (w *watcher) run(f func(Line)) {
+	for {
+		select {
+		case <-w.done:
+			return
+		case <-w.signal:
+		}
+		w.mu.Lock()
+		q := w.queue
+		w.queue = nil
+		w.mu.Unlock()
+		for _, line := range q {
+			select {
+			case <-w.done:
+				return
+			default:
+			}
+			f(line)
+		}
+	}
 }
 
 // Convenience methods for the app's own lines.

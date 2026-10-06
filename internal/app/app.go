@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 
@@ -143,6 +144,7 @@ func Run(opts Options) error {
 		EditDefaults:    editDefaults,
 		Folders:         api.Folders{Data: dirs.Data, Logs: dirs.Logs},
 		OpenFolder:      openFolder,
+		LocalProxies:    localProxies,
 		Log:             logger,
 	})
 	core.Start(problems)
@@ -169,7 +171,8 @@ func Run(opts Options) error {
 	withErrors := application.ServiceOptions{MarshalError: api.MarshalError}
 	for _, svc := range []application.Service{
 		application.NewServiceWithOptions(api.NewSettingsService(settings,
-			api.AppInfo{Name: productName, Version: opts.Version, Repo: repoURL},
+			api.AppInfo{Name: productName, Version: opts.Version, Repo: repoURL,
+				Xray: engine.XrayVersion(), XraySource: xraySource()},
 			i18n.Detect, sh.settingsChanged), withErrors),
 		application.NewServiceWithOptions(api.NewProfileService(core), withErrors),
 		application.NewServiceWithOptions(api.NewProxyService(core), withErrors),
@@ -192,6 +195,20 @@ func Run(opts Options) error {
 	}
 	logger.Close()
 	return nil
+}
+
+// xraySource is where the source of the embedded Xray-core is: its
+// repository at the module version this build linked.
+func xraySource() string {
+	const repo = "https://github.com/XTLS/Xray-core"
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, m := range info.Deps {
+			if m.Path == "github.com/xtls/xray-core" && m.Replace == nil && m.Version != "" {
+				return repo + "/tree/" + m.Version
+			}
+		}
+	}
+	return repo
 }
 
 // uiLanguage is the language for strings the Go side shows itself. Before the

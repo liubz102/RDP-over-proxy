@@ -113,7 +113,15 @@ Hyper-V、WSL、Docker 等会保留一些端口范围，程序不能在这些端
 
 在程序文件夹里的 `logs\app.log`（「设置」页「数据」一节或「诊断」页都能打开日志文件夹）。文件写满 2 MB 后改名为 `app.1.log`，最多保留两个旧文件。
 
+不打开文件也能看：「诊断」页「文件」一节的「查看日志」显示最近的 1000 行，实时更新，可以只看警告和错误，也可以搜索。这里显示的是原文（主机名、用户名都在），只在自己的屏幕上看；要附到 Issue 里的是下面说的日志文件。想看更多细节时，把「设置」→「高级」→「日志级别」改成「详细」。
+
 写入日志前，程序会把你填写过的主机名、代理服务器地址、用户名、连接和代理的名称，以及代理的用户 ID、服务器名称（SNI）、路径、密钥等替换成 `<redacted>`，把用户目录（路径里有你的 Windows 账户名）替换成 `%USERPROFILE%`，把除本机回环地址以外的 IP 地址替换成 `<ip>`，方便附到 Issue 里。密码不会写进日志。附上之前仍请自己检查一遍。
+
+### 本机开着 v2rayN / Clash，代理页却没有提示「这台电脑上正在运行的代理」
+
+这个提示只在还没有自己的代理时出现（连接页在还没有连接时也会出现）。程序找的是正在监听端口的已知代理软件（v2rayN、Clash Verge、Clash for Windows、NekoRay、Hiddify、Shadowsocks 等，以及它们用的 xray、v2ray、sing-box、mihomo 等内核），并只列出能用 SOCKS5 应答的端口；另外，Windows 设置里的系统代理如果指向本机、又不是这些软件，会作为 HTTP 代理列出。找不到时直接在代理页「添加代理」，类型选 SOCKS5，服务器填 `127.0.0.1`，端口填那个软件设置里的本地端口（v2rayN 常见 10808，Clash 常见 7890 或 7897）。代理软件要求账号密码时，点「添加…」后填上。
+
+检测只读取端口和进程列表，再向这些本机端口发一个 SOCKS5 问候、读它选的认证方式，不发任何连接请求；代理软件的日志里可能会看到一条读不到请求的记录，这是正常的。如果你在代理软件里配了端口转发（例如 dokodemo-door 把本机端口转到某台电脑），这 4 个字节会被转给那台电脑，它只会当成一次无效的连接。只有在还没有自己的代理时才会检测。
 
 ### 换了电脑或 Windows 用户后，代理的密码没了
 
@@ -253,7 +261,15 @@ Hyper-V, WSL, Docker and others reserve port ranges, and the app can't listen on
 
 It's `logs\app.log` in the app's folder (both the Data section of the Settings page and the Diagnostics page open the log folder). When it reaches 2 MB it's renamed to `app.1.log`; at most two older files are kept.
 
+You can also read it without opening a file: "View log" in the Files section of the Diagnostics page shows the latest 1000 lines as they come, with a filter for warnings and errors and a search. It shows the lines in full (host names and user names included), for your own screen; the log file described below is what to attach to an issue. For more detail, set Settings → Advanced → Log level to "Detailed".
+
 Before writing a line, the app replaces the host names, proxy server addresses, user names and connection and proxy names you entered, and proxies' user IDs, server names (SNI), paths and keys, with `<redacted>`, your user folder (its path contains your Windows account name) with `%USERPROFILE%`, and every IP address other than this computer's loopback addresses with `<ip>`, so the log can be attached to an issue. Passwords never go into the log. Please still look it over before you attach it.
+
+### v2rayN or Clash runs on this computer, but the Proxies page doesn't offer it
+
+The offer ("Proxies running on this computer") appears only while you have no proxy of your own (and on the Connections page while you have no connection). The app looks for known proxy programs that listen on a port (v2rayN, Clash Verge, Clash for Windows, NekoRay, Hiddify, Shadowsocks and others, and the cores they run, such as xray, v2ray, sing-box and mihomo) and lists only the ports that answer as SOCKS5. Windows' proxy setting, when it points to this computer and to another program, is listed as an HTTP proxy. If nothing is found, add the proxy yourself on the Proxies page: type SOCKS5, server `127.0.0.1`, and the local port from that program's settings (often 10808 for v2rayN, 7890 or 7897 for Clash). If the program wants a user name and password, choose "Add…" and enter them.
+
+Looking only reads the list of ports and processes, then sends those local ports a SOCKS5 greeting and reads the sign-in method they pick; no connection request follows. The proxy program's own log may show a line about a request it couldn't read; that is expected. If the program forwards a local port (a dokodemo-door to some computer, say), those four bytes go on to that computer, which sees nothing but an invalid connection. The app looks only while you have no proxy of your own.
 
 ### Proxy passwords are gone after moving to another PC or Windows user
 

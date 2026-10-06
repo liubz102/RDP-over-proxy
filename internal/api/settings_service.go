@@ -24,6 +24,10 @@ type AppInfo struct {
 	Name    string `json:"name"`
 	Version string `json:"version"`
 	Repo    string `json:"repo"`
+	// Xray is the embedded Xray-core's version ("26.3.27"), and XraySource
+	// where its source is: Xray-core is MPL-2.0, which asks for that.
+	Xray       string `json:"xray"`
+	XraySource string `json:"xraySource"`
 }
 
 // SettingsService reads and saves the user's preferences.

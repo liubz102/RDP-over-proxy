@@ -120,7 +120,7 @@ export function SessionLog({ view, onClose }: { view: ProfileView; onClose: () =
               )}
           </div>
         )}
-        <div className={styles.lines}>
+        <div className={styles.lines} role="log" aria-label={t("connections.log.title", { name: view.profile.name })}>
           {(lines ?? []).length === 0 && <Body1 className={styles.empty}>{t("connections.log.empty")}</Body1>}
           {(lines ?? []).map((line: LogLine, i) => {
             const details = logDetails(i18n, line);
