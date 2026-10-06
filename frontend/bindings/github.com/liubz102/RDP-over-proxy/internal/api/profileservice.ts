@@ -73,8 +73,8 @@ export function ParseRDP(fileName: string, data: string | null): $CancellablePro
 
 /**
  * SetProxy chooses the proxy the profile connects through: a stored proxy's
- * ID, or model.DirectProxyID. A connected profile keeps its proxy
- * (ErrSessionRunning).
+ * ID, model.DirectProxyID or model.SystemProxyID. A connected profile keeps
+ * its proxy (ErrSessionRunning).
  */
 export function SetProxy(id: string, proxyID: string): $CancellablePromise<$models.ProfileView> {
     return $Call.ByID(2450101691, id, proxyID);

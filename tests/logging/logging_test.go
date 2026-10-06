@@ -16,7 +16,7 @@ import (
 func TestRedactor(t *testing.T) {
 	var r Redactor
 	r.Add("pc.example.com", `EXAMPLE\alice`, "", "ab")
-	r.Add("proxy.example.net", "PC.EXAMPLE.COM") // the set only grows; case does not matter
+	r.Add("proxy.example.com", "PC.EXAMPLE.COM") // the set only grows; case does not matter
 	r.AddPath(`C:\Users\Alice Example\`, "%USERPROFILE%")
 	cases := map[string]string{
 		`open C:\users\alice example\Documents\Default.rdp: denied`: `open %USERPROFILE%\Documents\Default.rdp: denied`,
@@ -26,7 +26,7 @@ func TestRedactor(t *testing.T) {
 		"tunnel on 127.12.34.56:13389 to 0.0.0.0":                   "tunnel on 127.12.34.56:13389 to 0.0.0.0",
 		"[2001:db8::7]:3389 and [::1]:3389":                         "[<ip>]:3389 and [::1]:3389",
 		"at 21:04:05 version 1.260327.0 ab":                         "at 21:04:05 version 1.260327.0 ab",
-		"via proxy.example.net (proxy.example.net:80)":              "via <redacted> (<redacted>:80)",
+		"via proxy.example.com (proxy.example.com:80)":              "via <redacted> (<redacted>:80)",
 	}
 	for in, want := range cases {
 		if got := r.Text(in); got != want {

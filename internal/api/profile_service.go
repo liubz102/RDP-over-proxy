@@ -126,8 +126,8 @@ func (s *ProfileService) Update(p model.Profile, password string) (ProfileView, 
 }
 
 // SetProxy chooses the proxy the profile connects through: a stored proxy's
-// ID, or model.DirectProxyID. A connected profile keeps its proxy
-// (ErrSessionRunning).
+// ID, model.DirectProxyID or model.SystemProxyID. A connected profile keeps
+// its proxy (ErrSessionRunning).
 func (s *ProfileService) SetProxy(id, proxyID string) (ProfileView, error) {
 	s.c.lifecycle.Lock()
 	if s.c.manager.Active(id) {

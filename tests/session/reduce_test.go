@@ -145,21 +145,38 @@ func TestStopWhileEachStepRuns(t *testing.T) {
 			t.Fatalf("setup: step %s, want %s", s.Step, step)
 		}
 		s, effects := Reduce(s, Stop{})
-		if step == StepCheck {
-			assertActions(t, effects, CancelCheck{}) // the check is the one step that is aborted
-		} else {
+		// The steps that may wait on the network are aborted.
+		switch step {
+		case StepRoute:
+			assertActions(t, effects, CancelRoute{})
+		case StepCheck:
+			assertActions(t, effects, CancelCheck{})
+		default:
 			assertActions(t, effects)
 		}
 		if s.Phase() != PhaseEnding || s.Step != step {
 			t.Fatalf("stop during %s: phase %s, step %s; want ending while the step finishes", step, s.Phase(), s.Step)
 		}
-		// The step finishes anyway (a quick step, or a check that won the
-		// race against its cancellation).
+		// The step finishes anyway (a quick step, or a route or a check that
+		// won the race against its cancellation).
 		s, effects = Reduce(s, happyPath[i])
 		assertActions(t, effects, cleanup[i]...)
 		if s.Step != StepDone || s.Outcome != OutcomeCancelled || s.Failure != nil {
 			t.Fatalf("stop during %s: final state %+v", step, s)
 		}
+	}
+}
+
+func TestStopDuringRouteEndsWithTheCancelledRoute(t *testing.T) {
+	s, _ := play(t, true, happyPath[:1]...)
+	s, _ = Reduce(s, Stop{})
+	s, effects := Reduce(s, StepFailed{Step: StepRoute, Err: context.Canceled})
+	assertActions(t, effects) // nothing was taken
+	if s.Step != StepDone || s.Outcome != OutcomeCancelled || s.Failure != nil {
+		t.Fatalf("final state = %+v; a cancelled route is not a failure", s)
+	}
+	if slices.Contains(logs(effects), MsgStepFailed) {
+		t.Fatal("the cancelled route should not be logged as a failure")
 	}
 }
 

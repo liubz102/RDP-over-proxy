@@ -131,21 +131,23 @@ func Run(opts Options) error {
 	}
 
 	core := api.NewCore(api.Deps{
-		Data:            data,
-		Settings:        settings,
-		Routes:          eng,
-		CheckProxy:      eng.Check,
-		Vault:           vault(),
-		Servers:         servers(),
-		Launch:          launchMstsc,
-		Defaults:        readDefaults,
-		Diagnose:        diagnose(opts.Version, dirs.Logs),
-		CredentialGuard: credentialGuard,
-		EditDefaults:    editDefaults,
-		Folders:         api.Folders{Data: dirs.Data, Logs: dirs.Logs},
-		OpenFolder:      openFolder,
-		LocalProxies:    localProxies,
-		Log:             logger,
+		Data:             data,
+		Settings:         settings,
+		Routes:           eng,
+		CheckProxy:       eng.Check,
+		Vault:            vault(),
+		Servers:          servers(),
+		Launch:           launchMstsc,
+		Defaults:         readDefaults,
+		Diagnose:         diagnose(opts.Version, dirs.Logs),
+		CredentialGuard:  credentialGuard,
+		EditDefaults:     editDefaults,
+		Folders:          api.Folders{Data: dirs.Data, Logs: dirs.Logs},
+		OpenFolder:       openFolder,
+		LocalProxies:     localProxies,
+		SystemProxy:      systemProxy(),
+		WatchSystemProxy: watchSystemProxy,
+		Log:              logger,
 	})
 	core.Start(problems)
 	if settingsErr != nil {

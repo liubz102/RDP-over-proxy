@@ -24,6 +24,7 @@ import (
 	"github.com/liubz102/RDP-over-proxy/internal/secret"
 	"github.com/liubz102/RDP-over-proxy/internal/session"
 	"github.com/liubz102/RDP-over-proxy/internal/store"
+	"github.com/liubz102/RDP-over-proxy/internal/sysproxy"
 )
 
 // Events the services send to the frontend.
@@ -84,7 +85,8 @@ const (
 
 // Messages lists the session log keys the services add.
 var Messages = []string{MsgGatewayMaybe, MsgDefaultsUnknown, MsgServerAuthRefuse, MsgServerAuthRefusePolicy,
-	MsgAlwaysPrompt, MsgHintFailed}
+	MsgAlwaysPrompt, MsgHintFailed, MsgSystemManual, MsgSystemConfig, MsgSystemConfigDirect, MsgSystemBypass,
+	MsgSystemNone, MsgSystemConfigFailed}
 
 // Notice codes, besides the problems found while loading (store.Problem*).
 const (
@@ -154,7 +156,13 @@ type Deps struct {
 	// LocalProxies reads what tells the proxies running on this computer
 	// (localproxy.Gather). Optional: without it none are found.
 	LocalProxies func() (localproxy.Facts, error)
-	Log          *logging.Logger
+	// SystemProxy is Windows, for the entry that follows its proxy setting
+	// (sysproxy.System). Optional: without it that entry cannot connect.
+	SystemProxy sysproxy.Windows
+	// WatchSystemProxy calls changed whenever Windows' proxy setting may
+	// have changed, until stop is called (sysproxy.Watch). Optional.
+	WatchSystemProxy func(changed func()) (stop func(), err error)
+	Log              *logging.Logger
 	// Emit sends an event to the frontend. Optional: by default it goes to
 	// the running Wails application.
 	Emit func(name string, data any)
@@ -190,6 +198,9 @@ type Core struct {
 	// stopLog ends sending the app's log lines as events (Start, Quit).
 	stopLog func()
 
+	// system is what is known of Windows' proxy setting (watchSystemProxy).
+	system systemWatch
+
 	// look is the current look for proxies on this computer
 	// (ProxyService.LocalProxies). A new look, and Quit, end the probes of
 	// the one before (see ProxyService.ProbeLocal).
@@ -212,6 +223,7 @@ func NewCore(d Deps) *Core {
 		Routes:      d.Routes,
 		Launch:      d.Launch,
 		Preflight:   c.preflight,
+		Resolve:     c.resolveProxy,
 		Credentials: c.credentials,
 		Changed:     c.sessionChanged,
 		Log:         c.sessionLog,
@@ -239,6 +251,7 @@ func (c *Core) Start(problems []store.Problem) {
 			c.d.Emit(EventAppLog, line)
 		}
 	})
+	c.watchSystemProxy()
 	for _, p := range problems {
 		c.Notify(logging.LevelWarn, p.Code, map[string]string{"file": p.File}, p.Err)
 	}
@@ -273,6 +286,7 @@ func (c *Core) Quit() {
 	if c.stopLog != nil {
 		c.stopLog()
 	}
+	c.stopSystemWatch()
 	c.lookMu.Lock()
 	c.stopLook()
 	c.lookMu.Unlock()
@@ -340,7 +354,7 @@ func (c *Core) dataView() DataView {
 	v := DataView{Profiles: []ProfileView{}, Proxies: []ProxyView{}}
 	used := map[string]int{}
 	proxies := c.d.Data.Proxies()
-	exists := map[string]bool{model.DirectProxyID: true}
+	exists := map[string]bool{model.DirectProxyID: true, model.SystemProxyID: true}
 	for _, p := range proxies {
 		exists[p.ID] = true
 	}
@@ -348,7 +362,9 @@ func (c *Core) dataView() DataView {
 		used[p.ProxyID]++
 		v.Profiles = append(v.Profiles, c.profileView(p, exists[p.ProxyID]))
 	}
-	v.Proxies = append(v.Proxies, ProxyView{Proxy: model.DirectProxy(), BuiltIn: true, UsedBy: used[model.DirectProxyID]})
+	v.Proxies = append(v.Proxies,
+		ProxyView{Proxy: model.DirectProxy(), BuiltIn: true, UsedBy: used[model.DirectProxyID]},
+		ProxyView{Proxy: model.SystemProxy(), BuiltIn: true, UsedBy: used[model.SystemProxyID]})
 	for _, p := range proxies {
 		v.Proxies = append(v.Proxies, c.proxyView(p, used[p.ID]))
 	}
@@ -394,7 +410,13 @@ func (c *Core) refreshRedactor() {
 	for _, p := range c.d.Data.Proxies() {
 		known = append(known, proxyNames(p)...)
 	}
-	c.d.Log.Redactor().Add(slices.DeleteFunc(known, func(s string) bool {
+	c.mask(known...)
+}
+
+// mask masks names in the log file, but for those that say nothing about
+// anyone (commonWords, loopback addresses).
+func (c *Core) mask(names ...string) {
+	c.d.Log.Redactor().Add(slices.DeleteFunc(names, func(s string) bool {
 		s = strings.ToLower(strings.TrimSpace(s))
 		a, err := netip.ParseAddr(s)
 		return commonWords[s] || err == nil && a.IsLoopback()

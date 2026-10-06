@@ -2,7 +2,6 @@ import { useEffect, useState, type ReactElement } from "react";
 import { Button, MessageBar, MessageBarBody, Spinner, Subtitle2, makeStyles, mergeClasses, tokens } from "@fluentui/react-components";
 import {
   Desktop24Regular,
-  DesktopFilled,
   Globe24Regular,
   Power24Regular,
   Settings24Regular,
@@ -17,6 +16,15 @@ import { ConnectionsPage } from "../features/connections/ConnectionsPage";
 import { DiagnosticsPage } from "../features/diagnostics/DiagnosticsPage";
 import { ProxiesPage } from "../features/proxies/ProxiesPage";
 import { SettingsPage } from "../features/settings/SettingsPage";
+// The app icon, drawn for each size so its lines sit on whole pixels
+// (build/icon); the one for the screen's scale is picked. As files of their
+// own: inlined, they would be data: addresses, whose commas srcset takes
+// for separators.
+import icon32 from "../../../build/icon/appicon-32.svg?no-inline";
+import icon40 from "../../../build/icon/appicon-40.svg?no-inline";
+import icon48 from "../../../build/icon/appicon-48.svg?no-inline";
+import icon64 from "../../../build/icon/appicon-64.svg?no-inline";
+import iconLarge from "../../../build/icon/appicon.svg?no-inline";
 
 type Page = "connections" | "proxies" | "diagnostics" | "settings";
 
@@ -41,9 +49,12 @@ const useStyles = makeStyles({
     gap: "10px",
     padding: "4px 8px 16px",
   },
+  // 32px: the drawings for 32, 40, 48 and 64 pixels fill it exactly at
+  // 100, 125, 150 and 200 % display scaling.
   brandIcon: {
-    fontSize: "24px",
-    color: tokens.colorBrandForeground1,
+    width: "32px",
+    height: "32px",
+    flexShrink: 0,
   },
   navItem: {
     position: "relative",
@@ -114,7 +125,12 @@ export function Shell() {
     <div className={styles.root}>
       <nav className={styles.sidebar}>
         <div className={styles.brand}>
-          <DesktopFilled className={styles.brandIcon} />
+          <img
+            className={styles.brandIcon}
+            src={icon32}
+            srcSet={`${icon32} 1x, ${icon40} 1.25x, ${icon48} 1.5x, ${icon64} 2x, ${iconLarge} 3x`}
+            alt=""
+          />
           <Subtitle2>{t("app.name")}</Subtitle2>
         </div>
         {navItem("connections", <Desktop24Regular />, t("nav.connections"))}

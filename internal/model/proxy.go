@@ -10,6 +10,11 @@ const (
 	// KindDirect is no proxy at all: the tunnel connects to the target itself.
 	// Only the built-in DirectProxyID entry has this kind.
 	KindDirect = "direct"
+	// KindSystem follows Windows' proxy settings: each connection goes
+	// through the proxy they name for its target, or directly when they name
+	// none (package sysproxy). Only the built-in SystemProxyID entry has this
+	// kind, and it is turned into one of the others before a route is taken.
+	KindSystem = "system"
 	// KindSocks is a SOCKS5 proxy.
 	KindSocks = "socks"
 	// KindHTTP is an HTTP proxy that supports CONNECT.
@@ -34,6 +39,33 @@ const DirectProxyID = "direct"
 // for the UI to show in the user's language.
 func DirectProxy() Proxy {
 	return Proxy{Schema: ProxySchema, ID: DirectProxyID, Kind: KindDirect}
+}
+
+// SystemProxyID is the built-in "follow the system proxy" entry every
+// profile can choose. Like the direct entry, it is never stored.
+const SystemProxyID = "system"
+
+// SystemProxy returns the built-in "follow the system proxy" entry, with no
+// name of its own either.
+func SystemProxy() Proxy {
+	return Proxy{Schema: ProxySchema, ID: SystemProxyID, Kind: KindSystem}
+}
+
+// BuiltInProxy returns the built-in entry with the given ID: direct, or
+// following the system proxy.
+func BuiltInProxy(id string) (Proxy, bool) {
+	switch id {
+	case DirectProxyID:
+		return DirectProxy(), true
+	case SystemProxyID:
+		return SystemProxy(), true
+	}
+	return Proxy{}, false
+}
+
+// BuiltInKind reports whether only a built-in entry may have this kind.
+func BuiltInKind(kind string) bool {
+	return kind == KindDirect || kind == KindSystem
 }
 
 // Proxy is a way to reach targets (proxies\<id>.json). Many profiles can use
@@ -97,7 +129,7 @@ func (p Proxy) Validate() error {
 		e.add("id", CodeInvalid)
 	}
 	switch p.Kind {
-	case KindDirect:
+	case KindDirect, KindSystem:
 		// Built in; nothing else to check.
 	case KindSocks, KindHTTP:
 		e.text("name", p.Name, true, MaxNameLen)

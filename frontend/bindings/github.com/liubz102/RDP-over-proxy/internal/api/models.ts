@@ -7,6 +7,9 @@ import * as model$0 from "../model/models.js";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
 import * as sharelink$0 from "../sharelink/models.js";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as sysproxy$0 from "../sysproxy/models.js";
 
 /**
  * AppInfo describes the running build for the About section.
@@ -161,7 +164,8 @@ export interface ProxyView {
     "hasSecret": boolean;
 
     /**
-     * BuiltIn: the direct entry, which cannot be edited or deleted.
+     * BuiltIn: an entry that cannot be edited or deleted: direct, or
+     * following the system proxy.
      */
     "builtIn": boolean;
 
@@ -215,6 +219,31 @@ export interface RDPImportView {
 }
 
 /**
+ * RouteView is how a connection goes when it follows Windows' proxy
+ * setting: directly, or through a proxy server.
+ */
+export interface RouteView {
+    /**
+     * Kind is model.KindDirect, model.KindHTTP or model.KindSocks.
+     */
+    "kind": string;
+    "server"?: string;
+    "port"?: number;
+
+    /**
+     * By says how the setting decided (sysproxy.By*).
+     */
+    "by": string;
+
+    /**
+     * ConfigError is why the automatic configuration gave no answer, when
+     * it was asked; ConfigCode is its errcode code.
+     */
+    "configError"?: string;
+    "configCode"?: string;
+}
+
+/**
  * SessionView is a session's state as the UI shows it.
  */
 export interface SessionView {
@@ -261,4 +290,23 @@ export interface SessionView {
      */
     "tunnelError": ErrorView | null;
     "check": CheckView | null;
+}
+
+/**
+ * SystemProxyView is Windows' proxy setting now, for the entry that follows
+ * it.
+ */
+export interface SystemProxyView {
+    "settings": sysproxy$0.Settings;
+
+    /**
+     * Manual is the server of the manual setting a connection goes through
+     * (sysproxy.Pick), when one is set.
+     */
+    "manual": sysproxy$0.Server | null;
+
+    /**
+     * Error is why the setting could not be read.
+     */
+    "error"?: string;
 }

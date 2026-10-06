@@ -11,7 +11,6 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
-	"golang.org/x/sys/windows/registry"
 )
 
 // Listener is a TCP socket that listens for connections, and the process
@@ -170,32 +169,4 @@ func created(pid uint32) time.Time {
 		return time.Time{}
 	}
 	return time.Unix(0, creation.Nanoseconds())
-}
-
-// SystemProxy reads the proxy server in this user's Internet settings, the
-// one the Settings app's manual proxy and most proxy programs set: whether it
-// is on, and the setting as written, such as "127.0.0.1:10809" or
-// "http=127.0.0.1:7890;https=127.0.0.1:7890".
-func SystemProxy() (on bool, server string, err error) {
-	k, err := registry.OpenKey(registry.CURRENT_USER,
-		`Software\Microsoft\Windows\CurrentVersion\Internet Settings`, registry.QUERY_VALUE)
-	if err != nil {
-		return false, "", err
-	}
-	defer k.Close()
-	enable, _, err := k.GetIntegerValue("ProxyEnable")
-	if errors.Is(err, registry.ErrNotExist) {
-		return false, "", nil
-	}
-	if err != nil {
-		return false, "", err
-	}
-	server, _, err = k.GetStringValue("ProxyServer")
-	if errors.Is(err, registry.ErrNotExist) {
-		return false, "", nil
-	}
-	if err != nil {
-		return false, "", err
-	}
-	return enable != 0, server, nil
 }

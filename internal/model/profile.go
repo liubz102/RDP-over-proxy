@@ -61,7 +61,8 @@ type Profile struct {
 	// Group sorts profiles into sections in the list; empty means none.
 	Group  string `json:"group"`
 	Target Target `json:"target"`
-	// ProxyID is the proxy the tunnel goes through, or DirectProxyID.
+	// ProxyID is the proxy the tunnel goes through, DirectProxyID or
+	// SystemProxyID.
 	ProxyID string `json:"proxyId"`
 	// Loopback is the profile's own tunnel entrance, 127.a.b.c (see package
 	// loopback). It is assigned once when the profile is created.

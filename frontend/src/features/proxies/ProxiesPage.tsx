@@ -29,7 +29,7 @@ import {
 } from "@fluentui/react-icons";
 import type { CancellablePromise } from "@wailsio/runtime";
 import { useTranslation } from "react-i18next";
-import { errorOf, ProxyService, type ErrorView, type LatencyResult, type ProxyView } from "../../api/backend";
+import { errorOf, ProxyService, SYSTEM_PROXY_ID, type ErrorView, type LatencyResult, type ProxyView } from "../../api/backend";
 import { ConfirmDialog, ErrorBar, useNotify } from "../../components/Feedback";
 import { EmptyState, Page } from "../../components/Page";
 import { joinHostPort } from "../../lib/address";
@@ -39,6 +39,7 @@ import { useData } from "../../stores/data";
 import { LocalProxies } from "./LocalProxies";
 import { kindName, proxyName, transportName } from "./names";
 import { ProxyDialog } from "./ProxyDialog";
+import { systemNow } from "./systemProxy";
 import { profileNames, proxyUsage } from "./usage";
 
 const useStyles = makeStyles({
@@ -152,7 +153,7 @@ export function ProxiesPage() {
   );
 
   return (
-    <Page title={t("proxies.title")} subtitle={t("proxies.subtitle")} actions={own.length > 0 ? add : undefined}>
+    <Page title={t("proxies.title")} subtitle={t("proxies.subtitle")} actions={add}>
       <Card className={styles.list}>
         {proxies.map((v) => (
           <Row key={v.proxy.id} view={v} onDialog={(kind) => setDialog({ kind, view: v } as Dialog)} />
@@ -160,7 +161,7 @@ export function ProxiesPage() {
       </Card>
       {own.length === 0 && (
         <>
-          <EmptyState compact icon={<Globe24Regular />} title={t("proxies.emptyTitle")} body={t("proxies.emptyBody")} action={add} />
+          <EmptyState compact icon={<Globe24Regular />} title={t("proxies.emptyTitle")} body={t("proxies.emptyBody")} />
           <LocalProxies />
         </>
       )}
@@ -211,6 +212,7 @@ function Row({ view, onDialog }: { view: ProxyView; onDialog: (kind: "edit" | "d
   const { t, i18n } = useTranslation();
   const notify = useNotify();
   const p = view.proxy;
+  const systemProxy = useData((s) => s.systemProxy);
   const [latency, setLatency] = useState<Latency>({ kind: "idle" });
   const running = useRef<CancellablePromise<LatencyResult> | null>(null);
 
@@ -256,7 +258,10 @@ function Row({ view, onDialog }: { view: ProxyView; onDialog: (kind: "edit" | "d
   };
 
   const sub: string[] = [];
-  if (view.builtIn) sub.push(t("proxies.directHint"));
+  // The entry that follows Windows says what Windows' setting is now, on a line of its own.
+  const now = p.id === SYSTEM_PROXY_ID ? systemNow(t, systemProxy) : "";
+  if (p.id === SYSTEM_PROXY_ID) sub.push(t("proxies.systemHint"));
+  else if (view.builtIn) sub.push(t("proxies.directHint"));
   else {
     if (p.server) sub.push(joinHostPort(p.server, p.port, -1));
     if (p.username) sub.push(t("proxies.account", { user: p.username }));
@@ -286,6 +291,7 @@ function Row({ view, onDialog }: { view: ProxyView; onDialog: (kind: "edit" | "d
           )}
         </div>
         <Caption1 className={styles.sub}>{sub.join(" · ")}</Caption1>
+        {now && <Caption1 className={styles.sub}>{now}</Caption1>}
       </div>
       <div className={styles.buttons}>
         {/* The result is read out when it comes. */}

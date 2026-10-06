@@ -11,6 +11,7 @@ import (
 	"github.com/liubz102/RDP-over-proxy/internal/secret"
 	"github.com/liubz102/RDP-over-proxy/internal/session"
 	"github.com/liubz102/RDP-over-proxy/internal/store"
+	"github.com/liubz102/RDP-over-proxy/internal/sysproxy"
 	"github.com/liubz102/RDP-over-proxy/internal/winx"
 )
 
@@ -48,3 +49,9 @@ func openFolder(path string) error { return winx.OpenFolder(path) }
 
 // localProxies reads what tells the proxies running on this computer.
 func localProxies() (localproxy.Facts, error) { return localproxy.Gather() }
+
+// systemProxy is Windows, for the entry that follows its proxy setting.
+func systemProxy() sysproxy.Windows { return sysproxy.System{} }
+
+// watchSystemProxy tells when Windows' proxy setting may have changed.
+func watchSystemProxy(changed func()) (stop func(), err error) { return sysproxy.Watch(changed) }

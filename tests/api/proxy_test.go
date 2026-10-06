@@ -105,7 +105,7 @@ func TestXrayChecksBeforeSaving(t *testing.T) {
 	if _, err := h.proxies.Create(p); errorView(t, err).Code != "proxy.config" {
 		t.Fatalf("Create = %v", err)
 	}
-	if len(h.proxies.List()) != 1 {
+	if len(h.proxies.List()) != 2 { // the built-in entries
 		t.Fatal("a proxy Xray rejected was saved")
 	}
 	// Xray only sees settings that pass validation, normalized.
@@ -238,7 +238,7 @@ func TestDraftLatency(t *testing.T) {
 	if h.routes.acquired.Load() != 1 || h.routes.released.Load() != 1 || len(tested) != 1 {
 		t.Fatal("the draft's route was not checked, or not given back")
 	}
-	if len(h.proxies.List()) != 1 {
+	if len(h.proxies.List()) != 2 { // the built-in entries
 		t.Fatal("a draft was saved")
 	}
 	// Problems show as they would when saving.

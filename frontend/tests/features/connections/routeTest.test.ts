@@ -40,6 +40,9 @@ describe("route test", () => {
     expect(verdict(test(missing, missing))).toEqual({ tone: "error", key: "connections.test.verdict.settings" });
     const self: Step = { kind: "failed", error: { code: "session.loopbackDirect", message: "" } };
     expect(verdict(test({ kind: "skipped" }, self))).toEqual({ tone: "error", key: "connections.test.verdict.settings" });
+    // Windows' proxy setting, followed, that cannot be read.
+    const unreadable: Step = { kind: "failed", error: { code: "sysproxy.unreadable", message: "" } };
+    expect(verdict(test(unreadable, unreadable))).toEqual({ tone: "error", key: "connections.test.verdict.settings" });
   });
 
   it("explains the security the computer chose", () => {

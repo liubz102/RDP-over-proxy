@@ -25,8 +25,8 @@ func Gather() (Facts, error) {
 	for _, p := range procs {
 		f.Processes = append(f.Processes, Process{PID: p.PID, ParentPID: p.ParentPID, Exe: p.Exe, Created: p.Created})
 	}
-	if on, server, err := winx.SystemProxy(); err == nil && on {
-		f.SystemProxy = server
+	if c, err := winx.IEProxyConfig(); err == nil {
+		f.SystemProxy = c.Proxy
 	}
 	return f, nil
 }

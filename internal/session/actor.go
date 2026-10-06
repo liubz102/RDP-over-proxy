@@ -63,8 +63,10 @@ type Params struct {
 // Deps are the parts of the outside world a session uses. Tests replace
 // them; Manager builds the real ones.
 type Deps struct {
-	Preflight   func() error
-	Route       func() (d route.Dialer, release func(), err error)
+	Preflight func() error
+	// Route takes the session's route. It may wait on the network (Windows'
+	// automatic proxy configuration) and ends when ctx is cancelled.
+	Route       func(ctx context.Context) (d route.Dialer, release func(), err error)
 	Credentials Credentials
 	Launch      func(args []string) (Process, error)
 	// Changed receives every new state and Log every log line. Both are
@@ -89,6 +91,7 @@ type actor struct {
 	dialer      route.Dialer
 	release     func()
 	tunnel      *tunnel.Tunnel
+	cancelRoute context.CancelFunc
 	cancelCheck context.CancelFunc
 	proc        Process
 }
@@ -112,6 +115,11 @@ func (a *actor) run() {
 	a.deps.Changed(a.state)
 	for a.state.Step != StepDone {
 		for _, e := range a.inbox.take() {
+			if r, ok := e.(RouteReady); ok && r.release != nil {
+				// The route is held from here on; Reduce decides what is
+				// done with it (a stop meanwhile gives it back at once).
+				a.dialer, a.release = r.dialer, r.release
+			}
 			prev := a.state
 			a.state, effects = Reduce(a.state, e)
 			// Effects run before the new state is published, so a published
@@ -137,11 +145,22 @@ func (a *actor) perform(effects []Effect) {
 			a.result(StepPreflight, PreflightPassed{}, a.deps.Preflight())
 
 		case AcquireRoute:
-			d, release, err := a.deps.Route()
-			if err == nil {
-				a.dialer, a.release = d, release
-			}
-			a.result(StepRoute, RouteReady{}, err)
+			// Its own goroutine: following Windows' proxy setting may wait
+			// for the network, and a stop must not wait for that.
+			ctx, cancel := context.WithCancel(context.Background())
+			a.cancelRoute = cancel
+			go func() {
+				defer cancel()
+				d, release, err := a.deps.Route(ctx)
+				if err != nil {
+					a.post(StepFailed{Step: StepRoute, Err: err})
+					return
+				}
+				a.post(RouteReady{dialer: d, release: release})
+			}()
+
+		case CancelRoute:
+			a.cancelRoute()
 
 		case Listen:
 			t, err := tunnel.Listen(a.params.Entrance, a.params.Target, a.dialer, reporter{a.inbox})

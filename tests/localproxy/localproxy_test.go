@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/liubz102/RDP-over-proxy/internal/model"
 )
 
 func listen(addr string, pid uint32) Listener {
@@ -120,23 +122,26 @@ func TestCandidatesFromTheSystemProxy(t *testing.T) {
 			listen("127.0.0.1:10809", 200),
 		},
 	}
-	fiddler := func(host string, port int) []Candidate {
-		return []Candidate{{Name: "Fiddler", Hosts: []string{host}, Port: port, Source: SourceSystem}}
+	fiddler := func(host string, port int, kind string) []Candidate {
+		return []Candidate{{Name: "Fiddler", Hosts: []string{host}, Port: port, Source: SourceSystem, Kind: kind}}
 	}
+	const http, socks = model.KindHTTP, model.KindSocks
 	xray := Candidate{Name: "xray", Hosts: []string{"127.0.0.1"}, Port: 10809, Source: SourceProgram}
 	for _, tc := range []struct {
 		setting string
 		want    []Candidate // after xray's own port
 	}{
 		{"", nil},
-		{"127.0.0.1:8888", fiddler("127.0.0.1", 8888)},
-		{"localhost:8888", fiddler("127.0.0.1", 8888)},
-		{"http://127.0.0.1:8888/", fiddler("127.0.0.1", 8888)},
-		{"http=127.0.0.1:8888;https=127.0.0.1:7890", fiddler("127.0.0.1", 8888)},
-		{"https=127.0.0.1:7890 ftp=127.0.0.1:21", fiddler("127.0.0.1", 7890)},
-		{"[::1]:7890", fiddler("::1", 7890)},
-		// SOCKS entries are SOCKS4 to Windows; not taken.
-		{"socks=127.0.0.1:8888", nil},
+		{"127.0.0.1:8888", fiddler("127.0.0.1", 8888, http)},
+		{"localhost:8888", fiddler("127.0.0.1", 8888, http)},
+		{"http://127.0.0.1:8888/", fiddler("127.0.0.1", 8888, http)},
+		// The way a tunnel goes, as following the system proxy takes it
+		// (sysproxy.Pick): the https entry first.
+		{"http=127.0.0.1:8888;https=127.0.0.1:7890", fiddler("127.0.0.1", 7890, http)},
+		{"https=127.0.0.1:7890 ftp=127.0.0.1:21", fiddler("127.0.0.1", 7890, http)},
+		{"[::1]:7890", fiddler("::1", 7890, http)},
+		{"socks=127.0.0.1:8888", fiddler("127.0.0.1", 8888, socks)},
+		{"ftp=127.0.0.1:8888", nil},
 		{"proxy.example.com:8080", nil},
 		{"192.0.2.1:8888", nil},
 		{"127.0.0.1", nil},

@@ -140,7 +140,16 @@
         "warn": "注意",
         "error": "失败",
         "skipped": "跳过"
-      }
+      },
+      "systemReading": "正在读取 Windows 的代理设置…",
+      "systemVia": "按 Windows 的代理设置：经 {{server}} 到 {{target}}",
+      "systemDirect": {
+        "none": "按 Windows 的代理设置：直连 {{target}}，因为没有设置代理",
+        "bypass": "按 Windows 的代理设置：直连 {{target}}，它在代理的例外列表里",
+        "config": "按 Windows 的代理设置：直连 {{target}}，自动配置这样决定"
+      },
+      "systemConfigError": "自动代理配置没有给出结果，改按手动设置决定：{{error}}",
+      "systemFailed": "无法按 Windows 的代理设置连接 {{target}}"
     },
     "log": {
       "title": "会话日志：{{name}}",
@@ -150,7 +159,8 @@
       "conns": "当前连接数",
       "check": "线路检查",
       "empty": "这个连接在本次运行中还没有连接过。"
-    }
+    },
+    "viaSystem": "跟随系统代理"
   },
   "proxies": {
     "title": "代理",
@@ -285,7 +295,19 @@
       "added": "已添加代理「{{name}}」。",
       "addFailed": "无法添加代理"
     },
-    "testing": "正在测速"
+    "testing": "正在测速",
+    "system": "跟随系统代理",
+    "systemHint": "按 Windows 的代理设置连接",
+    "systemServer": "{{address}}（{{kind}}）",
+    "systemNow": {
+      "none": "现在：没有设置代理，直连",
+      "manual": "现在：{{server}}",
+      "detect": "现在：自动检测设置，没检测到时直连",
+      "detectOrManual": "现在：自动检测设置，没检测到时用 {{server}}",
+      "script": "现在：由设置脚本按计算机决定",
+      "unreadable": "现在：读不出 Windows 的代理设置",
+      "unusable": "现在：Windows 设置的代理服务器本程序用不了"
+    }
   },
   "settings": {
     "title": "设置",
@@ -521,7 +543,7 @@
     },
     "store": {
       "notFound": "找不到了，可能已被删除。",
-      "builtIn": "「直连」是内置项，不能修改。",
+      "builtIn": "「直连」和「跟随系统代理」是内置项，不能修改。",
       "writeFailed": "文件保存失败。"
     },
     "secret": {
@@ -544,6 +566,16 @@
     },
     "localproxy": {
       "notLocal": "只能检查这台电脑上的端口。"
+    },
+    "sysproxy": {
+      "unreadable": "读不出 Windows 的代理设置。",
+      "unusable": "Windows 设置的代理服务器本程序用不了：只支持 HTTP 和 SOCKS 代理。",
+      "scriptUnavailable": "无法下载代理设置脚本。",
+      "scriptFailed": "代理设置脚本运行出错。",
+      "configService": "Windows 的自动代理服务出错。",
+      "notDetected": "网络上没有找到自动代理配置。",
+      "configFailed": "自动代理配置出错。",
+      "noUsableProxy": "自动代理配置给出的代理服务器本程序都用不了：只支持 HTTP 和 SOCKS 代理。"
     }
   },
   "notices": {
@@ -592,7 +624,13 @@
       "hintFailed": "无法为远程桌面预填用户名：{{error}}",
       "serverAuthRefuse": "远程桌面的默认设置是「如果服务器身份验证失败：不连接」。经隧道连接时证书上的名称和入口地址对不上，除非以前已经信任过这台计算机的证书，否则远程桌面会拒绝连接。",
       "alwaysPrompt": "远程桌面的默认设置是「始终要求凭据」，保存的密码不会被自动填入，会再次询问。",
-      "serverAuthRefusePolicy": "组策略「为客户端配置服务器身份验证」设成了「如果身份验证失败则不连接」。经隧道连接时证书上的名称和入口地址对不上，除非以前已经信任过这台计算机的证书，否则远程桌面会拒绝连接。"
+      "serverAuthRefusePolicy": "组策略「为客户端配置服务器身份验证」设成了「如果身份验证失败则不连接」。经隧道连接时证书上的名称和入口地址对不上，除非以前已经信任过这台计算机的证书，否则远程桌面会拒绝连接。",
+      "systemManual": "跟随系统代理：经 Windows 设置的代理 {{server}}（{{kind}}）。",
+      "systemConfig": "跟随系统代理：经自动代理配置给出的 {{server}}（{{kind}}）。",
+      "systemConfigDirect": "跟随系统代理：自动代理配置给出直连。",
+      "systemBypass": "跟随系统代理：这台计算机在 Windows 代理设置的例外列表里，直连。",
+      "systemNone": "跟随系统代理：Windows 没有设置代理，直连。",
+      "systemConfigFailed": "自动代理配置没有给出结果，改按手动设置决定：{{error}}"
     }
   },
   "quit": {

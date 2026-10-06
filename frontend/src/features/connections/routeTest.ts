@@ -38,6 +38,8 @@ const settingsCodes = new Set([
   "proxy.unsupported",
   "store.notFound",
   "session.loopbackDirect",
+  "sysproxy.unreadable",
+  "sysproxy.unusable",
   "validation",
 ]);
 

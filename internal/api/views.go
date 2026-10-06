@@ -25,7 +25,8 @@ type ProxyView struct {
 	Proxy model.Proxy `json:"proxy"`
 	// HasSecret: a password or user ID is stored.
 	HasSecret bool `json:"hasSecret"`
-	// BuiltIn: the direct entry, which cannot be edited or deleted.
+	// BuiltIn: an entry that cannot be edited or deleted: direct, or
+	// following the system proxy.
 	BuiltIn bool `json:"builtIn"`
 	// UsedBy counts the profiles that use the proxy.
 	UsedBy int `json:"usedBy"`

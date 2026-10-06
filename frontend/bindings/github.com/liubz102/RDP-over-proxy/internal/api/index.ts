@@ -30,5 +30,7 @@ export type {
     ProxyView,
     QuitView,
     RDPImportView,
-    SessionView
+    RouteView,
+    SessionView,
+    SystemProxyView
 } from "./models.js";

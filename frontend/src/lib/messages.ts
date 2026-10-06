@@ -17,14 +17,15 @@ export function errorText(i18n: Translator, e: Pick<ErrorView, "code" | "message
 // Codes whose original text can help find the cause: what the network, the
 // proxy or Windows said. For the others (a proxy still in use, a connection
 // already running, …) the translation says everything.
-const technical = ["net.", "probe.", "tunnel.", "proxy.", "credential.", "secret.", "unknown"];
+const technical = ["net.", "probe.", "tunnel.", "proxy.", "credential.", "secret.", "sysproxy.", "unknown"];
+const sayEverything = ["proxy.inUse", "sysproxy.unusable", "sysproxy.noUsableProxy"];
 
 /**
  * The original text of an error, worth showing as details: English and
  * technical, so only where the translation may leave something out.
  */
 export function errorDetails(e: Pick<ErrorView, "code" | "message"> | null | undefined): string {
-  if (!e || e.code === "proxy.inUse" || !technical.some((p) => e.code.startsWith(p))) return "";
+  if (!e || sayEverything.includes(e.code) || !technical.some((p) => e.code.startsWith(p))) return "";
   return e.message;
 }
 

@@ -152,7 +152,7 @@ func (s *ProxyService) ParseLink(link string) (LinkView, error) {
 // ShareLink writes a stored proxy as a share link, credentials included, for
 // the user to copy.
 func (s *ProxyService) ShareLink(id string) (string, error) {
-	if id == model.DirectProxyID {
+	if _, builtIn := model.BuiltInProxy(id); builtIn {
 		return "", store.ErrBuiltIn
 	}
 	p, ok := s.c.d.Data.Proxy(id)
@@ -198,12 +198,23 @@ func (s *ProxyService) DraftLatency(ctx context.Context, p model.Proxy, keepSecr
 }
 
 func (s *ProxyService) latency(ctx context.Context, p model.Proxy) (LatencyResult, error) {
+	testURL := s.c.d.Settings.Get().TestURL
+	if p.Kind == model.KindSystem {
+		// The way Windows' setting takes the test URL.
+		target, err := urlTarget(testURL)
+		if err != nil {
+			return LatencyResult{}, err
+		}
+		if p, _, err = s.c.systemRoute(ctx, target); err != nil {
+			return LatencyResult{}, err
+		}
+	}
 	d, release, err := s.c.d.Routes.Acquire(p)
 	if err != nil {
 		return LatencyResult{}, err
 	}
 	defer release()
-	elapsed, err := probe.Latency(ctx, d, s.c.d.Settings.Get().TestURL)
+	elapsed, err := probe.Latency(ctx, d, testURL)
 	if err != nil {
 		return LatencyResult{}, err
 	}
@@ -273,7 +284,7 @@ func (s *ProxyService) check(p model.Proxy) error {
 	if err := p.Validate(); err != nil {
 		return err
 	}
-	if s.c.d.CheckProxy != nil && p.Kind != model.KindDirect {
+	if s.c.d.CheckProxy != nil && !model.BuiltInKind(p.Kind) {
 		return s.c.d.CheckProxy(p)
 	}
 	return nil

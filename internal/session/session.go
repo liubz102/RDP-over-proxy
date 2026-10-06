@@ -28,6 +28,7 @@ package session
 
 import (
 	"github.com/liubz102/RDP-over-proxy/internal/probe"
+	"github.com/liubz102/RDP-over-proxy/internal/route"
 )
 
 // Step is the step a session is in.
@@ -159,9 +160,14 @@ type Event interface{ isEvent() }
 // Step results. Each step ends with its own success event or StepFailed.
 type (
 	PreflightPassed struct{}
-	RouteReady      struct{}
-	Listening       struct{ Addr string }
-	CheckPassed     struct{ Result probe.Result }
+	// RouteReady: the route is taken. The actor keeps its dialer and the way
+	// to give it back; Reduce only notes that a route is held.
+	RouteReady struct {
+		dialer  route.Dialer
+		release func()
+	}
+	Listening   struct{ Addr string }
+	CheckPassed struct{ Result probe.Result }
 	// CredentialReady: OneTime is true when a password was stored for this
 	// session only and must be deleted when it ends.
 	CredentialReady struct{ OneTime bool }
@@ -236,6 +242,10 @@ type (
 	// CancelCheck aborts the route check in flight; the check then ends with
 	// StepFailed.
 	CancelCheck struct{}
+	// CancelRoute aborts taking the route, which may be waiting for Windows'
+	// automatic proxy configuration; the step then ends with StepFailed, or
+	// with RouteReady when it was done already.
+	CancelRoute struct{}
 	// CloseClient asks mstsc to close (WM_CLOSE to its session window); when
 	// it has none, the actor reports NothingToClose.
 	CloseClient struct{}
@@ -269,6 +279,7 @@ func (Listen) isEffect()            {}
 func (RunCheck) isEffect()          {}
 func (PrepareCredential) isEffect() {}
 func (LaunchClient) isEffect()      {}
+func (CancelRoute) isEffect()       {}
 func (CancelCheck) isEffect()       {}
 func (CloseClient) isEffect()       {}
 func (KillClient) isEffect()        {}

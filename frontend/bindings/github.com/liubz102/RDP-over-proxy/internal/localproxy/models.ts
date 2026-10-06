@@ -22,6 +22,13 @@ export interface Candidate {
     "hosts": string[] | null;
     "port": number;
     "source": string;
+
+    /**
+     * Kind is what the Internet settings use the port as (SourceSystem):
+     * model.KindHTTP, or model.KindSocks for their socks entry. A program's
+     * port is asked with Probe instead.
+     */
+    "kind"?: string;
 }
 
 /**

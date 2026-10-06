@@ -47,7 +47,8 @@ export interface Profile {
     "target": Target;
 
     /**
-     * ProxyID is the proxy the tunnel goes through, or DirectProxyID.
+     * ProxyID is the proxy the tunnel goes through, DirectProxyID or
+     * SystemProxyID.
      */
     "proxyId": string;
 

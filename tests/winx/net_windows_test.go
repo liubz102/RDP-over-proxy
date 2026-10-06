@@ -71,12 +71,3 @@ func TestProcesses(t *testing.T) {
 		t.Fatalf("the parent started at %v, after this process (%v)", parent.Created, p.Created)
 	}
 }
-
-// The setting depends on the computer; reading it must work.
-func TestSystemProxy(t *testing.T) {
-	on, server, err := SystemProxy()
-	if err != nil {
-		t.Fatalf("SystemProxy: %v", err)
-	}
-	t.Logf("system proxy on: %v (%d characters)", on, len(server))
-}

@@ -1,9 +1,11 @@
 import type { TFunction } from "i18next";
-import { DIRECT_PROXY_ID, type Proxy } from "../../api/backend";
+import { DIRECT_PROXY_ID, SYSTEM_PROXY_ID, type Proxy } from "../../api/backend";
 
-/** A proxy's name; the built-in direct entry has none of its own and is named in the user's language. */
+/** A proxy's name; the built-in entries have none of their own and are named in the user's language. */
 export function proxyName(t: TFunction, p: Pick<Proxy, "id" | "name">): string {
-  return p.id === DIRECT_PROXY_ID ? t("proxies.direct") : p.name;
+  if (p.id === DIRECT_PROXY_ID) return t("proxies.direct");
+  if (p.id === SYSTEM_PROXY_ID) return t("proxies.system");
+  return p.name;
 }
 
 /** The kinds the proxy editor offers, in order (model.Kinds). */

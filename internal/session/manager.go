@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"fmt"
 	"net/netip"
 	"sync"
@@ -15,7 +16,7 @@ import (
 type Request struct {
 	Profile model.Profile
 	// Proxy is the proxy Profile.ProxyID names (model.DirectProxy() for
-	// direct connections).
+	// direct connections, model.SystemProxy() to follow Windows' setting).
 	Proxy model.Proxy
 	// Port is the port entrances listen on (Settings.LocalPort). Zero lets
 	// the system pick a free one; only tests do that.
@@ -37,6 +38,12 @@ type Options struct {
 	// Preflight adds local checks before a session acquires anything, such
 	// as the RD Gateway check. Optional.
 	Preflight func(Request) error
+	// Resolve turns the request's proxy into the one the route goes
+	// through, in the route step: the entry that follows Windows' proxy
+	// setting becomes the proxy that setting names for the target, or
+	// direct. It may wait on the network; ctx ends when the session is
+	// stopped. Optional; without it the proxy is used as it is.
+	Resolve func(ctx context.Context, req Request) (model.Proxy, error)
 	// Credentials gives a session what to sign in with. Without it nothing
 	// is written and mstsc asks for the password itself.
 	Credentials func(Request) Credentials
@@ -242,7 +249,20 @@ func (m *Manager) deps(req Request) Deps {
 			}
 			return nil
 		},
-		Route:       func() (route.Dialer, func(), error) { return m.opts.Routes.Acquire(req.Proxy) },
+		Route: func(ctx context.Context) (route.Dialer, func(), error) {
+			p := req.Proxy
+			if m.opts.Resolve != nil {
+				var err error
+				if p, err = m.opts.Resolve(ctx, req); err != nil {
+					return nil, nil, err
+				}
+			}
+			// Following the system may come down to connecting directly.
+			if p.Kind == model.KindDirect && req.Profile.Target.IsLoopback() {
+				return nil, nil, ErrLoopbackDirect
+			}
+			return m.opts.Routes.Acquire(p)
+		},
 		Credentials: creds,
 		Launch:      m.opts.Launch,
 		Changed: func(s State) {

@@ -12,6 +12,7 @@ import {
   type ProfileView,
   type ProxyView,
   type SessionView,
+  type SystemProxyView,
 } from "../api/backend";
 import { appendLog, mergeLog } from "../lib/sessionLog";
 
@@ -27,6 +28,8 @@ interface DataState {
   /** Each profile's latest session log, once it has been read or has grown. */
   logs: Record<string, LogLine[]>;
   notices: Notice[];
+  /** Windows' proxy setting now, for the entry that follows it; null until read. */
+  systemProxy: SystemProxyView | null;
   /** Set while the app asks the user to confirm quitting: how many sessions it would end. */
   quitConfirm: number | null;
   load: () => Promise<void>;
@@ -49,6 +52,7 @@ function errorMessage(e: unknown): string {
 interface Changes {
   data: boolean;
   sessions: Set<string>;
+  system: boolean;
 }
 /** One per load() in flight (StrictMode runs the first one twice). */
 const loading = new Set<Changes>();
@@ -61,17 +65,19 @@ export const useData = create<DataState>((set) => ({
   sessions: {},
   logs: {},
   notices: [],
+  systemProxy: null,
   quitConfirm: null,
 
   async load() {
-    const changed: Changes = { data: false, sessions: new Set() };
+    const changed: Changes = { data: false, sessions: new Set(), system: false };
     loading.add(changed);
     try {
-      const [profiles, proxies, states, notices] = await Promise.all([
+      const [profiles, proxies, states, notices, systemProxy] = await Promise.all([
         ProfileService.List(),
         ProxyService.List(),
         SessionService.States(),
         AppService.Notices(),
+        ProxyService.SystemProxy(),
       ]);
       set((s) => {
         const sessions: Record<string, SessionView> = {};
@@ -85,6 +91,7 @@ export const useData = create<DataState>((set) => ({
           ...(changed.data ? {} : { profiles: profiles ?? [], proxies: proxies ?? [] }),
           sessions,
           notices: [...read, ...later],
+          ...(changed.system ? {} : { systemProxy }),
         };
       });
     } catch (e) {
@@ -144,6 +151,11 @@ WailsEvents.On(Events.sessionLog, (event) => {
 WailsEvents.On(Events.notice, (event) => {
   const n: Notice = event.data;
   useData.setState((s) => (s.notices.some((x) => x.id === n.id) ? s : { notices: [...s.notices, n] }));
+});
+
+WailsEvents.On(Events.systemProxyChanged, (event) => {
+  for (const c of loading) c.system = true;
+  useData.setState({ systemProxy: event.data as SystemProxyView });
 });
 
 WailsEvents.On(Events.quitRequested, (event) => {

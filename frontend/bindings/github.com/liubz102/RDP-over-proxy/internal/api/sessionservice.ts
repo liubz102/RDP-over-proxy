@@ -29,6 +29,16 @@ export function CheckRoute(profileID: string): $CancellablePromise<$models.Check
 }
 
 /**
+ * CheckRouteVia is CheckRoute along the way SystemRoute said Windows' proxy
+ * setting takes the profile's connection. The route check shows that way
+ * and checks it, rather than asking Windows again, which could take as long
+ * once more and answer differently.
+ */
+export function CheckRouteVia(profileID: string, via: $models.RouteView): $CancellablePromise<$models.CheckView> {
+    return $Call.ByID(3420416513, profileID, via);
+}
+
+/**
  * Connect starts a session for the profile and returns at once. When the
  * profile is already connected, its window comes to the front instead.
  * 
@@ -69,4 +79,15 @@ export function Log(profileID: string): $CancellablePromise<logging$0.Line[] | n
  */
 export function States(): $CancellablePromise<$models.SessionView[] | null> {
     return $Call.ByID(1644988164);
+}
+
+/**
+ * SystemRoute says how Windows' proxy setting takes the profile's
+ * connection now. It is for profiles that follow the setting; the route
+ * check shows it, then checks that way (CheckRouteVia). Running the
+ * automatic configuration, when one is set, takes as long as the network
+ * does; the frontend cancels the call to stop it.
+ */
+export function SystemRoute(profileID: string): $CancellablePromise<$models.RouteView> {
+    return $Call.ByID(145704064, profileID);
 }

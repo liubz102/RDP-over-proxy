@@ -25,6 +25,7 @@ func v2ray(kind, secret string, o ProxyOptions) Proxy {
 func TestProxyValidateAcceptsEachKind(t *testing.T) {
 	cases := []Proxy{
 		DirectProxy(),
+		SystemProxy(),
 		{ID: "a1", Name: "Local SOCKS", Kind: KindSocks, Server: "127.0.0.1", Port: 10808},
 		{ID: "a2", Name: "SOCKS with auth", Kind: KindSocks, Server: "proxy.example.com", Port: 1080,
 			Username: "alice", Secret: "s3cret"},
@@ -347,11 +348,20 @@ func TestValidUserID(t *testing.T) {
 }
 
 func TestKindsExcludeDirect(t *testing.T) {
-	if slices.Contains(Kinds, KindDirect) {
-		t.Fatal("users cannot create direct proxies; the built-in entry covers it")
+	if slices.Contains(Kinds, KindDirect) || slices.Contains(Kinds, KindSystem) {
+		t.Fatal("users cannot create direct proxies or ones that follow the system; the built-in entries cover them")
 	}
-	if !ValidID(DirectProxyID) {
-		t.Fatal("DirectProxyID must be a valid ID so profiles can reference it")
+	if !ValidID(DirectProxyID) || !ValidID(SystemProxyID) {
+		t.Fatal("the built-in entries' IDs must be valid IDs so profiles can reference them")
+	}
+	for _, id := range []string{DirectProxyID, SystemProxyID} {
+		p, ok := BuiltInProxy(id)
+		if !ok || p.ID != id || !BuiltInKind(p.Kind) {
+			t.Errorf("BuiltInProxy(%s) = %+v, %v", id, p, ok)
+		}
+	}
+	if _, ok := BuiltInProxy("a1"); ok || BuiltInKind(KindSocks) {
+		t.Error("a stored proxy is taken for a built-in entry")
 	}
 	for _, k := range Kinds {
 		if IsV2Ray(k) == (k == KindSocks || k == KindHTTP || k == KindXray) {

@@ -114,15 +114,26 @@ func (s *SessionService) CheckRoute(ctx context.Context, profileID string) (Chec
 	if err != nil {
 		return CheckView{}, err
 	}
-	if req.Proxy.Kind == model.KindDirect && req.Profile.Target.IsLoopback() {
+	p := req.Proxy
+	if p.Kind == model.KindSystem {
+		if p, _, err = s.c.systemRoute(ctx, req.Profile.Target.String()); err != nil {
+			return CheckView{}, err
+		}
+	}
+	return s.check(ctx, req.Profile, p)
+}
+
+// check checks the profile's target through p.
+func (s *SessionService) check(ctx context.Context, profile model.Profile, p model.Proxy) (CheckView, error) {
+	if p.Kind == model.KindDirect && profile.Target.IsLoopback() {
 		return CheckView{}, session.ErrLoopbackDirect
 	}
-	d, release, err := s.c.d.Routes.Acquire(req.Proxy)
+	d, release, err := s.c.d.Routes.Acquire(p)
 	if err != nil {
 		return CheckView{}, err
 	}
 	defer release()
-	r, err := probe.Check(ctx, d, req.Profile.Target.String())
+	r, err := probe.Check(ctx, d, profile.Target.String())
 	if err != nil {
 		return CheckView{}, err
 	}

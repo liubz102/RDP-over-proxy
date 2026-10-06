@@ -66,6 +66,9 @@ func TestEmptyFolder(t *testing.T) {
 	if p, ok := d.Proxy(model.DirectProxyID); !ok || p.Kind != model.KindDirect {
 		t.Fatalf("the direct entry is missing: %+v", p)
 	}
+	if p, ok := d.Proxy(model.SystemProxyID); !ok || p.Kind != model.KindSystem {
+		t.Fatalf("the entry that follows the system is missing: %+v", p)
+	}
 }
 
 func TestProxyRoundTripSealsSecrets(t *testing.T) {
@@ -187,11 +190,18 @@ func TestProxyValidationAndBuiltIn(t *testing.T) {
 	if _, err := d.CreateProxy(direct); !errors.As(err, &fields) || !fields.Has("kind", model.CodeUnsupported) {
 		t.Fatalf("creating a direct proxy = %v", err)
 	}
-	if _, err := d.UpdateProxy(model.DirectProxy()); !errors.Is(err, ErrBuiltIn) {
-		t.Fatalf("updating the direct entry = %v", err)
+	system := model.SystemProxy()
+	system.Name = "Mine"
+	if _, err := d.CreateProxy(system); !errors.As(err, &fields) || !fields.Has("kind", model.CodeUnsupported) {
+		t.Fatalf("creating a proxy that follows the system = %v", err)
 	}
-	if _, err := d.DeleteProxy(model.DirectProxyID, nil); !errors.Is(err, ErrBuiltIn) {
-		t.Fatalf("deleting the direct entry = %v", err)
+	for _, p := range []model.Proxy{model.DirectProxy(), model.SystemProxy()} {
+		if _, err := d.UpdateProxy(p); !errors.Is(err, ErrBuiltIn) {
+			t.Fatalf("updating the built-in %s entry = %v", p.ID, err)
+		}
+		if _, err := d.DeleteProxy(p.ID, nil); !errors.Is(err, ErrBuiltIn) {
+			t.Fatalf("deleting the built-in %s entry = %v", p.ID, err)
+		}
 	}
 	if _, err := d.UpdateProxy(socks("x")); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("updating a proxy that does not exist = %v", err)
@@ -271,7 +281,7 @@ func TestProfileProxyChangesOnlyBySetProfileProxy(t *testing.T) {
 		t.Fatalf("UpdateProfile = %+v, %v; want the proxy kept", stored, err)
 	}
 
-	for _, id := range []string{home.ID, model.DirectProxyID} {
+	for _, id := range []string{home.ID, model.DirectProxyID, model.SystemProxyID} {
 		stored, err := d.SetProfileProxy(p.ID, id)
 		if err != nil || stored.ProxyID != id || stored.Name != "Renamed" {
 			t.Fatalf("SetProfileProxy(%s) = %+v, %v", id, stored, err)
@@ -418,6 +428,8 @@ func TestLoadingDamagedAndForeignFiles(t *testing.T) {
 	write(t, dir, "proxies/cccc.json", `{"schema":1,"name":"Copied","kind":"socks","server":"192.0.2.1","port":1080,"username":"u","secret":"dpapi:from another computer"}`)
 	write(t, dir, "proxies/dddd.json", `{"schema":1,"id":"other","name":"Fine","kind":"http","server":"192.0.2.2","port":8080}`)
 	write(t, dir, "proxies/direct.json", `{"schema":1,"kind":"direct"}`)
+	write(t, dir, "proxies/system.json", `{"schema":1,"name":"Mine","kind":"socks","server":"192.0.2.3","port":1080}`)
+	write(t, dir, "proxies/gggg.json", `{"schema":1,"name":"Follows","kind":"system"}`)
 	write(t, dir, "proxies/Not An ID.json", `{}`)
 	write(t, dir, "proxies/eeee.json.123.tmp", `{}`)
 	write(t, dir, "profiles/ffff.json", `{"schema":1,"name":"Old","target":{"host":"pc.example.com"},"proxyId":"direct","loopback":"127.1.1.1"}`)
@@ -467,7 +479,7 @@ func TestLoopbackConflictsAreRepaired(t *testing.T) {
 	}
 	write(t, dir, "profiles/aaaa.json", body("127.5.5.5"))
 	write(t, dir, "profiles/bbbb.json", body("127.5.5.5")) // a copy of aaaa
-	write(t, dir, "profiles/cccc.json", body("10.0.0.1"))  // edited by hand
+	write(t, dir, "profiles/cccc.json", body("192.0.2.1")) // edited by hand
 
 	d, problems := open(t, dir)
 	want := map[string]string{"profiles/bbbb.json": ProblemLoopbackMoved, "profiles/cccc.json": ProblemLoopbackMoved}

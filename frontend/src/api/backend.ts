@@ -24,7 +24,9 @@ export type {
   ProxyView,
   QuitView,
   RDPImportView,
+  RouteView,
   SessionView,
+  SystemProxyView,
 } from "../../bindings/github.com/liubz102/RDP-over-proxy/internal/api";
 export type { Item as DiagItem } from "../../bindings/github.com/liubz102/RDP-over-proxy/internal/diag";
 export type {
@@ -42,6 +44,10 @@ export type {
   Target,
 } from "../../bindings/github.com/liubz102/RDP-over-proxy/internal/model";
 export type { Note as LinkNote } from "../../bindings/github.com/liubz102/RDP-over-proxy/internal/sharelink";
+export type {
+  Server as SystemServer,
+  Settings as SystemSettings,
+} from "../../bindings/github.com/liubz102/RDP-over-proxy/internal/sysproxy";
 
 // Event names emitted by the Go side (internal/api).
 export const Events = {
@@ -53,6 +59,7 @@ export const Events = {
   quitRequested: "app:quitRequested",
   diagChanged: "diag:changed",
   appLog: "app:log",
+  systemProxyChanged: "systemProxy:changed",
 } as const;
 
 /** The folders AppService.OpenFolder opens (api.FolderData, api.FolderLogs). */
@@ -60,6 +67,9 @@ export type FolderName = "data" | "logs";
 
 /** The built-in "no proxy" entry (model.DirectProxyID). */
 export const DIRECT_PROXY_ID = "direct";
+
+/** The built-in entry that follows Windows' proxy setting (model.SystemProxyID). */
+export const SYSTEM_PROXY_ID = "system";
 
 /** The standard Remote Desktop port (model.DefaultRDPPort). */
 export const RDP_PORT = 3389;

@@ -44,6 +44,7 @@ Done (✓) and planned:
 - ✓ Diagnostics page: the versions of Windows and Remote Desktop, the default Remote Desktop settings that affect connections, whether saved passwords can be used; copy the diagnostics without server names
 - ✓ Everything the app keeps is in its own folder; nothing goes into your user profile
 - ✓ Finds proxy programs already running on this computer, such as v2rayN or Clash, and adds one as a proxy in one click
+- ✓ "Follow system proxy" as a connection's proxy: connects the way Windows' proxy setting says (the manual proxy and its exceptions, a setup script), directly when no proxy is set
 - ✓ The app's log inside the app, live, with a level filter and search
 - Installer
 

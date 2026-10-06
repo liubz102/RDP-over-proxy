@@ -149,11 +149,28 @@ func (p *fakeProcess) ShowName(string) error { return nil }
 
 // anyRoute reaches every target directly, whatever the proxy: it stands in
 // for the Xray engine.
-type anyRoute struct{ acquired, released atomic.Int32 }
+type anyRoute struct {
+	acquired, released atomic.Int32
+	mu                 sync.Mutex
+	asked              []model.Proxy // the proxies routes were taken for
+}
 
-func (r *anyRoute) Acquire(model.Proxy) (route.Dialer, func(), error) {
+func (r *anyRoute) Acquire(p model.Proxy) (route.Dialer, func(), error) {
 	r.acquired.Add(1)
+	r.mu.Lock()
+	r.asked = append(r.asked, p)
+	r.mu.Unlock()
 	return route.Direct(), func() { r.released.Add(1) }, nil
+}
+
+// last is the proxy the latest route was taken for.
+func (r *anyRoute) last() model.Proxy {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.asked) == 0 {
+		return model.Proxy{}
+	}
+	return r.asked[len(r.asked)-1]
 }
 
 // sealer stands in for DPAPI.
@@ -243,6 +260,10 @@ type harness struct {
 	// check stands in for Xray's check of a proxy's settings; nil accepts
 	// everything.
 	check func(model.Proxy) error
+	// system stands in for Windows' proxy settings; systemChanged is how
+	// the app is told they changed.
+	system        *fakeSystem
+	systemChanged func()
 }
 
 func newHarness(t *testing.T) *harness {
@@ -278,6 +299,7 @@ func newHarnessIn(t *testing.T, dir string) (*harness, []store.Problem) {
 		events:   &events{changed: make(chan struct{}, 1)},
 		launched: make(chan *fakeProcess, 4),
 		log:      logging.New(nil, logging.LevelInfo, 100),
+		system:   &fakeSystem{},
 	}
 	var pids atomic.Int32
 	h.core = NewCore(Deps{
@@ -297,9 +319,14 @@ func newHarnessIn(t *testing.T, dir string) (*harness, []store.Problem) {
 			h.launched <- p
 			return p, nil
 		},
-		Defaults: func() (mstsc.Defaults, error) { return h.defaults, h.defaultsErr },
-		Log:      h.log,
-		Emit:     h.events.emit,
+		Defaults:    func() (mstsc.Defaults, error) { return h.defaults, h.defaultsErr },
+		SystemProxy: h.system,
+		WatchSystemProxy: func(changed func()) (func(), error) {
+			h.systemChanged = changed
+			return func() {}, nil
+		},
+		Log:  h.log,
+		Emit: h.events.emit,
 	})
 	t.Cleanup(h.core.Quit)
 	h.profiles = NewProfileService(h.core)
@@ -459,8 +486,9 @@ func TestPasswordValidation(t *testing.T) {
 func TestProxies(t *testing.T) {
 	h := newHarness(t)
 	px := h.proxy(t, "Office")
+	// The two built-in entries come first: direct, and following the system.
 	list := h.proxies.List()
-	if len(list) != 2 || !list[0].BuiltIn || list[1].Proxy.Secret != "" || !list[1].HasSecret {
+	if len(list) != 3 || !list[0].BuiltIn || !list[1].BuiltIn || list[2].Proxy.Secret != "" || !list[2].HasSecret {
 		t.Fatalf("List = %+v", list)
 	}
 	got, err := h.proxies.Get(px.ID)
@@ -496,7 +524,7 @@ func TestProxies(t *testing.T) {
 			t.Fatalf("after Delete: %+v", v)
 		}
 	}
-	if list := h.proxies.List(); len(list) != 1 || list[0].UsedBy != 2 {
+	if list := h.proxies.List(); len(list) != 2 || list[0].UsedBy != 2 {
 		t.Fatalf("after Delete, proxies = %+v", list)
 	}
 	if len(h.events.named(EventDataChanged)) != changes+1 {

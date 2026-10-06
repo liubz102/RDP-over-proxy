@@ -30,6 +30,11 @@ describe("errorText", () => {
     expect(errorDetails({ code: "proxy.auth", message: "socks: server rejects account" })).toBe("socks: server rejects account");
     expect(errorDetails({ code: "cancelled", message: "context canceled" })).toBe("");
     expect(errorDetails({ code: "proxy.inUse", message: "the proxy is used by 1 connection(s)" })).toBe("");
+    // What Windows said about its proxy setting, but for what the translation says in full.
+    expect(errorDetails({ code: "sysproxy.scriptUnavailable", message: "the setup script could not be downloaded (WinHTTP error 12167)" })).toBe(
+      "the setup script could not be downloaded (WinHTTP error 12167)",
+    );
+    expect(errorDetails({ code: "sysproxy.unusable", message: "Windows' proxy setting names no proxy server this app can use" })).toBe("");
     expect(errorDetails({ code: "session.ending", message: "still ending" })).toBe("");
   });
 });
@@ -144,6 +149,8 @@ describe("catalogs", () => {
     // What the status icons mean, for screen readers.
     ...["ok", "info", "warn", "error"].map((s) => `diag.statuses.${s}`),
     ...["running", "ok", "warn", "error", "skipped"].map((s) => `connections.test.states.${s}`),
+    // Following Windows' proxy setting: sysproxy.By* for direct routes.
+    ...["none", "bypass", "config"].map((b) => `connections.test.systemDirect.${b}`),
   ];
 
   it.each(["en", "zh-CN"])("%s has every key built from a code", (lng) => {

@@ -22,14 +22,15 @@ export interface LocalOffer {
 
 /**
  * What a candidate offers: a program's port once it has answered as a
- * SOCKS5 server; the proxy in the Internet settings as HTTP, as Windows
- * uses it. Nothing for a port that answered otherwise.
+ * SOCKS5 server; the proxy in the Internet settings as Windows uses it, as
+ * HTTP or, for their socks entry, SOCKS. Nothing for a port that answered
+ * otherwise.
  */
 export function offerOf(order: number, c: LocalCandidate, probe?: LocalProbe): LocalOffer | null {
   const base = { order, program: c.name, port: c.port, password: false };
   if (c.source === LOCAL_SOURCE.system) {
     const host = c.hosts?.[0];
-    return host ? { ...base, host, kind: "http", system: true } : null;
+    return host ? { ...base, host, kind: c.kind === "socks" ? "socks" : "http", system: true } : null;
   }
   if (!probe?.socks5) return null;
   return { ...base, host: probe.host, kind: "socks", password: probe.password, system: false };

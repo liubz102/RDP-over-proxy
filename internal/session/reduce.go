@@ -213,7 +213,12 @@ func (s State) stop(force bool) (State, []Effect) {
 	}
 	s.StopRequested = true
 	effects := []Effect{info(MsgCancelling, nil)}
-	if s.Step == StepCheck {
+	// The steps that may wait on the network are aborted; the others are
+	// quick and finish.
+	switch s.Step {
+	case StepRoute:
+		effects = append(effects, CancelRoute{})
+	case StepCheck:
 		effects = append(effects, CancelCheck{})
 	}
 	return s, effects

@@ -24,12 +24,23 @@ import {
 } from "@fluentui/react-icons";
 import type { CancellablePromise } from "@wailsio/runtime";
 import { useTranslation } from "react-i18next";
-import { DIRECT_PROXY_ID, errorOf, ProxyService, RDP_PORT, SessionService, type ProfileView } from "../../api/backend";
+import {
+  DIRECT_PROXY_ID,
+  errorOf,
+  ProxyService,
+  RDP_PORT,
+  SessionService,
+  SYSTEM_PROXY_ID,
+  type ErrorView,
+  type ProfileView,
+  type RouteView,
+} from "../../api/backend";
 import { joinHostPort } from "../../lib/address";
 import { errorDetails, errorText } from "../../lib/messages";
 import { useData } from "../../stores/data";
 import { useSettings } from "../../stores/settings";
 import { proxyName } from "../proxies/names";
+import { routeProxy, routeText } from "../proxies/systemProxy";
 import { protocolInfo, running, startTest, verdict, type RouteTest, type Step, type Tone } from "./routeTest";
 
 const useStyles = makeStyles({
@@ -98,15 +109,23 @@ function urlHost(url: string): string {
  * the proxy on its own, the remote computer through it, and the security it
  * asks for. Both requests run at once and wait as long as the route takes;
  * closing the dialog cancels them.
+ *
+ * A profile that follows Windows' proxy setting first asks where the setting
+ * takes it: through a proxy server, which the first step then tests on its
+ * own, or directly, which skips that step.
  */
 export function CheckDialog({ view, onClose }: { view: ProfileView; onClose: () => void }) {
   const styles = useStyles();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const p = view.profile;
   const proxy = useData((s) => s.proxies.find((x) => x.proxy.id === p.proxyId));
   const testUrl = useSettings((s) => s.settings?.testUrl ?? "");
   const direct = p.proxyId === DIRECT_PROXY_ID;
+  const system = p.proxyId === SYSTEM_PROXY_ID;
   const [round, setRound] = useState(0);
+  // Where Windows' setting takes a profile that follows it.
+  const [route, setRoute] = useState<RouteView | null>(null);
+  const [routeError, setRouteError] = useState<ErrorView | null>(null);
   const [test, setTest] = useState<RouteTest>(() => startTest(direct));
   const [started, setStarted] = useState(() => Date.now());
   const [now, setNow] = useState(started);
@@ -117,6 +136,8 @@ export function CheckDialog({ view, onClose }: { view: ProfileView; onClose: () 
     setStarted(begin);
     setNow(begin);
     setTest(startTest(direct));
+    setRoute(null);
+    setRouteError(null);
     // Results of a round that was cancelled (closing, testing again, or
     // StrictMode's trial run) are dropped.
     let live = true;
@@ -124,27 +145,54 @@ export function CheckDialog({ view, onClose }: { view: ProfileView; onClose: () 
     const settle = (change: (s: RouteTest) => RouteTest) => {
       if (live) setTest(change);
     };
-    if (!direct && view.proxyMissing) {
-      settle((s) => ({ ...s, proxy: { kind: "failed", error: { code: "profile.proxyMissing", message: "" } } }));
-    } else if (!direct) {
-      const latency = ProxyService.Latency(p.proxyId);
+    const failProxy = (error: ErrorView) => settle((s) => ({ ...s, proxy: { kind: "failed", error } }));
+    // A profile that follows Windows' setting is checked the way the dialog
+    // shows, without asking Windows again.
+    const checkTarget = (via?: RouteView) => {
+      const check = via ? SessionService.CheckRouteVia(p.id, via) : SessionService.CheckRoute(p.id);
+      calls.push(check);
+      check.then(
+        (r) => settle((s) => ({ ...s, target: { kind: "passed", ms: r.elapsedMs }, check: r })),
+        (e: unknown) => settle((s) => ({ ...s, target: { kind: "failed", error: errorOf(e) } })),
+      );
+    };
+    const testProxy = (latency: CancellablePromise<{ ms: number }>) => {
       calls.push(latency);
       latency.then(
         (r) => settle((s) => ({ ...s, proxy: { kind: "passed", ms: r.ms } })),
-        (e: unknown) => settle((s) => ({ ...s, proxy: { kind: "failed", error: errorOf(e) } })),
+        (e: unknown) => failProxy(errorOf(e)),
       );
+    };
+    if (system) {
+      const asked = SessionService.SystemRoute(p.id);
+      calls.push(asked);
+      asked.then(
+        (r) => {
+          if (!live) return;
+          setRoute(r);
+          const server = routeProxy(r);
+          if (server) testProxy(ProxyService.DraftLatency(server, false));
+          else settle((s) => ({ ...s, proxy: { kind: "skipped" } }));
+          checkTarget(r);
+        },
+        (e: unknown) => {
+          if (!live) return;
+          // The setting cannot be followed: both steps say so.
+          const error = errorOf(e);
+          setRouteError(error);
+          settle((s) => ({ ...s, proxy: { kind: "failed", error }, target: { kind: "failed", error } }));
+        },
+      );
+    } else {
+      if (!direct && view.proxyMissing) failProxy({ code: "profile.proxyMissing", message: "" });
+      else if (!direct) testProxy(ProxyService.Latency(p.proxyId));
+      checkTarget();
     }
-    const check = SessionService.CheckRoute(p.id);
-    calls.push(check);
-    check.then(
-      (r) => settle((s) => ({ ...s, target: { kind: "passed", ms: r.elapsedMs }, check: r })),
-      (e: unknown) => settle((s) => ({ ...s, target: { kind: "failed", error: errorOf(e) } })),
-    );
     return () => {
       live = false;
       for (const c of calls) c.cancel();
     };
-  }, [round, direct, p.id, p.proxyId, view.proxyMissing]);
+  }, [round, direct, system, p.id, p.proxyId, view.proxyMissing]);
 
   // Counts the seconds while the test runs. Display only: nothing waits on
   // it, and the test has no time limit.
@@ -158,6 +206,8 @@ export function CheckDialog({ view, onClose }: { view: ProfileView; onClose: () 
   const result = verdict(test);
   const proxyLabel = proxy ? proxyName(t, proxy.proxy) : t("connections.proxyMissing");
   const info = test.check ? protocolInfo(test.check) : null;
+  // Why the automatic configuration gave no answer, when it was asked.
+  const configError = route?.configError ? { code: route.configCode || "unknown", message: route.configError } : null;
 
   return (
     <Dialog open onOpenChange={(_, d) => !d.open && onClose()}>
@@ -166,13 +216,33 @@ export function CheckDialog({ view, onClose }: { view: ProfileView; onClose: () 
           <DialogTitle>{t("connections.test.title", { name: p.name })}</DialogTitle>
           <DialogContent className={styles.content}>
             <Caption1 className={styles.route}>
-              {direct ? t("connections.test.routeDirect", { target }) : t("connections.test.route", { proxy: proxyLabel, target })}
+              {system
+                ? route
+                  ? routeText(t, route, target)
+                  : routeError
+                    ? t("connections.test.systemFailed", { target })
+                    : t("connections.test.systemReading")
+                : direct
+                  ? t("connections.test.routeDirect", { target })
+                  : t("connections.test.route", { proxy: proxyLabel, target })}
             </Caption1>
+            {configError && (
+              <div className={styles.text}>
+                <Caption1 className={styles.warn}>
+                  {t("connections.test.systemConfigError", { error: errorText(i18n, configError) })}
+                </Caption1>
+                {errorDetails(configError) && <Caption1 className={styles.details}>{errorDetails(configError)}</Caption1>}
+              </div>
+            )}
             <div className={styles.steps}>
               <StepRow
                 step={test.proxy}
                 label={t("connections.test.proxy")}
-                what={direct ? t("connections.test.proxySkipped") : t("connections.test.proxyWhat", { host: urlHost(testUrl) })}
+                what={
+                  test.proxy.kind === "skipped" || direct
+                    ? t("connections.test.proxySkipped")
+                    : t("connections.test.proxyWhat", { host: urlHost(testUrl) })
+                }
               />
               <StepRow step={test.target} label={t("connections.test.target")} what={t("connections.test.targetWhat")} />
               <Row

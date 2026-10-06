@@ -140,7 +140,16 @@
         "warn": "Note",
         "error": "Failed",
         "skipped": "Skipped"
-      }
+      },
+      "systemReading": "Reading Windows' proxy setting…",
+      "systemVia": "As Windows' proxy setting says: through {{server}} to {{target}}",
+      "systemDirect": {
+        "none": "As Windows' proxy setting says: directly to {{target}}, as no proxy is set",
+        "bypass": "As Windows' proxy setting says: directly to {{target}}, one of the proxy's exceptions",
+        "config": "As Windows' proxy setting says: directly to {{target}}, as its automatic configuration says"
+      },
+      "systemConfigError": "The automatic proxy configuration gave no answer, so the manual setting decided: {{error}}",
+      "systemFailed": "Windows' proxy setting can't be followed to {{target}}"
     },
     "log": {
       "title": "Session log: {{name}}",
@@ -150,7 +159,8 @@
       "conns": "Open connections",
       "check": "Route check",
       "empty": "This connection has not been used since the app started."
-    }
+    },
+    "viaSystem": "following the system proxy"
   },
   "proxies": {
     "title": "Proxies",
@@ -285,7 +295,19 @@
       "added": "Added the proxy “{{name}}”.",
       "addFailed": "Couldn't add the proxy"
     },
-    "testing": "Testing"
+    "testing": "Testing",
+    "system": "Follow system proxy",
+    "systemHint": "Connects the way Windows' proxy setting says",
+    "systemServer": "{{address}} ({{kind}})",
+    "systemNow": {
+      "none": "Now: no proxy is set, so directly",
+      "manual": "Now: {{server}}",
+      "detect": "Now: automatically detected; directly when nothing is found",
+      "detectOrManual": "Now: automatically detected; {{server}} when nothing is found",
+      "script": "Now: a setup script decides for each computer",
+      "unreadable": "Now: Windows' proxy setting can't be read",
+      "unusable": "Now: the proxy server set in Windows can't be used by this app"
+    }
   },
   "settings": {
     "title": "Settings",
@@ -521,7 +543,7 @@
     },
     "store": {
       "notFound": "It no longer exists. It may have been deleted.",
-      "builtIn": "The direct connection is built in and can't be changed.",
+      "builtIn": "Built-in entries (Direct and Follow system proxy) can't be changed.",
       "writeFailed": "The file couldn't be saved."
     },
     "secret": {
@@ -544,6 +566,16 @@
     },
     "localproxy": {
       "notLocal": "Only ports on this computer can be checked."
+    },
+    "sysproxy": {
+      "unreadable": "Windows' proxy setting couldn't be read.",
+      "unusable": "The proxy server set in Windows can't be used by this app: only HTTP and SOCKS proxies can.",
+      "scriptUnavailable": "The setup script couldn't be downloaded.",
+      "scriptFailed": "The setup script failed.",
+      "configService": "Windows' automatic proxy service failed.",
+      "notDetected": "No automatic proxy configuration was found on the network.",
+      "configFailed": "The automatic proxy configuration failed.",
+      "noUsableProxy": "The proxy servers the automatic proxy configuration names can't be used by this app: only HTTP and SOCKS proxies can."
     }
   },
   "notices": {
@@ -592,7 +624,13 @@
       "hintFailed": "Couldn't pre-fill the user name for Remote Desktop: {{error}}",
       "serverAuthRefuse": "Remote Desktop's default settings say “If server authentication fails: Do not connect”. Through the tunnel the name on the certificate never matches the entrance address, so Remote Desktop refuses to connect unless you trusted this computer's certificate before.",
       "alwaysPrompt": "Remote Desktop's default settings say “Always ask for credentials”, so the saved password is not filled in; you will be asked again.",
-      "serverAuthRefusePolicy": "The Group Policy “Configure server authentication for client” says “Do not connect if authentication fails”. Through the tunnel the name on the certificate never matches the entrance address, so Remote Desktop refuses to connect unless you trusted this computer's certificate before."
+      "serverAuthRefusePolicy": "The Group Policy “Configure server authentication for client” says “Do not connect if authentication fails”. Through the tunnel the name on the certificate never matches the entrance address, so Remote Desktop refuses to connect unless you trusted this computer's certificate before.",
+      "systemManual": "Following the system proxy: through the proxy set in Windows, {{server}} ({{kind}}).",
+      "systemConfig": "Following the system proxy: through {{server}} ({{kind}}), which the automatic proxy configuration names.",
+      "systemConfigDirect": "Following the system proxy: the automatic proxy configuration says to connect directly.",
+      "systemBypass": "Following the system proxy: this computer is one of the exceptions of Windows' proxy setting, so directly.",
+      "systemNone": "Following the system proxy: no proxy is set in Windows, so directly.",
+      "systemConfigFailed": "The automatic proxy configuration gave no answer, so the manual setting decides: {{error}}"
     }
   },
   "quit": {

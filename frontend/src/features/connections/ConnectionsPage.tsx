@@ -36,7 +36,7 @@ import {
   Window20Regular,
 } from "@fluentui/react-icons";
 import { useTranslation } from "react-i18next";
-import { ProfileService, RDP_PORT, SessionService, type ProfileView } from "../../api/backend";
+import { ProfileService, RDP_PORT, SessionService, SYSTEM_PROXY_ID, type ProfileView } from "../../api/backend";
 import { ConfirmDialog, useNotify } from "../../components/Feedback";
 import { EmptyState, Page } from "../../components/Page";
 import { joinHostPort } from "../../lib/address";
@@ -146,11 +146,6 @@ const useStyles = makeStyles({
   },
   proxyList: {
     maxWidth: "320px",
-  },
-  emptyActions: {
-    display: "flex",
-    gap: "8px",
-    justifyContent: "center",
   },
 });
 
@@ -274,12 +269,10 @@ export function ConnectionsPage() {
       title={t("connections.title")}
       subtitle={profiles.length > 0 ? t("connections.subtitle") : undefined}
       actions={
-        profiles.length > 0 && (
-          <>
-            {importButton}
-            {add}
-          </>
-        )
+        <>
+          {importButton}
+          {add}
+        </>
       }
     >
       <input
@@ -296,17 +289,7 @@ export function ConnectionsPage() {
       />
       {profiles.length === 0 && (
         <>
-          <EmptyState
-            icon={<DesktopArrowRight24Regular />}
-            title={t("connections.emptyTitle")}
-            body={t("connections.emptyBody")}
-            action={
-              <div className={styles.emptyActions}>
-                {add}
-                {importButton}
-              </div>
-            }
-          />
+          <EmptyState icon={<DesktopArrowRight24Regular />} title={t("connections.emptyTitle")} body={t("connections.emptyBody")} />
           {/* A first proxy to go through, from what already runs on this computer. */}
           {!ownProxies && <LocalProxies />}
         </>
@@ -417,6 +400,8 @@ function Row({
               {" · "}
               {view.proxyMissing || !proxy ? (
                 <span className={styles.missing}>{t("connections.proxyMissing")}</span>
+              ) : proxy.proxy.id === SYSTEM_PROXY_ID ? (
+                t("connections.viaSystem")
               ) : (
                 t("connections.via", { proxy: proxyName(t, proxy.proxy) })
               )}

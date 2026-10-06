@@ -27,7 +27,7 @@
 | `main.go` | 入口；嵌入 `frontend/dist` 和 `build/windows/icon.ico`（托盘图标）；`version` 默认值 |
 | `internal/app` | Wails 应用、窗口、托盘、单实例、关闭缩到托盘、启动与退出顺序。`desktop_windows.go` 和 `server.go` 用构建标签区分桌面版与 server 版；`platform_windows.go` 提供两版共用的 Windows 部件（DPAPI、凭据、mstsc）；`folders_windows.go`（桌面版）：启动时先准备 exe 旁的 `data`、`logs`，只有管理员能写时经 UAC 让提权的自己（`--prepare-folders <SID>`）建好并授权，其他问题弹中英双语的说明 |
 | `internal/api` | 暴露给前端的服务（Settings、Profile、Proxy、Session、App）和它们共用的 `Core`；视图类型、事件、错误 JSON（`MarshalError`） |
-| `internal/model` | 数据结构（Settings、Proxy、Profile、Target）与校验，纯逻辑。Proxy / Profile 的校验返回 `FieldErrors`（字段 + 代码）。V2Ray 系的设置在 `ProxyOptions`（`options.go`），`Normalize` 只留下这种代理用得上的项并补默认值 |
+| `internal/model` | 数据结构（Settings、Proxy、Profile、Target）与校验，纯逻辑。内置的两个代理条目：直连（`direct`）和跟随系统代理（`system`），都不落盘。Proxy / Profile 的校验返回 `FieldErrors`（字段 + 代码）。V2Ray 系的设置在 `ProxyOptions`（`options.go`），`Normalize` 只留下这种代理用得上的项并补默认值 |
 | `internal/loopback` | 由 profile ID 派生 `127.a.b.c` 回环地址，冲突时顺延 |
 | `internal/rdpfile` | 只读解析 .rdp：导入草稿、RD 网关判定、服务器身份验证和「始终要求凭据」 |
 | `internal/mstsc` | mstsc 启动参数（`Args`，纯函数）；启动 / 等待 / 关闭 / 结束 / 聚焦，窗口标题前加连接名（`ShowName`，格式见纯函数 `Title`）（`launch_windows.go`）；`Servers` 注册表记忆（UsernameHint）；Default.rdp 和网关策略（`DecideGateway`、`DecideDefaults` 纯函数 + `ReadDefaults`）；`EditDefaults`（`mstsc /edit Default.rdp`） |
@@ -42,8 +42,9 @@
 | `internal/logging` | 日志文件（按大小轮转）、环形缓冲、脱敏、连续重复折叠、给 Wails 用的 slog 适配；每行编号（`Line.Seq`），`Logger.Watch` 按顺序把行交给日志查看器 |
 | `internal/store` | 原子写 JSON；数据文件夹：exe 旁的 `data`、`logs`（`DefaultDirs`，`RDP_OVER_PROXY_HOME` 代替 exe 所在文件夹），`Dirs.Prepare` 建好并试写；设置；代理和连接的文件存储（`Data`） |
 | `internal/i18n` | Go 侧文案（托盘、原生对话框）、系统语言检测；`Both`：语言设置还读不到时用的中英双语文案 |
-| `internal/winx` | Win32 调用：WebView2 检测和版本、错误框、确认框、系统深色模式、窗口；窗口标题（`Title`、`SetTitle`）和盯着一个进程的窗口事件（`WatchWindows`，WinEvent 钩子，`watch_windows.go`）；文件版本、Credential Guard（WMI）、打开文件夹（`system_windows.go`）；提权（`elevate_windows.go`）：`Elevated`、`RunElevated`、`AllowModify`、`OnLocalDisk`；`ErrorText`（按界面语言取 Windows 的错误说明）；在监听的 TCP 端口和所属进程（`Listeners`）、进程列表（`Processes`）、Internet 设置里的系统代理（`SystemProxy`）（`net_windows.go`） |
+| `internal/winx` | Win32 调用：WebView2 检测和版本、错误框、确认框、系统深色模式、窗口；窗口标题（`Title`、`SetTitle`）和盯着一个进程的窗口事件（`WatchWindows`，WinEvent 钩子，`watch_windows.go`）；文件版本、Credential Guard（WMI）、打开文件夹（`system_windows.go`）；提权（`elevate_windows.go`）：`Elevated`、`RunElevated`、`AllowModify`、`OnLocalDisk`；`ErrorText`（按界面语言取 Windows 的错误说明）；在监听的 TCP 端口和所属进程（`Listeners`）、进程列表（`Processes`，带启动时间）（`net_windows.go`）；当前用户的代理设置（`IEProxyConfig`）、按自动配置给一个地址找代理（`ProxyForURL`，WPAD 和设置脚本由 WinHTTP 运行；`WinHttpGetProxyForUrlEx` 异步、按顺序给出每一项和协议、可取消）、注册表监视（`WatchKey`）（`proxy_windows.go`） |
 | `internal/diag` | 只读的环境报告：`Gather` 读 Windows，`Build`（纯函数）生成报告项；凭据委派策略的判定（`delegation.go`） |
+| `internal/sysproxy` | 跟随系统代理：`Decide` 按 Windows 的规则决定一个连接走哪个代理或直连（先自动配置，取它列出的第一个走得通的项，再手动代理和例外列表；可取消），`Pick` 解析 WinINet 的代理列表，`Bypassed` 匹配例外，都是纯函数；`System`、`Watch` 是真实的 Windows |
 | `internal/localproxy` | 本机正在运行的代理（空状态里一键添加）：`Gather` 读 Windows，`Candidates`（纯函数）挑出已知代理软件的端口和系统代理，`Probe` 用 SOCKS5 握手问一个本机端口（只发问候，不设超时，由界面取消） |
 | `tests/<包名>` | Go 测试，每个被测包一个目录（如 `tests/session`），包名 `<包名>_test`，只用导出的 API；`tests/rdpfile/testdata` 是 .rdp 样本 |
 | `tests/winx`、`tests/diag` | 除了纯逻辑，还有读本机 Windows 的测试（文件版本、WMI、`diag.Gather`），只读 |
@@ -178,4 +179,11 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 - **探测本机端口不设超时**：别的协议的服务端收到 SOCKS5 问候后可能一直等下去。`localproxy.Probe` 只靠取消结束，界面在卡片消失时取消还没回答的；取消没送到时（预览版里服务端放弃了的请求取消不了），下一次 `LocalProxies` 或退出会结束上一轮的探测。只发问候、不发请求，代理不会去连任何地方；只有转发端口（dokodemo-door 之类）会把这 4 个字节转给它的固定目标。
 - **按父进程认软件时，父进程 ID 可能已被重用**：只认比子进程先启动的父进程（`winx.Process.Created`）。
 - **浏览器预览的窗格不可见时 `requestAnimationFrame` 不触发**：日志抽屉按帧合并新行，窗格没画出来时新行不会出现，截一次图（逼它画一帧）再看。
+- **「跟随系统代理」在取线路前才变成具体的代理**：会话的 route 步骤（`session.Options.Resolve`）、检查线路、测速各自先 `systemRoute`，引擎从来见不到 `kind: system`（见到会报不支持）。新增要取线路的地方也要先这样做。读不出 Windows 的代理设置时报错，不当作「没设置代理」去直连。
+- **自动代理配置可能要等很久**（脚本地址连不上时约 21 秒），所以一路传 `ctx`：会话的 route 步骤和「检查线路」一样在自己的 goroutine 里跑，停止时发 `CancelRoute`；`winx.ProxyForURL` 在 `ctx` 结束时关掉 resolver 句柄来取消。不要在 actor 里同步等它，会卡住取消和退出。
+- **旧的 `WinHttpGetProxyForUrl` 会丢掉 PAC 里的 SOCKS 项**（`SOCKS 127.0.0.1:1080; DIRECT` 读成直连），所以用 `WinHttpGetProxyForUrlEx`：它按顺序给出每一项和协议。WinHTTP 不认识 `SOCKS5` 关键字，`SOCKS5 h:p` 会读成主机名为 `5 h` 的 SOCKS 项，`sysproxy` 把它读回来；`HTTPS` 项（要用 TLS 连代理）跳过。
+- **自动配置失败的原因带代码**（`sysproxy.scriptUnavailable` 等，`Decision.ConfigCode`），界面按代码翻译，不要把 WinHTTP 的英文原文直接塞进中文句子。
+- **加进日志遮盖名单的名字要先过 `Core.mask`**：它滤掉 `localhost`、`proxy` 这类常用词和回环地址，否则日志里所有含这个词的地方（`RDP-over-proxy`、`proxy.config`）都会被遮掉。
+- **Vite 会把小于 4 KB 的资源内联成 `data:` 地址**：放进 `srcset` 时里面的逗号会被当成分隔符，浏览器挑错图。侧栏图标用 `?no-inline` 导入；它们在前端目录外（`build/icon`），开发服务器靠 `vite.config.ts` 的 `server.fs.allow` 才读得到。
+- **WinHTTP 的错误说明在 winhttp.dll 里**，Go 的 `Errno.Error()` 读不到，只会给出「winapi error #12180」：`winx` 给自动配置常见的几个错误码手写了说明。
 - **读到语言设置之前弹的框要中英双语**（`i18n.Both`，系统语言在前）：准备数据文件夹失败时 `settings.json` 可能根本还没法存在。

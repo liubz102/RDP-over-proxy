@@ -115,6 +115,14 @@ export function ShareLink(id: string): $CancellablePromise<string> {
 }
 
 /**
+ * SystemProxy returns Windows' proxy setting now, for the entry that
+ * follows it. Later changes come as EventSystemProxyChanged.
+ */
+export function SystemProxy(): $CancellablePromise<$models.SystemProxyView> {
+    return $Call.ByID(4106394157);
+}
+
+/**
  * Update stores an edited proxy, once Xray has accepted its settings. With
  * keepSecret the stored secret stays and p.Secret is ignored, so the form
  * does not need to know it; a proxy that changes its kind keeps none.

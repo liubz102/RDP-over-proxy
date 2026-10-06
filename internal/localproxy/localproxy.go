@@ -10,22 +10,21 @@ package localproxy
 
 import (
 	"cmp"
-	"net"
 	"net/netip"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
-	"unicode"
+
+	"github.com/liubz102/RDP-over-proxy/internal/sysproxy"
 )
 
 // Facts are what Candidates works from.
 type Facts struct {
 	Listeners []Listener
 	Processes []Process
-	// SystemProxy is the proxy server in the user's Internet settings while
-	// it is on, as written ("127.0.0.1:10809", "http=127.0.0.1:7890;…");
-	// empty while it is off.
+	// SystemProxy is the manual proxy server in the user's Internet
+	// settings while it is on, as written ("127.0.0.1:10809",
+	// "http=127.0.0.1:7890;…"); empty while it is off.
 	SystemProxy string
 }
 
@@ -52,7 +51,7 @@ const (
 	// which is a SOCKS5 proxy.
 	SourceProgram = "program"
 	// SourceSystem: the user's Internet settings have the port as their
-	// proxy server, which makes it an HTTP proxy.
+	// proxy server, so it is the kind they say (Candidate.Kind).
 	SourceSystem = "system"
 )
 
@@ -70,6 +69,10 @@ type Candidate struct {
 	Hosts  []string `json:"hosts"`
 	Port   int      `json:"port"`
 	Source string   `json:"source"`
+	// Kind is what the Internet settings use the port as (SourceSystem):
+	// model.KindHTTP, or model.KindSocks for their socks entry. A program's
+	// port is asked with Probe instead.
+	Kind string `json:"kind,omitempty"`
 }
 
 // apps are proxy programs that people know by name, by their lower-case
@@ -224,23 +227,27 @@ func name(p Process, procs map[uint32]Process) string {
 	return trimExe(p.Exe)
 }
 
-// system is the candidate the Internet settings name: their HTTP proxy, if
-// it is on this computer and a program other than a known proxy program
-// listens there.
+// system is the candidate the Internet settings name: the proxy server a
+// tunnel goes through (sysproxy.Pick), if it is on this computer and a
+// program other than a known proxy program listens there.
 func system(f Facts, procs map[uint32]Process) (Candidate, bool) {
-	host, port, ok := systemProxy(f.SystemProxy)
+	srv, ok := sysproxy.Pick(f.SystemProxy)
+	if !ok {
+		return Candidate{}, false
+	}
+	host, ok := loopback(srv.Host)
 	if !ok {
 		return Candidate{}, false
 	}
 	for _, l := range f.Listeners {
-		if l.Addr.Port() != port || !slices.Contains(hosts(l.Addr.Addr()), host.String()) {
+		if int(l.Addr.Port()) != srv.Port || !slices.Contains(hosts(l.Addr.Addr()), host.String()) {
 			continue
 		}
 		p, known := procs[l.PID]
 		if known && isProxyProgram(p.Exe) {
 			return Candidate{}, false
 		}
-		c := Candidate{Hosts: []string{host.String()}, Port: int(port), Source: SourceSystem}
+		c := Candidate{Hosts: []string{host.String()}, Port: srv.Port, Source: SourceSystem, Kind: srv.Kind}
 		if known {
 			c.Name = trimExe(p.Exe)
 		}
@@ -250,46 +257,14 @@ func system(f Facts, procs map[uint32]Process) (Candidate, bool) {
 	return Candidate{}, false
 }
 
-// systemProxy reads the HTTP proxy in an Internet settings proxy server:
-// the entry for http, else the one for every protocol, else the one for
-// https. It is returned only when it is on this computer.
-func systemProxy(setting string) (netip.Addr, uint16, bool) {
-	entries := map[string]string{}
-	for _, e := range strings.FieldsFunc(setting, func(r rune) bool { return r == ';' || unicode.IsSpace(r) }) {
-		if scheme, value, ok := strings.Cut(e, "="); ok {
-			entries[strings.ToLower(scheme)] = value
-		} else {
-			entries[""] = e
-		}
-	}
-	for _, scheme := range []string{"http", "", "https"} {
-		if v, ok := entries[scheme]; ok {
-			return loopback(v)
-		}
-	}
-	return netip.Addr{}, 0, false
-}
-
-// loopback parses "host:port" (or "http://host:port", as some programs
-// write it) when host is a loopback address or localhost.
-func loopback(v string) (netip.Addr, uint16, bool) {
-	if _, rest, ok := strings.Cut(v, "://"); ok {
-		v = rest
-	}
-	host, portText, err := net.SplitHostPort(strings.TrimSuffix(v, "/"))
-	if err != nil {
-		return netip.Addr{}, 0, false
-	}
-	port, err := strconv.ParseUint(portText, 10, 16)
-	if err != nil || port == 0 {
-		return netip.Addr{}, 0, false
-	}
+// loopback reads host when it is a loopback address or localhost.
+func loopback(host string) (netip.Addr, bool) {
 	if strings.EqualFold(host, "localhost") {
-		return netip.AddrFrom4([4]byte{127, 0, 0, 1}), uint16(port), true
+		return netip.AddrFrom4([4]byte{127, 0, 0, 1}), true
 	}
 	addr, err := netip.ParseAddr(host)
 	if err != nil || !addr.IsLoopback() {
-		return netip.Addr{}, 0, false
+		return netip.Addr{}, false
 	}
-	return addr.Unmap(), uint16(port), true
+	return addr.Unmap(), true
 }

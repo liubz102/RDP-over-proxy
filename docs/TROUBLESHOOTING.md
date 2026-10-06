@@ -117,9 +117,21 @@ Hyper-V、WSL、Docker 等会保留一些端口范围，程序不能在这些端
 
 写入日志前，程序会把你填写过的主机名、代理服务器地址、用户名、连接和代理的名称，以及代理的用户 ID、服务器名称（SNI）、路径、密钥等替换成 `<redacted>`，把用户目录（路径里有你的 Windows 账户名）替换成 `%USERPROFILE%`，把除本机回环地址以外的 IP 地址替换成 `<ip>`，方便附到 Issue 里。密码不会写进日志。附上之前仍请自己检查一遍。
 
+### 选了「跟随系统代理」，实际走的是哪条路
+
+按 Windows「设置 → 网络和 Internet → 代理」里的设置决定，和 Windows 自己的程序一样：
+
+1. 「自动检测设置」或「使用设置脚本」打开时，先问自动配置这台计算机走哪里，它说了算：按它列出的顺序，取第一个本程序走得通的（`PROXY`、`SOCKS`、`SOCKS5` 代理，或 `DIRECT` 直连），跳过 `HTTPS` 代理（要用 TLS 连代理本身，本程序做不到）。没检测到配置时不算出错，接着看手动设置；设置脚本下载不了、出错，或者列出的代理一个都用不了时，也接着看手动设置，会话日志里会有一条警告写明原因。自动配置要等网络应答（脚本地址连不上时可能要等二十多秒），这期间可以随时取消连接。
+2. 「使用代理服务器」打开时，经那个代理连接；但计算机在「请勿对以下列条目开头的地址使用代理服务器」的例外里（勾选「请勿将代理服务器用于本地(Intranet)地址」时，不带点的计算机名也算），就直连。
+3. 都没有就直连。
+
+每次连接时决定一次，连接期间不变；改了系统代理（比如在 v2rayN 里切换「系统代理」）后，新的连接才跟着变。会话日志里写明这次经哪个代理、或者为什么直连；「检查线路」顶部也会写，代理那一步测的就是那个代理服务器。
+
+本程序只能用 HTTP（CONNECT）和 SOCKS 代理（SOCKS 一律按 SOCKS5 连接），并且不带账号：需要用 Windows 登录（NTLM）认证的公司代理用不了，这时请在代理页另外添加一个能用的代理。读不出 Windows 的代理设置时连接会失败，而不是改为直连。
+
 ### 本机开着 v2rayN / Clash，代理页却没有提示「这台电脑上正在运行的代理」
 
-这个提示只在还没有自己的代理时出现（连接页在还没有连接时也会出现）。程序找的是正在监听端口的已知代理软件（v2rayN、Clash Verge、Clash for Windows、NekoRay、Hiddify、Shadowsocks 等，以及它们用的 xray、v2ray、sing-box、mihomo 等内核），并只列出能用 SOCKS5 应答的端口；另外，Windows 设置里的系统代理如果指向本机、又不是这些软件，会作为 HTTP 代理列出。找不到时直接在代理页「添加代理」，类型选 SOCKS5，服务器填 `127.0.0.1`，端口填那个软件设置里的本地端口（v2rayN 常见 10808，Clash 常见 7890 或 7897）。代理软件要求账号密码时，点「添加…」后填上。
+这个提示只在还没有自己的代理时出现（连接页在还没有连接时也会出现）。程序找的是正在监听端口的已知代理软件（v2rayN、Clash Verge、Clash for Windows、NekoRay、Hiddify、Shadowsocks 等，以及它们用的 xray、v2ray、sing-box、mihomo 等内核），并只列出能用 SOCKS5 应答的端口；另外，Windows 设置里的系统代理如果指向本机、又不是这些软件，会按 Windows 使用它的方式列出：一般是 HTTP 代理，设置里只有 `socks=` 一项时是 SOCKS 代理。找不到时直接在代理页「添加代理」，类型选 SOCKS5，服务器填 `127.0.0.1`，端口填那个软件设置里的本地端口（v2rayN 常见 10808，Clash 常见 7890 或 7897）。代理软件要求账号密码时，点「添加…」后填上。
 
 检测只读取端口和进程列表，再向这些本机端口发一个 SOCKS5 问候、读它选的认证方式，不发任何连接请求；代理软件的日志里可能会看到一条读不到请求的记录，这是正常的。如果你在代理软件里配了端口转发（例如 dokodemo-door 把本机端口转到某台电脑），这 4 个字节会被转给那台电脑，它只会当成一次无效的连接。只有在还没有自己的代理时才会检测。
 
@@ -265,9 +277,21 @@ You can also read it without opening a file: "View log" in the Files section of 
 
 Before writing a line, the app replaces the host names, proxy server addresses, user names and connection and proxy names you entered, and proxies' user IDs, server names (SNI), paths and keys, with `<redacted>`, your user folder (its path contains your Windows account name) with `%USERPROFILE%`, and every IP address other than this computer's loopback addresses with `<ip>`, so the log can be attached to an issue. Passwords never go into the log. Please still look it over before you attach it.
 
+### Which way does "Follow system proxy" go?
+
+As Windows' own programs do, by the setting in Settings → Network & internet → Proxy:
+
+1. With "Automatically detect settings" or "Use setup script" on, the automatic configuration is asked where to go for that computer, and its answer counts: of the ways it lists, the first one the app can take (a `PROXY`, `SOCKS` or `SOCKS5` proxy, or `DIRECT`). `HTTPS` proxies are skipped: they are spoken to over TLS, which the app can't do. Finding no configuration is no error: the manual setting decides then. So it does when a setup script can't be fetched or fails, or names no proxy the app can use, with a warning in the session log that says why. The automatic configuration waits for the network (over twenty seconds when the script's server can't be reached); you can cancel the connection meanwhile.
+2. With "Use a proxy server" on, through that proxy, unless the computer is one of the exceptions in "Use the proxy server except for addresses that start with" (with "Don't use the proxy server for local (intranet) addresses" ticked, names without a dot count too); then directly.
+3. Otherwise directly.
+
+It's decided once per connection and stays for as long as it runs; after the system proxy changes (say, switching v2rayN's system proxy), new connections follow. The session log says which proxy it went through, or why it went directly; so does the top of "Check route", whose proxy step tests that very proxy server.
+
+The app can only use HTTP (CONNECT) and SOCKS proxies (SOCKS always as SOCKS5), and without an account: a company proxy that signs in with your Windows account (NTLM) can't be used; add a proxy that works on the Proxies page instead. When Windows' proxy setting can't be read, the connection fails rather than going directly.
+
 ### v2rayN or Clash runs on this computer, but the Proxies page doesn't offer it
 
-The offer ("Proxies running on this computer") appears only while you have no proxy of your own (and on the Connections page while you have no connection). The app looks for known proxy programs that listen on a port (v2rayN, Clash Verge, Clash for Windows, NekoRay, Hiddify, Shadowsocks and others, and the cores they run, such as xray, v2ray, sing-box and mihomo) and lists only the ports that answer as SOCKS5. Windows' proxy setting, when it points to this computer and to another program, is listed as an HTTP proxy. If nothing is found, add the proxy yourself on the Proxies page: type SOCKS5, server `127.0.0.1`, and the local port from that program's settings (often 10808 for v2rayN, 7890 or 7897 for Clash). If the program wants a user name and password, choose "Add…" and enter them.
+The offer ("Proxies running on this computer") appears only while you have no proxy of your own (and on the Connections page while you have no connection). The app looks for known proxy programs that listen on a port (v2rayN, Clash Verge, Clash for Windows, NekoRay, Hiddify, Shadowsocks and others, and the cores they run, such as xray, v2ray, sing-box and mihomo) and lists only the ports that answer as SOCKS5. Windows' proxy setting, when it points to this computer and to another program, is listed the way Windows uses it: as an HTTP proxy, or as a SOCKS proxy when the setting has only a `socks=` entry. If nothing is found, add the proxy yourself on the Proxies page: type SOCKS5, server `127.0.0.1`, and the local port from that program's settings (often 10808 for v2rayN, 7890 or 7897 for Clash). If the program wants a user name and password, choose "Add…" and enter them.
 
 Looking only reads the list of ports and processes, then sends those local ports a SOCKS5 greeting and reads the sign-in method they pick; no connection request follows. The proxy program's own log may show a line about a request it couldn't read; that is expected. If the program forwards a local port (a dokodemo-door to some computer, say), those four bytes go on to that computer, which sees nothing but an invalid connection. The app looks only while you have no proxy of your own.
 

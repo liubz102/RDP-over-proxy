@@ -44,9 +44,6 @@ const useStyles = makeStyles({
     color: tokens.colorNeutralForeground3,
     marginBottom: "8px",
   },
-  emptyAction: {
-    marginTop: "12px",
-  },
   emptyBody: {
     maxWidth: "440px",
     color: tokens.colorNeutralForeground3,
@@ -81,20 +78,19 @@ export function Page({
 }
 
 /**
- * Shown when a list has nothing in it yet. compact: it follows content of
- * its own (a list's built-in entries), so it needs less room above.
+ * Shown when a list has nothing in it yet. The page's buttons stay in its
+ * header, where they always are. compact: it follows content of its own (a
+ * list's built-in entries), so it needs less room above.
  */
 export function EmptyState({
   icon,
   title,
   body,
-  action,
   compact,
 }: {
   icon: ReactElement<{ className?: string }>;
   title: string;
   body: string;
-  action?: ReactNode;
   compact?: boolean;
 }) {
   const styles = useStyles();
@@ -108,7 +104,6 @@ export function EmptyState({
       <Body1 className={styles.emptyBody} align="center">
         {body}
       </Body1>
-      {action && <div className={styles.emptyAction}>{action}</div>}
     </div>
   );
 }

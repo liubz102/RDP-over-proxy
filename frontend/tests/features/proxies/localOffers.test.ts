@@ -8,7 +8,7 @@ const program = (port: number, name = "v2rayN"): LocalCandidate => ({
   port,
   source: "program",
 });
-const system: LocalCandidate = { name: "Fiddler", hosts: ["127.0.0.1"], port: 8888, source: "system" };
+const system: LocalCandidate = { name: "Fiddler", hosts: ["127.0.0.1"], port: 8888, source: "system", kind: "http" };
 
 describe("offerOf", () => {
   it("offers a program's port once it answered as SOCKS5, at the address that answered", () => {
@@ -26,7 +26,7 @@ describe("offerOf", () => {
     expect(offerOf(1, program(1080), { socks5: true, password: true, host: "127.0.0.1" })?.password).toBe(true);
   });
 
-  it("offers the proxy in Windows' settings as HTTP, without asking", () => {
+  it("offers the proxy in Windows' settings as Windows uses it, without asking", () => {
     expect(offerOf(2, system)).toEqual({
       order: 2,
       program: "Fiddler",
@@ -36,6 +36,8 @@ describe("offerOf", () => {
       password: false,
       system: true,
     });
+    // The settings' socks entry.
+    expect(offerOf(2, { ...system, port: 1080, kind: "socks" })?.kind).toBe("socks");
     expect(offerOf(2, { ...system, hosts: null })).toBeNull();
   });
 });

@@ -35,8 +35,9 @@ type Sealer interface {
 // Errors from Data.
 var (
 	ErrNotFound = errcode.New("store.notFound", "it no longer exists")
-	// ErrBuiltIn: the direct entry is built in and cannot be changed.
-	ErrBuiltIn = errcode.New("store.builtIn", "the direct connection is built in and cannot be changed")
+	// ErrBuiltIn: the built-in entries (direct, and following the system
+	// proxy) cannot be changed.
+	ErrBuiltIn = errcode.New("store.builtIn", "the entry is built in and cannot be changed")
 	// ErrWrite labels a failure to write or delete a file.
 	ErrWrite = errcode.New("store.writeFailed", "the file could not be saved")
 
@@ -159,7 +160,7 @@ func (d *Data) loadEach(folder string, f func(id, rel string, data []byte) []Pro
 			continue
 		}
 		id, ok := strings.CutSuffix(name, ".json")
-		if !ok || !model.ValidID(id) || id == model.DirectProxyID {
+		if _, builtIn := model.BuiltInProxy(id); !ok || !model.ValidID(id) || builtIn {
 			continue // not one of ours
 		}
 		rel := filepath.Join(folder, name)
@@ -233,8 +234,8 @@ func (d *Data) decodeProxy(id, rel string, data []byte) (*model.Proxy, []Problem
 		d.lost[id] = true
 	}
 	p = p.Normalize()
-	if p.Kind == model.KindDirect {
-		return nil, nil // only the built-in entry is direct
+	if model.BuiltInKind(p.Kind) {
+		return nil, nil // only the built-in entries are direct or follow the system
 	}
 	if err := p.Validate(); err != nil {
 		problems = append(problems, Problem{File: rel, Code: ProblemInvalid, Err: err})
@@ -322,11 +323,11 @@ func (d *Data) SecretsLost(id string) bool {
 	return d.lost[id]
 }
 
-// Proxy returns the proxy with the given ID; model.DirectProxyID gives the
-// built-in direct entry.
+// Proxy returns the proxy with the given ID; model.DirectProxyID and
+// model.SystemProxyID give the built-in entries.
 func (d *Data) Proxy(id string) (model.Proxy, bool) {
-	if id == model.DirectProxyID {
-		return model.DirectProxy(), true
+	if p, ok := model.BuiltInProxy(id); ok {
+		return p, true
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -369,7 +370,7 @@ func (d *Data) CreateProxy(p model.Proxy) (model.Proxy, error) {
 func (d *Data) UpdateProxy(p model.Proxy) (model.Proxy, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if p.ID == model.DirectProxyID {
+	if _, builtIn := model.BuiltInProxy(p.ID); builtIn {
 		return model.Proxy{}, ErrBuiltIn
 	}
 	if _, ok := d.proxies[p.ID]; !ok {
@@ -380,7 +381,7 @@ func (d *Data) UpdateProxy(p model.Proxy) (model.Proxy, error) {
 
 func (d *Data) saveProxy(p model.Proxy) (model.Proxy, error) {
 	p = p.Normalize()
-	if p.Kind == model.KindDirect {
+	if model.BuiltInKind(p.Kind) {
 		return model.Proxy{}, model.FieldErrors{{Field: "kind", Code: model.CodeUnsupported}}
 	}
 	if err := p.Validate(); err != nil {
@@ -420,7 +421,7 @@ func (d *Data) saveProxy(p model.Proxy) (model.Proxy, error) {
 func (d *Data) DeleteProxy(id string, moveToDirect []string) (moved []string, err error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if id == model.DirectProxyID {
+	if _, builtIn := model.BuiltInProxy(id); builtIn {
 		return nil, ErrBuiltIn
 	}
 	if _, ok := d.proxies[id]; !ok {
@@ -539,11 +540,12 @@ func (d *Data) saveProfile(p model.Profile) (model.Profile, error) {
 	return p, nil
 }
 
-// hasProxy reports whether id is a stored proxy or the direct entry. The
+// hasProxy reports whether id is a stored proxy or a built-in entry. The
 // caller holds d.mu.
 func (d *Data) hasProxy(id string) bool {
 	_, ok := d.proxies[id]
-	return ok || id == model.DirectProxyID
+	_, builtIn := model.BuiltInProxy(id)
+	return ok || builtIn
 }
 
 func (d *Data) writeProfile(p model.Profile) error {
@@ -582,8 +584,10 @@ func removeFile(path string) error {
 // newID returns a new random ID that exists does not report as taken.
 func newID(exists func(string) bool) string {
 	for {
-		if id := model.NewID(); !exists(id) && id != model.DirectProxyID {
-			return id
+		if id := model.NewID(); !exists(id) {
+			if _, builtIn := model.BuiltInProxy(id); !builtIn {
+				return id
+			}
 		}
 	}
 }

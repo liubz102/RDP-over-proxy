@@ -29,6 +29,7 @@ declare module "@wailsio/runtime" {
             "session:log": logging$0.Line;
             "sessions:changed": api$0.SessionView;
             "settings:changed": model$0.Settings;
+            "systemProxy:changed": api$0.SystemProxyView;
         }
     }
 }

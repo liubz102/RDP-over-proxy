@@ -56,7 +56,7 @@ func TestParseTargetRejects(t *testing.T) {
 		"[2001:db8::1]:",
 		"[example.com]:3389", // brackets are only for IPv6
 		"[192.0.2.1]",
-		"10.0.0.256",
+		"192.0.2.256",
 		"exa mple.com",
 		"0.0.0.0",
 		"[::]:3389",
@@ -79,7 +79,7 @@ func TestValidHost(t *testing.T) {
 	}
 	invalid := []string{
 		"", ".", "..", "a..b", "-example.com", "example-.com", "exa mple.com", "例子.com",
-		"10.0.0.256", "1.2.3", "123", "0.0.0.0", "::", "224.0.0.1", "ff02::1", "fe80::1%eth0",
+		"192.0.2.256", "1.2.3", "123", "0.0.0.0", "::", "224.0.0.1", "ff02::1", "fe80::1%eth0",
 		"[2001:db8::1]", "example.com:3389",
 	}
 	for _, h := range invalid {
