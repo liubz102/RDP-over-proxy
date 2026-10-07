@@ -1,10 +1,12 @@
 //go:build ignore
 
-// Release checks the version the project's files carry and packs a build:
+// Release reads the version, which is written only in build/config.yml, and
+// makes releases:
 //
-//	go run tools/release/main.go                       lists where the version is written; fails when they differ
-//	go run tools/release/main.go -tag v1.2.3           checks a release tag against them
+//	go run tools/release/main.go                       says the version and where it is written
+//	go run tools/release/main.go -tag v1.2.3           checks a release tag against it
 //	go run tools/release/main.go -print-version [-tag v1.2.3]
+//	go run tools/release/main.go -stamp <dir>          writes the Windows resources' inputs with the version
 //	go run tools/release/main.go -pack -version 1.2.3 -exe <exe> -out <dir>
 //
 // With -tag alone it writes, for the release workflow's step outputs,
@@ -12,11 +14,10 @@
 //	version=1.2.3
 //	prerelease=false
 //
-// -print-version writes only the version a release is named by: the tag's
-// without the "v", or the files' when there is no tag. -pack writes the zip,
-// the notices and SHA256SUMS.txt into the folder (release.Pack). `wails3 task
-// release` runs them all. It never changes a version: that is the owner's
-// decision.
+// -print-version writes only the version: the tag's without the "v", or the
+// file's when there is no tag. The build uses -print-version and -stamp;
+// `wails3 task release` runs the rest. It never changes the version: that is
+// the owner's decision, made in build/config.yml.
 package main
 
 import (
@@ -31,7 +32,8 @@ import (
 
 func main() {
 	tag := flag.String("tag", "", "the release tag to check (v1.2.3 or v1.2.3-beta.1)")
-	printVersion := flag.Bool("print-version", false, "write only the version a release is named by")
+	printVersion := flag.Bool("print-version", false, "write only the version")
+	stamp := flag.String("stamp", "", "write info.json and wails.exe.manifest with the version into this folder")
 	pack := flag.Bool("pack", false, "pack a build into -out")
 	version := flag.String("version", "", "with -pack: the version the zip is named by")
 	exe := flag.String("exe", "bin/RDP-over-proxy.exe", "with -pack: the built program")
@@ -60,36 +62,29 @@ func main() {
 		return
 	}
 
-	places, err := release.Places(".")
+	v, err := release.Version(".")
 	if err != nil {
 		fail(err)
 	}
 	switch {
-	case *printVersion && *tag == "":
-		v, err := release.Version(places)
-		if err != nil {
+	case *stamp != "":
+		if err := release.Stamp(".", *stamp, v); err != nil {
 			fail(err)
 		}
-		fmt.Println(v)
-	case *printVersion:
-		v, _, err := release.Check(*tag, places)
-		if err != nil {
-			fail(err)
-		}
-		fmt.Println(v)
 	case *tag != "":
-		v, prerelease, err := release.Check(*tag, places)
+		named, prerelease, err := release.Check(*tag, v)
 		if err != nil {
 			fail(err)
 		}
-		fmt.Printf("version=%s\nprerelease=%t\n", v, prerelease)
+		if *printVersion {
+			fmt.Println(named)
+		} else {
+			fmt.Printf("version=%s\nprerelease=%t\n", named, prerelease)
+		}
+	case *printVersion:
+		fmt.Println(v)
 	default:
-		for _, p := range places {
-			fmt.Printf("%-12s %s (%s)\n", p.Version, p.File, p.Where)
-		}
-		if _, err := release.Version(places); err != nil {
-			fail(err)
-		}
+		fmt.Printf("%s (%s, info.version)\n", v, release.ConfigFile)
 	}
 }
 

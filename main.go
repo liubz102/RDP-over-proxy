@@ -11,10 +11,10 @@ import (
 	"github.com/liubz102/RDP-over-proxy/internal/app"
 )
 
-// version is the application version. Release builds set it with
-// -ldflags "-X main.version=<tag>"; the default is the version the project
-// owner chose. Do not change it without the owner's say-so.
-var version = "0.1.0"
+// version is the application version. The build sets it with
+// -ldflags "-X main.version=..." from build/config.yml, the one place the
+// version is written (or from a release tag). A plain go build leaves "dev".
+var version = "dev"
 
 // assets is the built frontend. Wails serves it to the window.
 //

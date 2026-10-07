@@ -4,7 +4,7 @@
 
 Run Windows' built-in Remote Desktop (mstsc) through a proxy: SOCKS5 and HTTP, plus VMess, VLESS, Trojan, Shadowsocks and Hysteria2.
 
-> **In development:** this is the 0.1.0 preview. It already connects Remote Desktop through SOCKS5, HTTP and V2Ray-family proxies, imports `.rdp` files and shows environment diagnostics; the release process is ready, but there is no release yet. See [docs/PROGRESS.md](docs/PROGRESS.md) for progress.
+> **In development:** this is a preview. It already connects Remote Desktop through SOCKS5, HTTP and V2Ray-family proxies, imports `.rdp` files and shows environment diagnostics; the release process is ready, but there is no release yet. See [docs/PROGRESS.md](docs/PROGRESS.md) for progress.
 
 ## Why
 

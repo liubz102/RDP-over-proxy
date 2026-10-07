@@ -36,7 +36,8 @@ jobs:
           $unformatted = gofmt -l .
           if ($unformatted) { "Not formatted with gofmt:"; $unformatted; exit 1 }
           go mod tidy -diff
-          # Every file that carries the version says the same (tools/release).
+          # build/config.yml has a version Windows can take, and the files that
+          # used to repeat it do not (tools/release, tests/release).
           go run tools/release/main.go
 
       - name: Frontend checks

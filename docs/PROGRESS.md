@@ -416,6 +416,14 @@ V2Ray 系协议全部可用：VMess、VLESS（含 REALITY、Vision、VLESS Encry
 - 发布的文件：免安装的 zip（里面是 `RDP-over-proxy` 文件夹：exe、`LICENSE.txt`、`THIRD_PARTY_NOTICES.txt`）；单独一份 `THIRD_PARTY_NOTICES.txt`；`SHA256SUMS.txt`（`sha256sum -c` 能读的格式）。说明里写了怎么用、怎么验证。
 - 版本：程序显示的版本用 `-X main.version=<标签的版本>` 写进去（Taskfile 新增的 `VERSION` 变量，不传时不变），Windows 的文件版本仍来自 `info.json`。预发布标签时程序显示 `0.2.0-rc.1`，文件版本是 `0.2.0`。
 
+**版本号只写在一处**（2026-10-08，你的要求）
+- 只在 `build/config.yml` 的 `info.version`，格式是纯数字的 `主.次.修订`（Windows 的文件版本只认数字；预发布后缀写在标签上）。数字没动，仍是 0.1.0。
+- 其他地方改为构建时生成：程序显示的版本用 `-X main.version` 写进去，桌面版、预览版、开发构建都是（`main.go` 里是 `dev`，只有不经 Taskfile 直接 `go build` 才看得到）；Windows 资源用的 `info.json`、manifest 去掉了版本号，构建时由 `tools/release -stamp` 生成带版本号的副本到 `build/windows/stamped/`（被忽略）；前端 `package.json` 和锁文件去掉了 `version`（私有包用不上）。
+- `tests/release` 的 `TestOnePlace` 检查这几个文件不再写版本号；`go run tools/release/main.go` 读出并检查版本号。打出来的 exe：文件属性的文件版本、产品版本都是 0.1.0，程序里显示 0.1.0。
+- 注意：`wails3 task common:update:build-assets` 会把版本号写回 `info.json` 和 manifest，跑过之后要去掉。
+
+**双击打包**（2026-10-08，你的要求）：仓库根目录的 `build-release.bat`（纯 ASCII 的一行壳，中文提示在 `build-release.ps1`，UTF-8 带 BOM、CRLF）。它补好 Go、wails3 的 PATH，检查 go、wails3、npm 都在，运行 `wails3 task release`，成功后列出文件并打开 `release\<版本>\`，最后等你按回车再关窗口；失败时指出看第一条报错。`build-release.bat -Tag v0.2.0-rc.1` 先核对标签。
+
 **本机一键打包**（2026-10-08，你问自己怎么发版本）
 - `wails3 task release`（或 `wails3 task release TAG=v0.2.0`，先核对标签再按它命名）：核对版本号 → `npm ci` → 前端类型检查和测试 → 构建到 `release\<版本>uild`（不碰 `bin\`，你正在用的那份可能在运行）→ `go vet`、Go 测试 → 在 `release\<版本>\` 写出 zip、`THIRD_PARTY_NOTICES.txt`、`SHA256SUMS.txt`。工作区有没提交的改动时提醒一句。
 - 打包写成了 Go（`release.Pack`，`tools/release/main.go -pack`），有测试；GitHub 的 Release 工作流改为直接运行这个任务，所以本机和 GitHub 打出来的包是同一套做法。`/release/` 加进了 `.gitignore`（只忽略仓库根的）。
@@ -545,6 +553,7 @@ V2Ray 系协议全部可用：VMess、VLESS（含 REALITY、Vision、VLESS Encry
 | 2026-10-07 | M9 改为 GPL-3.0-or-later 之后：`gofmt`、`go vet ./...`（含 `-tags server`）、`go mod tidy -diff`、版本号核对、`go test ./...` 全量；前端 `tsc`、`vitest` | 全部通过（tests/notices 新增「本程序自己的许可证」一项；前端 16 个文件 109 项）。`LICENSE` 和 FSF 的原文逐字节相同 |
 | 2026-10-07 | M9 改为 GPL 之后的浏览器预览（`data\preview`，1040×680，中文） | 「关于」：「开源许可  GPL-3.0-or-later · 许可证全文和第三方组件」，下面是版权和「自由软件、不提供任何担保」的声明、Xray-core 那句；点链接打开「许可证和第三方组件」抽屉，开头是版权行和 GPL 的中英文声明 |
 | 2026-10-07 | 删掉安装包之后：`gofmt`、`go vet ./...`（含 `-tags server`）、`go mod tidy -diff`、版本号核对（10 处一致）、`go test ./...` 全量；前端 `tsc`、`vitest`；桌面版构建到草稿目录 | 全部通过；前端 16 个文件 109 项；构建照常生成声明，exe 36.97 MB；`wails3 task --list` 里已没有打包任务 |
+| 2026-10-08 | 版本号只写一处之后：`wails3 task release`（经 `build-release.bat -NoPause` 运行），`go vet`、Go 全量测试在其中；tests/release 改为 5 项（`TestOnePlace`、`TestVersion`、`TestCheck`、`TestStamp`、`TestPack`） | 全部通过。exe 的文件版本、产品版本 0.1.0，链接参数里 `-X main.version=0.1.0`；`build-release.bat -Tag v9.9.9` 立即报「版本号不对」并退出 1，中文显示正常；bat 是纯 ASCII + CRLF（字节数减字符数为 0），ps1 是 UTF-8 带 BOM + CRLF。双击时的「按回车关闭」和打开文件夹没有实测（自测用 `-NoPause` 跳过） |
 | 2026-10-08 | 本机一键打包：`wails3 task release`；tests/release 新增 `TestPack` | 通过，约 2 分钟。`release\0.1.0\` 里是 zip（14.3 MB，内含 `RDP-over-proxy\` 文件夹：exe、LICENSE.txt、THIRD_PARTY_NOTICES.txt）、声明、SHA256SUMS.txt，`sha256sum -c` 核对通过；`bin\` 里的 exe 没动；`release\` 不出现在 git 状态里 |
 | 2026-10-07 | M9：CI 的新检查、`-race`、Release 工作流 | **还没运行过**：要推送后才会跑 |
 
@@ -716,6 +725,8 @@ M4 原生自测（数据目录在临时文件夹，预置一个损坏的代理�
 
 | 日期 | 决定 | 原因 | 放弃的方案 |
 |---|---|---|---|
+| 2026-10-08 | 版本号只写在 `build/config.yml`，其余在构建时生成（你的要求） | 改版本号只改一行；原来 10 处要靠工具核对是否一致 | 保留多处、由工具检查一致（之前的做法）；单独一个 `VERSION` 文件（`build/config.yml` 本来就是 Wails 放版本号的地方） |
+| 2026-10-08 | 双击打包用 bat 壳加同名 ps1（你的要求） | 双击就能跑；bat 只放一行纯 ASCII，避免 cmd 按字节回读中文的错位（全局规则） | 中文写在 bat 里 |
 | 2026-10-07 | 不做安装包，只发免安装的 zip（你的决定） | 程序是一个 exe，数据放在 exe 旁边，天生免安装；安装包多出的几样（自动装 WebView2、开始菜单、卸载项）意义不大，装进 Program Files 还要多一次 UAC；少一套 NSIS 脚本要维护，用户也不用挑下哪个 | NSIS 安装包加便携 zip 两种都发（已做好并试装过，删掉了）；MSIX |
 | 2026-10-07 | 整个项目改用 GPL-3.0-or-later（用户决定） | Xray-core 链接了 GPL-3.0-or-later 的 sing、sing-shadowsocks（传输层也用，去不掉），发布的程序整体只能按 GPL 分发；整个项目用同一个许可证说法最简单；「或更新的版本」和 sing 一致，也是 FSF 推荐的写法 | 源代码保持 MIT、只说明发布的程序整体按 GPL 分发（建议过的方案）；GPL-3.0-only |
 | 2026-10-07 | 不另附「源代码加全部依赖」的压缩包（用户决定） | 第三方声明里每个组件都有确切版本的源代码下载地址，GitHub 会给每个标签附源代码 | 每次发布附 `go mod vendor` 和前端用到的 npm 包（每版多几十 MB） |

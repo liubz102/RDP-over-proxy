@@ -59,10 +59,15 @@ tasks:
       - cmd: rm -f *.syso
         platforms: [linux, darwin]
     vars:
-      # VERSION (the release workflow passes the tag's version) is what the
-      # program says it is; it defaults to main.version. Windows' file
-      # version comes from build/windows/info.json.
-      BUILD_FLAGS: '{{if eq .DEV "true"}}{{if or .EXTRA_TAGS (eq .OBFUSCATED "true")}}-tags {{if eq .OBFUSCATED "true"}}wails_obfuscated{{if .EXTRA_TAGS}},{{end}}{{end}}{{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production{{if eq .OBFUSCATED "true"}},wails_obfuscated{{end}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s -H windowsgui{{if .VERSION}} -X main.version={{.VERSION}}{{end}}"{{end}}'
+      # The version is written only in build/config.yml. VERSION, when given
+      # (a release passes its tag's, perhaps with a pre-release), is what the
+      # program calls itself instead; Windows' file version is always the
+      # file's (generate:syso). The empty GOOS and GOARCH run the tool on this
+      # computer, not the build's target.
+      FILE_VERSION:
+        sh: GOOS= GOARCH= CGO_ENABLED= go run tools/release/main.go -print-version
+      APP_VERSION: '{{.VERSION | default .FILE_VERSION}}'
+      BUILD_FLAGS: '{{if eq .DEV "true"}}{{if or .EXTRA_TAGS (eq .OBFUSCATED "true")}}-tags {{if eq .OBFUSCATED "true"}}wails_obfuscated{{if .EXTRA_TAGS}},{{end}}{{end}}{{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l" -ldflags="-X main.version={{.APP_VERSION}}"{{else}}-tags production{{if eq .OBFUSCATED "true"}},wails_obfuscated{{end}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s -H windowsgui -X main.version={{.APP_VERSION}}"{{end}}'
     env:
       GOOS: windows
       CGO_ENABLED: '{{.CGO_ENABLED | default "0"}}'
@@ -72,9 +77,18 @@ tasks:
     summary: Generates Windows `.syso` file
     dir: build
     cmds:
-      - wails3 generate syso -arch {{.ARCH}} -icon windows/icon.ico -manifest windows/wails.exe.manifest -info windows/info.json -out ../wails_windows_{{.ARCH}}.syso
+      - task: stamp
+      - wails3 generate syso -arch {{.ARCH}} -icon windows/icon.ico -manifest windows/stamped/wails.exe.manifest -info windows/stamped/info.json -out ../wails_windows_{{.ARCH}}.syso
     vars:
       ARCH: '{{.ARCH | default ARCH}}'
+
+  # info.json and wails.exe.manifest carry no version; the copies the
+  # resources are made from get the one in build/config.yml (git-ignored).
+  stamp:
+    summary: Writes build/windows/stamped with the version from build/config.yml
+    internal: true
+    cmds:
+      - GOOS= GOARCH= CGO_ENABLED= go run tools/release/main.go -stamp build/windows/stamped
 
   run:
     cmds:

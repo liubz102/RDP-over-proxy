@@ -4,7 +4,7 @@
 
 让 Windows 自带的远程桌面（mstsc）走代理：支持 SOCKS5、HTTP，以及 VMess、VLESS、Trojan、Shadowsocks、Hysteria2。
 
-> **开发中**：当前处于 0.1.0 预览阶段。已经可以经 SOCKS5、HTTP 和 V2Ray 系代理连接远程桌面，也能导入 .rdp 文件、查看环境诊断；发布流程已经就绪，还没有发布第一个版本。进度见 [docs/PROGRESS.md](docs/PROGRESS.md)。
+> **开发中**：当前是预览版。已经可以经 SOCKS5、HTTP 和 V2Ray 系代理连接远程桌面，也能导入 .rdp 文件、查看环境诊断；发布流程已经就绪，还没有发布第一个版本。进度见 [docs/PROGRESS.md](docs/PROGRESS.md)。
 
 ## 为什么需要它
 

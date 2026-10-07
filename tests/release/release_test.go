@@ -6,61 +6,87 @@ import (
 	"archive/zip"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 )
 
-// The repository's own files agree on one version, whatever it is: a change
-// of version has to reach every place (the owner changes it, everywhere).
-func TestRepositoryAgrees(t *testing.T) {
-	places, err := Places(filepath.Join("..", ".."))
+const repo = "../.."
+
+// The version is written in build/config.yml and nowhere else: the files
+// that used to repeat it carry none, so changing it is a one-line edit.
+func TestOnePlace(t *testing.T) {
+	v, err := Version(repo)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(places) != 10 {
-		t.Errorf("found the version in %d places, want 10: %+v", len(places), places)
+	read := func(name string) string {
+		data, err := os.ReadFile(filepath.Join(repo, filepath.FromSlash(name)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(data)
 	}
-	if _, err := Version(places); err != nil {
-		t.Error(err)
+	for _, name := range []string{"build/windows/info.json", "build/windows/wails.exe.manifest", "frontend/package.json", "main.go"} {
+		if strings.Contains(read(name), `"`+v+`"`) || strings.Contains(read(name), `"`+v+`.0"`) {
+			t.Errorf("%s carries the version %s; build/config.yml should be the only place", name, v)
+		}
+	}
+	var pkg map[string]any
+	if err := json.Unmarshal([]byte(read("frontend/package.json")), &pkg); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := pkg["version"]; ok {
+		t.Error("frontend/package.json has a version")
+	}
+	var lock struct {
+		Version  *string
+		Packages map[string]struct{ Version *string }
+	}
+	if err := json.Unmarshal([]byte(read("frontend/package-lock.json")), &lock); err != nil {
+		t.Fatal(err)
+	}
+	if lock.Version != nil || lock.Packages[""].Version != nil {
+		t.Error("frontend/package-lock.json has the package's version")
 	}
 }
 
-// files is a repository with every place that carries the version.
-func files(t *testing.T, version, manifest string) string {
+// config is a repository with build/config.yml saying version.
+func config(t *testing.T, version string) string {
 	t.Helper()
 	root := t.TempDir()
-	write := func(name, text string) {
-		p := filepath.Join(root, filepath.FromSlash(name))
-		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(p, []byte(text), 0o644); err != nil {
-			t.Fatal(err)
-		}
+	p := filepath.Join(root, "build", "config.yml")
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
 	}
-	v := version
-	write("build/config.yml", "version: '3'\n\ninfo:\n  productName: \"Example\"\n  version: \""+v+"\" # decided by the owner\n")
-	write("build/windows/info.json", `{"fixed": {"file_version": "`+v+`", "product_version": "`+v+`"}, "info": {"0409": {"ProductVersion": "`+v+`", "FileVersion": "`+v+`"}}}`)
-	write("build/windows/wails.exe.manifest", `<assembly><assemblyIdentity type="win32" name="io.github.liubz102.rdp-over-proxy" version="`+manifest+`" processorArchitecture="*"/>
-<dependency><assemblyIdentity type="win32" name="Microsoft.Windows.Common-Controls" version="6.0.0.0"/></dependency></assembly>`)
-	write("frontend/package.json", `{"name": "example", "version": "`+v+`"}`)
-	write("frontend/package-lock.json", `{"name": "example", "version": "`+v+`", "packages": {"": {"name": "example", "version": "`+v+`"}}}`)
-	write("main.go", "package main\n\nvar version = \""+v+"\"\n")
+	text := "version: '3'\n\ninfo:\n  productName: \"Example\"\n  version: \"" + version + "\" # decided by the owner\n"
+	if err := os.WriteFile(p, []byte(text), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	return root
 }
 
+func TestVersion(t *testing.T) {
+	if v, err := Version(config(t, "1.2.3")); v != "1.2.3" || err != nil {
+		t.Errorf("Version = %q, %v", v, err)
+	}
+	// Windows' file version holds numbers only; a pre-release goes on the tag.
+	for _, bad := range []string{"1.2", "1.2.3-beta.1", "v1.2.3", ""} {
+		if _, err := Version(config(t, bad)); err == nil {
+			t.Errorf("Version accepted %q", bad)
+		}
+	}
+	if _, err := Version(t.TempDir()); err == nil {
+		t.Error("Version without build/config.yml")
+	}
+}
+
 func TestCheck(t *testing.T) {
-	places, err := Places(files(t, "1.2.3", "1.2.3.0"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if v, err := Version(places); v != "1.2.3" || err != nil {
-		t.Fatalf("Version = %q, %v (a manifest's fourth part of 0 is the same version)", v, err)
-	}
 	cases := []struct {
 		tag, version string
 		prerelease   bool
@@ -68,13 +94,13 @@ func TestCheck(t *testing.T) {
 	}{
 		{"v1.2.3", "1.2.3", false, ""},
 		{"v1.2.3-beta.1", "1.2.3-beta.1", true, ""},
-		{"v1.2.4", "", false, "not the version the files carry, 1.2.3"},
+		{"v1.2.4", "", false, "is not the version in build/config.yml, 1.2.3"},
 		{"1.2.3", "", false, "is not v<major>.<minor>.<patch>"},
 		{"v1.2", "", false, "is not v<major>.<minor>.<patch>"},
 		{"v1.2.3-", "", false, "is not v<major>.<minor>.<patch>"},
 	}
 	for _, c := range cases {
-		version, prerelease, err := Check(c.tag, places)
+		version, prerelease, err := Check(c.tag, "1.2.3")
 		switch {
 		case c.problem == "" && (err != nil || version != c.version || prerelease != c.prerelease):
 			t.Errorf("Check(%q) = %q, %v, %v; want %q, %v", c.tag, version, prerelease, err, c.version, c.prerelease)
@@ -84,30 +110,40 @@ func TestCheck(t *testing.T) {
 	}
 }
 
-// A version changed in one place only is caught, and the error says where
-// each version is written.
-func TestFilesDisagree(t *testing.T) {
-	root := files(t, "1.2.3", "1.2.3")
-	if err := os.WriteFile(filepath.Join(root, "main.go"), []byte("package main\n\nvar version = \"1.3.0\"\n"), 0o644); err != nil {
+// Stamp gives the repository's own info.json and manifest the version: the
+// fixed file and product versions, every string table's, and the app's
+// assembly (not the Common Controls one it depends on).
+func TestStamp(t *testing.T) {
+	out := t.TempDir()
+	if err := Stamp(repo, out, "1.2.3"); err != nil {
 		t.Fatal(err)
 	}
-	places, err := Places(root)
+	data, err := os.ReadFile(filepath.Join(out, "info.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = Check("v1.3.0", places)
-	if err == nil || !strings.Contains(err.Error(), "1.3.0: main.go (version)") || !strings.Contains(err.Error(), "1.2.3: build/config.yml (info.version)") {
-		t.Fatalf("Check = %v, want the places of each version", err)
+	var info struct {
+		Fixed struct{ File_version, Product_version string }
+		Info  map[string]map[string]string
 	}
-}
-
-func TestPlaceMissing(t *testing.T) {
-	root := files(t, "1.2.3", "1.2.3")
-	if err := os.WriteFile(filepath.Join(root, "frontend", "package.json"), []byte(`{"name": "example"}`), 0o644); err != nil {
+	if err := json.Unmarshal(data, &info); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Places(root); err == nil || !strings.Contains(err.Error(), "frontend/package.json: no version") {
-		t.Fatalf("Places = %v, want it to say the version is missing", err)
+	if info.Fixed.File_version != "1.2.3" || info.Fixed.Product_version != "1.2.3" || len(info.Info) == 0 {
+		t.Errorf("stamped info.json: %s", data)
+	}
+	for lang, table := range info.Info {
+		if table["FileVersion"] != "1.2.3" || table["ProductVersion"] != "1.2.3" || table["ProductName"] != "RDP over Proxy" {
+			t.Errorf("string table %s: %v", lang, table)
+		}
+	}
+	manifest, err := os.ReadFile(filepath.Join(out, "wails.exe.manifest"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := regexp.MustCompile(`<assemblyIdentity[^>]*>`).FindAllString(string(manifest), -1)
+	if len(ids) != 2 || !strings.Contains(ids[0], `name="io.github.liubz102.rdp-over-proxy" version="1.2.3.0"`) || !strings.Contains(ids[1], `version="6.0.0.0"`) {
+		t.Errorf("stamped manifest identities: %q", ids)
 	}
 }
 

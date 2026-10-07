@@ -53,7 +53,8 @@
 | `tests/testutil` | 测试共用：假 RDP 服务端；替身进程（`RunHelper` / `HelperCommand`，其中 `HelperTitledWindows` 有三个带标题的窗口，测窗口标题用；`HelperSocks` 扮演代理软件，配 `HelperCommandNamed` 以 `xray.exe` 等文件名运行）；`FreePort`。只能被测试引用 |
 | `tests/testutil/xraytest` | 测试用：进程内的 Xray 代理服务端，SOCKS / HTTP 和 V2Ray 系各协议、各传输、TLS / REALITY。按客户端设置起对应的服务端，`Model` 填上证书指纹和 REALITY 公钥。单独成包，只有需要的测试才链接 Xray |
 | `tools/notices` | 第三方声明：构建时生成 `frontend/dist/THIRD_PARTY_NOTICES.txt`（exe 内嵌，「设置 → 关于」里能看），同时检查许可证，认不出、没有、不允许的都让构建失败。库在包里（测试在 `tests/notices`），`main.go`（`//go:build ignore`）是构建运行的命令，许可证策略（允许的许可证、逐个审查过的 copyleft 组件）也在里面；`GPL-3.0.txt` 是 FSF 发布的原文，测试核对哈希 |
-| `tools/release` | 核对版本号：读出所有写着版本号的文件，检查是否一致、发布标签是否与之相符；只读不写（测试在 `tests/release`） |
+| `tools/release` | 版本号和发布：从 `build/config.yml` 读版本号（唯一的一处）、核对发布标签、给 Windows 资源生成带版本号的 `info.json` 和 manifest（`Stamp`）、打 zip（`Pack`）；从不改版本号（测试在 `tests/release`） |
+| `build-release.bat`、`build-release.ps1` | 双击打发布包（`wails3 task release`），结果在 `release\<版本>\` |
 | `frontend/plugins` | Vite 插件 `bundledPackages`：报告真正打进包的 npm 包（`dist/.vite/bundled-packages.json`），给第三方声明用；`packageFolder.ts` 是纯函数 |
 | `frontend/src` | `app/`（外壳、主题、首次语言选择）、`features/`、`components/`、`stores/`、`locales/` |
 | `frontend/tests` | 前端测试（vitest），目录结构和 `frontend/src`、`frontend/plugins` 对应 |
@@ -79,10 +80,10 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
   - Go 全量检查：`go vet ./...`。`main` 包嵌入了 `frontend/dist`，所以要先构建一次前端
   - 前端：`npm --prefix frontend run typecheck`、`npm --prefix frontend test`
 - **第三方声明**：构建时自动生成（在前端之后、exe 之前）。单独生成：先构建前端（`npm --prefix frontend run build`），再 `go run tools/notices/main.go`。
-- **版本号**：`go run tools/release/main.go` 列出所有写着版本号的地方并检查是否一致；`-tag v1.2.3` 核对发布标签。
+- **版本号**：只在 `build/config.yml`。`go run tools/release/main.go` 读出并检查它；`-tag v1.2.3` 核对发布标签。
 - **不做安装包**（用户决定，2026-10-07）：程序免安装，发布的是 zip。Wails 模板里的 NSIS、MSIX 文件和相关任务已删掉；`wails3 task common:update:build-assets` 会重新生成 `build/windows/nsis/wails_tools.nsh`，删掉即可（它和 `info.json` 一样会被覆盖，见下面的坑）。
 - **发布**：用户推送版本标签 `v<版本>`（或 `v<版本>-<预发布>`）后，Release 工作流建草稿 Release，用户检查后手动发布。推标签是用户的事。
-- **本机打包**：`wails3 task release [TAG=v1.2.3]`（工作流跑的也是它）：检查、测试、构建到 `release\<版本>\build`（不碰 `bin\`），再由 `go run tools/release/main.go -pack` 写出 `release\<版本>\` 里的 zip、声明和 `SHA256SUMS.txt`。`/release/` 被 git 忽略（只忽略仓库根的，`tools/release` 不受影响）。约 2 分钟，会先 `npm ci` 重装前端依赖。
+- **本机打包**：用户双击仓库根的 `build-release.bat`（纯 ASCII 的壳，提示和逻辑在同名 `.ps1`，UTF-8 带 BOM + CRLF；`-Tag v1.2.3` 核对标签，`-NoPause` 不等按键也不打开文件夹，自测用）。它补好 Go 和 wails3 的 PATH，跑的是 `wails3 task release [TAG=v1.2.3]`（工作流跑的也是它）：检查、测试、构建到 `release\<版本>\build`（不碰 `bin\`），再由 `go run tools/release/main.go -pack` 写出 `release\<版本>\` 里的 zip、声明和 `SHA256SUMS.txt`。`/release/` 被 git 忽略（只忽略仓库根的，`tools/release` 不受影响）。约 2 分钟，会先 `npm ci` 重装前端依赖。
 - **重新生成绑定**：`wails3 generate bindings -clean=true -ts -i`
 - **重新生成图标**：改完 `build/icon` 里的 SVG 后运行 `wails3 task common:generate:icons`（要有 Edge），生成的 `build/appicon.png`、`build/windows/icon.ico` 一起提交。构建不会自动生成。
 - **浏览器预览界面**
@@ -97,10 +98,10 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 ## 硬性规则（用户的全局规则 + 本项目约定）
 
 1. **git**：不执行任何改变 git 状态或履历的命令（init、commit、push、tag、stash、reset 等）。只读的 status、log、diff 可以用。
-2. **版本号**：不擅自修改。当前的 0.1.0 是用户定的，出现在以下位置（`go run tools/release/main.go` 会列出来并检查是否一致）：
-   - `build/config.yml`、`build/windows/info.json`、`build/windows/wails.exe.manifest`
-   - `frontend/package.json`、`frontend/package-lock.json`、`main.go`
-   - 发布构建用 `-X main.version=<标签的版本>`（Taskfile 的 `VERSION`），这是用户推的标签决定的，不算改版本号。
+2. **版本号**：不擅自修改。当前的 0.1.0 是用户定的，**只写在 `build/config.yml` 的 `info.version` 一处**（用户要求，2026-10-08），格式只能是 `主.次.修订`（纯数字，Windows 的文件版本只认数字）。
+   - 构建时从它派生：程序显示的版本用 `-X main.version` 写进去（`main.go` 里是 `dev`，只有直接 `go build` 才会是它）；Windows 资源用的 `info.json`、manifest 由 `go run tools/release/main.go -stamp` 生成到 `build/windows/stamped/`（被忽略），入库的那两个文件里没有版本号；前端 `package.json` 没有 `version` 字段。`tests/release` 的 `TestOnePlace` 检查这些文件不再写版本号。
+   - 发布构建传 `VERSION=<标签的版本>`（可以带预发布后缀），只影响程序显示的版本，这是用户推的标签决定的，不算改版本号。
+   - `wails3 task common:update:build-assets` 会按模板把版本号写回 `info.json` 和 manifest，跑过之后要去掉（和 `info.json` 的 0409 字符串表一样要改回来）。
 3. **时序逻辑必须事件驱动**：不写 sleep，不写固定次数重试，不设拍脑袋的超时。已登记的例外都要在代码里注释原因：
    - Xray `connIdle` 调到最大（M3）
    - Hysteria2 的 QUIC 保活心跳，每 10 秒（M6，`engine.quicKeepAlive`）：QUIC 静默 30 秒就断，NAT 也会忘掉空闲的 UDP 映射，空闲的连接上没有事件可等

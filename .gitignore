@@ -2,6 +2,8 @@
 bin/
 # Releases made by `wails3 task release` (not tools/release)
 /release/
+# The Windows resources' inputs with the version (tools/release -stamp)
+/build/windows/stamped/
 build/bin/
 *.exe
 *.syso
