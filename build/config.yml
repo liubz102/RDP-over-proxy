@@ -11,7 +11,7 @@ info:
   description: "Windows Remote Desktop (mstsc) through SOCKS5, HTTP, VMess, VLESS, Trojan, Shadowsocks and Hysteria2 proxies" # The application description
   copyright: "(c) 2026 liubz102" # Copyright text
   comments: "https://github.com/liubz102/RDP-over-proxy" # Comments
-  version: "0.1.0" # The application version (decided by the project owner; do not change it on your own)
+  version: "1.0.0" # The application version (decided by the project owner; do not change it on your own)
 
 # Dev mode configuration
 dev_mode:
