@@ -4,7 +4,7 @@
 
 Run Windows' built-in Remote Desktop (mstsc) through a proxy: SOCKS5 and HTTP, plus VMess, VLESS, Trojan, Shadowsocks and Hysteria2.
 
-> **In development:** this is the 0.1.0 preview. It already connects Remote Desktop through SOCKS5, HTTP and V2Ray-family proxies, imports `.rdp` files and shows environment diagnostics; the installer is still being built. See [docs/PROGRESS.md](docs/PROGRESS.md) for progress.
+> **In development:** this is the 0.1.0 preview. It already connects Remote Desktop through SOCKS5, HTTP and V2Ray-family proxies, imports `.rdp` files and shows environment diagnostics; the release process is ready, but there is no release yet. See [docs/PROGRESS.md](docs/PROGRESS.md) for progress.
 
 ## Why
 
@@ -46,12 +46,18 @@ Done (✓) and planned:
 - ✓ Finds proxy programs already running on this computer, such as v2rayN or Clash, and adds one as a proxy in one click
 - ✓ "Follow system proxy" as a connection's proxy: connects the way Windows' proxy setting says (the manual proxy and its exceptions, a setup script), directly when no proxy is set
 - ✓ The app's log inside the app, live, with a level filter and search
-- Installer
+- ✓ No installation: one zip to unzip and run (see "Download" below)
 
 ## Requirements
 
 - Windows 10 or 11 (64-bit)
 - Microsoft Edge WebView2 Runtime. Windows 11 includes it; most Windows 10 PCs already have it through Edge.
+
+## Download
+
+Download `RDP-over-proxy-<version>-windows-amd64.zip` from [Releases](https://github.com/liubz102/RDP-over-proxy/releases) (until the first release is out, build it yourself as described under "Building from source"). There's nothing to install: unzip it into a folder you can write to (such as `D:\Tools`) and run `RDP-over-proxy.exe` from there. To remove it, quit the app and delete the folder (Remote Desktop passwords are kept separately in Windows Credential Manager; see [Troubleshooting](docs/TROUBLESHOOTING.md)).
+
+The program isn't code-signed, so SmartScreen may stop it: choose "More info", then "Run anyway". You can check the downloads against `SHA256SUMS.txt` on the release page.
 
 ## Where the data is
 
@@ -92,9 +98,9 @@ More in [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
 ## License
 
-This project is released under the [MIT License](LICENSE).
+This project is released under the [GNU General Public License, version 3](LICENSE), or (at your option) any later version (GPL-3.0-or-later).
 
-Proxy protocols are provided by [Xray-core](https://github.com/XTLS/Xray-core) (MPL-2.0), used unmodified as a library. Third-party license notices ship with each release.
+Proxy protocols are provided by [Xray-core](https://github.com/XTLS/Xray-core) (MPL-2.0), used unmodified as a library; the sing and sing-shadowsocks libraries it depends on are GPL-3.0-or-later, which is why this project is under the GPL. The license and source location of every third-party component in the program are under Settings → About → Full license and third-party software, and each release comes with `THIRD_PARTY_NOTICES.txt`.
 
 ## Acknowledgements
 

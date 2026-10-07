@@ -20,10 +20,31 @@ tasks:
     cmds:
       - task: windows:build
 
-  package:
-    summary: Packages a production build of the application
+  # One command for a release: wails3 task release [TAG=v1.2.3]. The GitHub
+  # release workflow runs it too, so a local zip and a published one are made
+  # the same way.
+  release:
+    summary: Checks, tests and builds a release into release/<version>/ (the zip, the notices, SHA256SUMS.txt)
+    desc: |
+      wails3 task release              named by the version the files carry
+      wails3 task release TAG=v1.2.3   checks the tag against the files first and names the release by it
+      The program is built into release/<version>/build, never into bin/, where
+      the copy in daily use may be running. Nothing here changes a version.
+    vars:
+      VERSION:
+        sh: go run tools/release/main.go -print-version{{if .TAG}} -tag {{.TAG}}{{end}}
+      OUT: release/{{.VERSION}}
     cmds:
-      - task: windows:package
+      - go run tools/release/main.go
+      - npm --prefix frontend ci
+      - npm --prefix frontend run typecheck
+      - npm --prefix frontend test
+      - wails3 task build BIN_DIR={{.OUT}}/build VERSION={{.VERSION}}
+      # After the build, because the main package embeds frontend/dist.
+      - go vet ./...
+      - go vet -tags server ./...
+      - go test ./... -count=1
+      - go run tools/release/main.go -pack -version {{.VERSION}} -exe {{.OUT}}/build/RDP-over-proxy.exe -out {{.OUT}}
 
   run:
     summary: Runs the application

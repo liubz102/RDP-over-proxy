@@ -1,6 +1,7 @@
 import { defineConfig, searchForWorkspaceRoot } from "vite";
 import react from "@vitejs/plugin-react";
 import wails from "@wailsio/runtime/plugins/vite";
+import { bundledPackages } from "./plugins/bundledPackages";
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -14,5 +15,12 @@ export default defineConfig({
       allow: [searchForWorkspaceRoot(process.cwd()), "../build/icon"],
     },
   },
-  plugins: [react(), wails("./bindings")],
+  build: {
+    // The window is WebView2, which preloads modules itself; the polyfill
+    // would only add Vite's code to the bundle.
+    modulePreload: { polyfill: false },
+  },
+  // bundledPackages tells the third-party notices which packages the
+  // bundle holds.
+  plugins: [react(), wails("./bindings"), bundledPackages()],
 });

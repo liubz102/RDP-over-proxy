@@ -1,0 +1,111 @@
+name: Release
+
+# Pushing a version tag (v1.2.3, or v1.2.3-beta.1 for a pre-release) builds
+# the program from that commit and puts it, zipped with its license and
+# third-party notices, on a draft release for the maintainer to look over
+# and publish. The program needs no installation: it keeps its data next to
+# itself. The tag must be the version every version file carries
+# (tools/release); nothing here changes a version.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # the draft release
+  id-token: write # the build provenance attestation
+  attestations: write
+
+jobs:
+  release:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.27.x"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Check the tag against the version in the files
+        id: version
+        shell: pwsh
+        run: go run tools/release/main.go -tag "${{ github.ref_name }}" >> $env:GITHUB_OUTPUT
+
+      - name: Install the Wails CLI (same version as go.mod)
+        shell: pwsh
+        run: |
+          $version = go list -m -f '{{.Version}}' github.com/wailsapp/wails/v3
+          go install "github.com/wailsapp/wails/v3/cmd/wails3@$version"
+
+      - name: Frontend checks
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+
+      # The program, with its third-party notices. It calls itself by the
+      # tag's version.
+      - name: Build
+        run: wails3 task build VERSION=${{ steps.version.outputs.version }}
+
+      # After the build, because the main package embeds frontend/dist.
+      - name: Go checks
+        run: |
+          go vet ./...
+          go vet -tags server ./...
+          go test ./... -count=1
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $name = "RDP-over-proxy-$version-windows-amd64"
+          New-Item -ItemType Directory -Force release, "stage\RDP-over-proxy" | Out-Null
+
+          # A folder to put where the user can write, since the program keeps
+          # its data next to itself.
+          Copy-Item bin\RDP-over-proxy.exe stage\RDP-over-proxy\
+          Copy-Item LICENSE stage\RDP-over-proxy\LICENSE.txt
+          Copy-Item frontend\dist\THIRD_PARTY_NOTICES.txt stage\RDP-over-proxy\
+          Compress-Archive -Path stage\RDP-over-proxy -DestinationPath "release\$name.zip"
+          Copy-Item frontend\dist\THIRD_PARTY_NOTICES.txt release\
+
+          # sha256sum -c reads this format.
+          Push-Location release
+          Get-ChildItem -File | Sort-Object Name | ForEach-Object {
+            "{0}  {1}" -f (Get-FileHash -Algorithm SHA256 $_.Name).Hash.ToLower(), $_.Name
+          } | Set-Content -Encoding ascii SHA256SUMS.txt
+          Pop-Location
+
+          @"
+          ## 下载 / Downloads
+
+          - ``$name.zip``：程序，免安装，解压到一个可以写入的文件夹（例如 ``D:\Tools``）就能用 / the program, no installation: unzip it into a folder you can write to (such as ``D:\Tools``)
+          - ``THIRD_PARTY_NOTICES.txt``：许可证和第三方组件的声明 / license and third-party notices
+          - ``SHA256SUMS.txt``：校验值 / checksums
+
+          由 GitHub Actions 从这个标签的源代码构建，附带构建来源证明（``gh attestation verify <文件> --repo ${{ github.repository }}``）。
+          Built by GitHub Actions from this tag's source, with a build provenance attestation (``gh attestation verify <file> --repo ${{ github.repository }}``).
+          "@ | Set-Content -Encoding utf8 notes.md
+
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: release/*.zip
+
+      - name: Draft the release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $flags = @()
+          if ("${{ steps.version.outputs.prerelease }}" -eq "true") { $flags += "--prerelease" }
+          $files = (Get-ChildItem release -File).FullName
+          gh release create "${{ github.ref_name }}" --draft --verify-tag @flags `
+            --title "RDP over Proxy ${{ steps.version.outputs.version }}" --notes-file notes.md $files

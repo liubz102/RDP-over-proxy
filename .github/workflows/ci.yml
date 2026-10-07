@@ -30,6 +30,15 @@ jobs:
           $version = go list -m -f '{{.Version}}' github.com/wailsapp/wails/v3
           go install "github.com/wailsapp/wails/v3/cmd/wails3@$version"
 
+      - name: Go formatting, modules and version
+        shell: pwsh
+        run: |
+          $unformatted = gofmt -l .
+          if ($unformatted) { "Not formatted with gofmt:"; $unformatted; exit 1 }
+          go mod tidy -diff
+          # Every file that carries the version says the same (tools/release).
+          go run tools/release/main.go
+
       - name: Frontend checks
         working-directory: frontend
         run: |
@@ -37,6 +46,8 @@ jobs:
           npm run typecheck
           npm test
 
+      # The build writes the third-party notices, and stops when a dependency
+      # has a license the notices do not recognise or allow (tools/notices).
       - name: Build
         run: wails3 build
 
@@ -50,5 +61,27 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: RDP-over-proxy-${{ github.sha }}
-          path: bin/RDP-over-proxy.exe
+          path: |
+            bin/RDP-over-proxy.exe
+            frontend/dist/THIRD_PARTY_NOTICES.txt
           if-no-files-found: error
+
+  race:
+    # The race detector needs cgo and so a C compiler; the runner image has
+    # MinGW's gcc on its PATH.
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.27.x"
+
+      # The tests only: they do not need the frontend, which the main package
+      # embeds.
+      - name: Tests with the race detector
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          gcc --version
+          go test -race -count=1 ./tests/...

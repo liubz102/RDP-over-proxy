@@ -1,6 +1,6 @@
 # 开发进度
 
-最后更新：2026-10-06（M8：跟随系统代理、侧栏换成应用图标、空状态的按钮回到右上角，用户要求，第二轮代码审查的 10 条已全部修改；本机代理检测、日志查看、关于、无障碍；远程桌面窗口标题加上连接名，用户反馈；数据改放到程序所在的文件夹，用户要求；M7 待用户验收）
+最后更新：2026-10-07（M9：第三方声明工具和「关于」里的查看入口、CI 加 `-race` 等检查、Release 工作流、版本号核对工具；项目许可证改为 GPL-3.0-or-later（你的决定：Xray-core 链接了 GPL 的 sing，去不掉）；不做安装包，只发免安装的 zip（你的决定，做好的 NSIS 安装包已删掉）。M7、M8 待用户验收）
 
 ## 里程碑
 
@@ -15,7 +15,7 @@
 | M6 | v2ray 系协议：分享链接、各协议表单、自定义 JSON、测速 | ✅ 完成（经进程内的真实 Xray 服务端逐个连通） | ✅ 2026-10-03 实连（读入配置并连接） |
 | M7 | 导入与诊断：.rdp 导入、「调整默认设置」、环境报告、测试面板 | ✅ 完成 | 待用户验收 |
 | M8 | 打磨：视觉、图标、空状态、日志查看、关于与第三方声明 | 进行中：图标已完成（用户选定）；数据改放到程序所在的文件夹（用户要求）；远程桌面窗口标题加上连接名（用户反馈）；空状态里的本机代理检测、日志查看、关于、无障碍已完成，待用户过目；跟随系统代理、侧栏换成应用图标、空状态的按钮回到右上角（用户要求） | |
-| M9 | 发布工程：notices 工具、完整 CI、release 工作流、NSIS 安装包、README 定稿 | 未开始 | |
+| M9 | 发布工程：notices 工具、完整 CI、release 工作流、~~NSIS 安装包~~（改为只发 zip）、README 定稿 | 进行中：第三方声明（含许可证检查）和查看入口、CI、Release 工作流、版本号核对已完成；不做安装包（你的决定）；CI 的新检查和 Release 工作流要推送后才会运行；README 的截图等界面定稿；项目许可证已改为 GPL-3.0-or-later | |
 
 ## M0 完成情况
 
@@ -47,7 +47,7 @@
 - 连接页和代理页目前是占位的空状态。
 
 **仓库文件**
-- `.gitignore`、`.gitattributes`、`.editorconfig`、`LICENSE`（MIT）。
+- `.gitignore`、`.gitattributes`、`.editorconfig`、`LICENSE`（MIT；2026-10-07 改为 GPL-3.0-or-later）。
 - 中英 README、`CLAUDE.md`、`docs/*`、`CONTRIBUTING.md`、`SECURITY.md`、`.github/*`（CI、dependabot、Issue/PR 模板）。
 
 ## M1 完成情况
@@ -379,6 +379,54 @@ V2Ray 系协议全部可用：VMess、VLESS（含 REALITY、Vision、VLESS Encry
 - **侧栏图标只在 100% 和 200% 缩放下对齐**：24px 框在 125%、150%、175% 下会把 32、40、40px 的图画成 30、36、42px，线条落在半像素上。改成 32px 框（见上）。
 - **测试数据**：新测试里用了 example.net / example.org 和 10.x、172.16.x、192.168.x，改成只用 example.com 和 192.0.2.x；顺带改了三处更早就有的（日志、目标地址、回环修复的测试）。
 
+## M9 进行情况
+
+**发现：程序里有 GPL-3.0 的组件，项目因此改用 GPL-3.0-or-later**（2026-10-07，做第三方声明时查出来的；改许可证是你的决定）
+- Xray-core 链接了 `github.com/sagernet/sing` 和 `sing-shadowsocks`，它们的许可证是 **GPL-3.0-or-later**。不只是 Shadowsocks 2022 在用：Xray 的传输层（`transport/internet` 用 `sing/common/control`）和出站管理（`app/proxyman/outbound` 用 `sing/common/uot`）也引用它，不改 Xray 就去不掉。上游知道这件事（XTLS/Xray-core#3272，已关闭，至今仍在用）。
+- REALITY 链接了 `github.com/juju/ratelimit`，许可证是 LGPL-3.0，带「静态、动态链接都不必提供可重新链接的目标文件」的例外。它要求随程序附上 LGPL 和 GPL 的全文、写明程序用了它，第三方声明已经做到。
+- 影响：GPL 管的是「分发」。发布出去的 exe 链接了 GPL 代码，这个 exe 作为整体只能按 GPL-3.0（或更新版本）的条件分发，并且要让拿到程序的人能拿到全部源代码（本项目、各依赖的源代码）。本项目自己的源代码仍可以是 MIT（MIT 和 GPL 兼容，Xray 的 MPL-2.0 也和 GPL 兼容）。现在还没有发布过任何版本，所以没有已经发生的问题；第一次发布前要定下来。原来选 MIT 时（决策记录 2026-10-02）以为依赖都是 MPL-2.0 及更宽松的，当时没查到 Xray 自己的依赖。
+- 你的决定（2026-10-07）：**整个项目改用 GPL-3.0-or-later**（「第 3 版或（由你选择的）任何更新的版本」，和 sing 一致），不另附「源代码加全部依赖」的压缩包（声明里每个组件都写了确切版本的下载地址，GitHub 也会给标签附源代码）。
+- 改了的地方：`LICENSE` 换成 GPL 第 3 版原文（和 FSF 发布的逐字节相同）；README 中英两版的「许可证」一节写明 GPL-3.0-or-later 和原因；「关于」里「开源许可」显示 GPL-3.0-or-later，下面加了版权和「自由软件、不提供担保」的声明（GPL 要求交互界面显示的那几句）；第三方声明开头写明本程序的许可证、版权和不担保声明，末尾总是附 GPL 全文；CONTRIBUTING 写明贡献按 GPL-3.0-or-later 授权；TROUBLESHOOTING 里查看许可证的说法。
+- 许可证策略仍然只允许这三个 copyleft 组件：别的 copyleft 依赖进来时构建失败，要先看过（比如 AGPL 会给程序加上网络服务的义务）。
+
+**第三方声明**（`tools/notices`，计划里的 notices 工具）
+- 构建时生成 `frontend/dist/THIRD_PARTY_NOTICES.txt`：Go 一侧是 `go list -deps -tags production` 列出的、真正链接进 Windows exe 的 37 个模块，加上 Go 自己（运行时和标准库）；npm 一侧是 Vite 插件报告的、tree-shaking 之后真正有代码进包的 56 个包（锁文件里非开发依赖有 99 个，比如 TypeScript 根本不进包）。纯文本，exe 和 `frontend/dist` 一起内嵌，约 257 KB。
+- 一个模块的许可证文件不只看根目录：被链接的包所在的子目录（一直到根目录）里的也收进来，所以 Wails 里 ISC 许可的 WebView2 加载器、MIT 的文件对话框，klauspost/compress 里 BSD 的 snappy、MIT 的 xxhash，REALITY 里 BSD 的 Go TLS 代码都在；没被链接的子目录不收。
+- 许可证按各自的原文措辞识别（MIT、ISC、0BSD、BSD-2/3/4、Apache-2.0、MPL-2.0、GPL、LGPL、AGPL、Unlicense），一个文件里可以有好几种（go-toml 是 MIT 加 Apache-2.0，gvisor 是 Apache-2.0 加 BSD 加 MIT）。GNU 的几种互相提到对方，所以按标题和作品自己的声明区分，不看 GPL 附录里的示例声明。
+- 构建失败的情况：组件没有许可证文件（npm 包没有文件但声明了 MIT 时，用 MIT 的标准文本，并写明「包里没有许可证文件」）；许可证文件认不出；许可证不在允许列表（MIT、BSD、Apache-2.0、ISC、0BSD、MPL-2.0）里，又不是逐个审查过的 copyleft 组件；审查列表里的组件已经不在构建里（防止名单过期后被别的东西借用）。另外，Commons Clause、SSPL、BUSL、Elastic、PolyForm、CC BY-NC 这类限制使用的许可证会被认出来并拒绝。
+- 许可证文件相同的组件合并成一条（只差第一行包名的也算相同，Fluent 的大部分包因此合成一条），每个组件下面写着它这个版本的源代码下载地址（Go 模块代理、npm 仓库、go.dev）。同样的输入生成的文件逐字节相同。
+- npm 包的名单来自 Vite 插件（`frontend/plugins/bundledPackages.ts`）：只算渲染出代码的模块；Rolldown 加进来的运行时辅助代码算 rolldown 的；认不出来源的代码让构建失败。顺带关掉了 Vite 的 modulepreload polyfill（WebView2 本来就支持，不关的话 Vite 的代码进包，声明里就得带上它 108 KB 的许可证文件）。
+- 构建流程：`wails3 build` 和预览版的 `build:server` 都在前端之后、`go build` 之前运行 `go run tools/notices/main.go`（单独一个任务，交叉编译时也在本机架构上运行）。每次都运行：只改了 Go 依赖时前端不会重建，声明也要更新。
+
+**「关于」里的查看入口**
+- 「设置 → 关于」的「开源许可」一行改为「GPL-3.0-or-later · 许可证全文和第三方组件」，点链接打开右侧抽屉，显示整份声明（本程序的许可证声明、第三方组件、GPL 全文；等宽字体，可用键盘滚动）。下面两句说明：版权和 GPL 的「自由软件、不提供担保」声明；「代理协议由以库的形式内嵌、未经修改的 Xray-core 提供。」去掉了原来的「许可证全文随发布版本一起提供」。
+- 声明是页面旁边的静态文件 `/THIRD_PARTY_NOTICES.txt`；开发服务器上没有这个文件（它会用页面本身回答），抽屉里就说「这个版本没有附带第三方声明」。
+
+**CI**（`ci.yml`）
+- 新增：`gofmt` 检查、`go mod tidy -diff`、版本号一致性（`go run tools/release/main.go`）；上传的产物多了 THIRD_PARTY_NOTICES.txt。构建这一步本身就会检查许可证。
+- 新增 `race` job：`CGO_ENABLED=1 go test -race ./tests/...`，用运行环境自带的 MinGW gcc（本机没有 gcc，所以 `-race` 一直没跑过，见已知问题）。
+- 这些都要推送后才会运行。
+
+**版本号核对**（`tools/release`）
+- 版本号写在 6 个文件的 10 个地方（`build/config.yml`、`info.json` 四处、manifest、`package.json`、`package-lock.json` 两处、`main.go`）。`go run tools/release/main.go` 列出全部并检查是否一致；`-tag v1.2.3` 再核对发布标签：标签必须是 `v<文件里的版本>`，可以带预发布后缀（`v0.2.0-rc.1`）。它从不改版本号。（删掉安装包之前还有 NSIS 的 `wails_tools.nsh`，是 11 处。）
+- 测试里有一条直接检查本仓库的文件是否一致（不关心是多少），所以只改了一部分文件的话 CI 会失败，并列出每个版本写在哪里。
+
+**Release 工作流**（`release.yml`，推送 `v*` 标签时运行）
+- 核对标签 → 前端检查 → `wails3 task build VERSION=<标签的版本>` → `go vet`、测试 → 打包 → 构建来源证明（`actions/attest-build-provenance`）→ 建**草稿** Release，你检查后再手动发布；带后缀的标签标成预发布。
+- 发布的文件：免安装的 zip（里面是 `RDP-over-proxy` 文件夹：exe、`LICENSE.txt`、`THIRD_PARTY_NOTICES.txt`）；单独一份 `THIRD_PARTY_NOTICES.txt`；`SHA256SUMS.txt`（`sha256sum -c` 能读的格式）。说明里写了怎么用、怎么验证。
+- 版本：程序显示的版本用 `-X main.version=<标签的版本>` 写进去（Taskfile 新增的 `VERSION` 变量，不传时不变），Windows 的文件版本仍来自 `info.json`。预发布标签时程序显示 `0.2.0-rc.1`，文件版本是 `0.2.0`。
+
+**不做安装包**（你的决定，2026-10-07）
+- 先按计划做了 NSIS 安装包（装进 Program Files、装完用提权助手的新参数 `--prepare-folders self` 建好数据文件夹、卸载时问要不要删数据、程序运行时不覆盖、中英文提示），编译通过，也用不要管理员权限的测试版试装、试卸载过（验证记录里有）。
+- 你看过后决定不要：程序本来就是一个 exe、数据放在旁边，免安装更方便。安装包能多做的几样（自动装 WebView2、开始菜单和卸载项）对它意义不大，装进 Program Files 反而要多一次 UAC。
+- 删掉了：`build/windows/nsis`（`project.nsi`、`strings.nsh`、Wails 生成的 `wails_tools.nsh`）、模板留下的 `build/windows/msix`、Taskfile 的 `package`、`create:nsis:installer`、`sign:installer`、MSIX 的任务，`.editorconfig` 里 `strings.nsh` 那一节，提权助手的 `self` 参数（`folders_windows.go` 回到提交时的样子），Release 工作流里装 NSIS、打安装包的步骤，放在 `bin` 里的安装包；版本号核对少了 `wails_tools.nsh` 一处。
+- 留着的：程序放进只有管理员能写的文件夹时，第一次启动说明原因并经 UAC 建好文件夹（M8 做的），有人手动放进 Program Files 时还用得上。
+
+**文档**：README 中英两版加了「下载」（免安装的 zip，怎么删干净），开发中的说明改了；TROUBLESHOOTING 中英两版加了「不用了怎么删干净」（凭据管理器里的密码、mstsc 的注册表记忆）、「第三方组件的许可证在哪里」，SmartScreen 一节加了核对 `SHA256SUMS.txt` 和构建来源证明的方法；CONTRIBUTING 中英两版加了「依赖和许可证」「发布」；ARCHITECTURE；CLAUDE.md（目录地图、命令、版本号的位置、新的坑）。
+
+**预览发现的问题**
+- 浏览器预览的控制台里有一条 `CancelledRejectionError … context canceled`。查了：是 Wails 运行时在报告「已取消的调用后来又失败了」，开发版的 React StrictMode 让本机代理卡片在页面加载时先挂载、卸载一次，它的调用被取消。M8 就有，和这次的改动无关，记进了已知问题。
+
 ## 验证记录
 
 | 日期 | 范围 | 结果 |
@@ -480,6 +528,20 @@ V2Ray 系协议全部可用：VMess、VLESS（含 REALITY、Vision、VLESS Encry
 | 2026-10-06 | 第二轮审查的修改：`wails3 build`；原生冒烟（exe 复制到临时文件夹） | 构建成功。窗口正常出现，日志只有启动和 Xray 启动两行，没有监视系统代理失败之类的警告；`data`、`logs` 建在 exe 旁边；只结束了自己启动的进程 |
 | 2026-10-06 | M8 审查修改后的构建和冒烟 | 你的桌面版正在从 `bin\` 运行，没有覆盖它：用 `wails3 task build BIN_DIR=<草稿目录>` 构建到别处，exe 36.6 MB（36,621,312 字节），在那里启动正常、Xray 启动，只结束了自己启动的 PID，文件夹已删除 |
 | 2026-10-06 | 数据文件夹：启动时的弹框（读窗口文字后结束进程，没有点任何按钮，没有弹 UAC） | 拒绝本账户建文件和文件夹的目录里：「需要管理员权限 / Administrator rights needed」，中文在前，带路径，确定 / 取消。`data` 是个文件时：「无法保存数据 / Can't save data」，带路径，中文部分的原因是「系统找不到指定的路径。」，英文部分是英文。临时文件夹的权限已恢复、已删除 |
+| 2026-10-07 | M9 第三方声明：对本机的真实依赖生成 | 成功，1.6 秒；Go 37 个模块加 Go 自己、npm 56 个包；逐条核对了 GPL（sing、sing-shadowsocks）、LGPL（ratelimit）、子目录里的许可证（Wails 的 ISC 和 MIT、compress 的 BSD 和 MIT、utls 的 dicttls、REALITY 的 LICENSE-Go）、没有许可证文件的两个 npm 包（@wailsio/runtime、@fluentui/react-icons）用 MIT 标准文本、末尾的 GPL 全文 |
+| 2026-10-07 | M9：`gofmt`、`go vet ./...`（含 `-tags server`）、`go mod tidy -diff`、`go test ./...` 全量 | 通过。新增 tests/notices（12 个：许可证识别 22 种写法、文件名 21 种、Go 模块的文件只收被链接的目录、替换和大写路径、排序、Go 自身、npm 包、BOM 和 CRLF、策略的通过和 6 种拒绝、合并与附录、GPL 原文哈希）、tests/release（4 个：本仓库的版本号一致、标签核对 6 种、只改一处时报出各处、缺版本号） |
+| 2026-10-07 | M9：前端 `tsc`、`vitest` | 无错误；16 个文件 109 项通过（新增插件的 `packageFolder` 7 项、声明的读取 3 项） |
+| 2026-10-07 | M9：预览版构建（`wails3 task build:server DEV=true`）和浏览器预览 | 构建里运行了声明的生成；`/THIRD_PARTY_NOTICES.txt` 以 `text/plain; charset=utf-8` 返回；「设置 → 关于」出现「第三方组件 · 查看许可证和声明」，点开抽屉显示整份声明。控制台的一条 `CancelledRejectionError` 是已有问题（见上） |
+| 2026-10-07 | M9：桌面版构建到草稿目录（`wails3 task build BIN_DIR=<草稿目录>`，没碰 `bin\`） | 成功，exe 36.97 MB（36,971,008 字节，比 M8 多约 0.35 MB，主要是内嵌的声明），exe 里能找到声明的标题；带 `VERSION=0.1.0-test.1` 再构建一次，链接参数里有 `-X main.version=0.1.0-test.1`，exe 里有这个字符串 |
+| 2026-10-07 | M9：提权助手 `--prepare-folders self`（exe 复制到草稿目录，不提权直接运行） | 退出码 0，`data`、`logs` 都建好，`data` 上有本账户可继承的「修改」权限；`S-1-1-0`（Everyone）仍被拒绝（1337），缺参数 87。草稿目录已删除 |
+| 2026-10-07 | M9：版本号核对工具对本仓库 | 11 处都是 0.1.0；`-tag v0.1.0` 通过，`v0.1.0-test.1` 是预发布，`v0.2.0` 被拒绝并说明文件里是 0.1.0 |
+| 2026-10-07 | M9 安装包：编译（NSIS 3.12，经你同意用 winget 安装） | 编译通过，没有警告（只有把输出文件直接叫 `setup.exe` 时 NSIS 3.12 会警告，发布用的文件名不会）；压缩改成 LZMA 后 11.9 MB（原来 15.4 MB）。放了一份在 `bin\RDP-over-proxy-amd64-installer.exe`，没碰 `bin` 里的 exe 和数据 |
+| 2026-10-07 | M9 安装包：试装（改名的测试版：不要管理员权限、名字是 RDP over Proxy Selftest，静默装进草稿目录） | 安装退出码 0：exe 和构建的逐字节相同，`LICENSE.txt` 是 GPL，`THIRD_PARTY_NOTICES.txt` 在，`data`、`logs` 建好，`data` 上有本账户的「修改」权限（`--prepare-folders self`），桌面和开始菜单的快捷方式指向装好的 exe。exe 被占用（打开且不共享写和删除，相当于程序在运行）时，再装和卸载都中止（退出码 2），文件原样。正常卸载：exe、许可证、声明、快捷方式都删掉，`data`、`logs` 保留（静默卸载默认保留）。试完测试目录已删除，注册表里没有测试项（按整台电脑安装的那部分写不进 HKLM，本来就会失败），桌面和开始菜单没有残留 |
+| 2026-10-07 | M9 安装包：中英文提示 | 编了一个小程序把 `strings.nsh` 的三条提示按中英文各写出来，和源文件逐字相同（BOM 起作用了，中文没有乱码） |
+| 2026-10-07 | M9 改为 GPL-3.0-or-later 之后：`gofmt`、`go vet ./...`（含 `-tags server`）、`go mod tidy -diff`、版本号核对、`go test ./...` 全量；前端 `tsc`、`vitest` | 全部通过（tests/notices 新增「本程序自己的许可证」一项；前端 16 个文件 109 项）。`LICENSE` 和 FSF 的原文逐字节相同 |
+| 2026-10-07 | M9 改为 GPL 之后的浏览器预览（`data\preview`，1040×680，中文） | 「关于」：「开源许可  GPL-3.0-or-later · 许可证全文和第三方组件」，下面是版权和「自由软件、不提供任何担保」的声明、Xray-core 那句；点链接打开「许可证和第三方组件」抽屉，开头是版权行和 GPL 的中英文声明 |
+| 2026-10-07 | 删掉安装包之后：`gofmt`、`go vet ./...`（含 `-tags server`）、`go mod tidy -diff`、版本号核对（10 处一致）、`go test ./...` 全量；前端 `tsc`、`vitest`；桌面版构建到草稿目录 | 全部通过；前端 16 个文件 109 项；构建照常生成声明，exe 36.97 MB；`wails3 task --list` 里已没有打包任务 |
+| 2026-10-07 | M9：CI 的新检查、`-race`、Release 工作流 | **还没运行过**：要推送后才会跑 |
 
 M8 浏览器预览（2026-10-06，没有点「连接」，没有测速）：
 - 连接页和代理页的空状态下出现「这台电脑上正在运行的代理」：v2rayN · 127.0.0.1:10808 · SOCKS5。这是你机器上正在运行的 v2rayN（内核 wv2ray.exe 监听 `[::]:10808`）；同一进程的另一个端口 127.0.0.1:2023 没有按 SOCKS5 应答，没有列出。探测给这两个端口各发了一个 SOCKS5 问候，v2rayN 的日志里可能有一条读不到请求的记录。
@@ -564,10 +626,11 @@ M4 原生自测（数据目录在临时文件夹，预置一个损坏的代理�
    - 本机代理检测：在一个空的数据文件夹里启动（例如把 exe 复制到临时文件夹），连接页和代理页下面应该列出正在运行的 v2rayN（127.0.0.1:10808），点「添加」建好代理。
    - 「诊断」→「查看日志」；「设置」→「关于」里的 Xray-core 一行和「源代码」链接。
    - （有读屏软件的话）连接列表的状态、诊断页的图标是否读得出来。
-7. **M8** 其余部分：README 截图（等界面定稿）；计划里的 Win11 Mica 背景（你的电脑是 Win10，看不到效果，做不做待你定）；完整的第三方声明随 M9 的 notices 工具一起做。
-8. **M9 要带上第三方声明**：「设置」→「关于」和 README 都说「第三方组件的许可证全文随发布版本一起提供」，release 工作流必须把 notices 工具生成的 THIRD_PARTY_NOTICES 放进发布包。
-9. **M9 安装包要跟着改**：安装包默认装进 Program Files 时，第一次启动会请求一次 UAC。更好的做法是由安装程序（本来就提权）建好 `data`、`logs` 并给安装它的用户加「修改」权限。卸载时是否删除 `data`、`logs` 要问用户。`build/windows/nsis/project.nsi` 卸载时删 `$AppData\${PRODUCT_EXECUTABLE}`（Wails 默认的 WebView2 位置），现在用不到了。不要改成按用户装到 `%LOCALAPPDATA%\Programs`：用户不想在 AppData 里放东西。
-10. （可选，用户有空时）Default.rdp 设成「总是使用 RD 网关」并选「使用这些 RD 网关服务器设置」，确认连接被拦下并提示；诊断页这一项应显示红色。
+7. **M8** 其余部分：README 截图（等界面定稿）；计划里的 Win11 Mica 背景（你的电脑是 Win10，看不到效果，做不做待你定）。
+8. **过目许可证的改动**（2026-10-07）：`LICENSE`、README 的「许可证」一节、「关于」里的版权和声明（「设置 → 关于」）。
+9. **推送后看 CI**：新加的 `gofmt`、`go mod tidy -diff`、版本号检查和 `-race` job 都是第一次跑。`-race` 本机从没跑过，可能暴露数据竞争，也可能让测试脚手架的兜底超时在变慢后触发；结果出来再处理。
+10. **试一次发布流程**：推一个预发布标签（例如 `v0.1.0-test.1`，推标签是你的事）→ Release 工作流建草稿 → 下载 zip 解压试用 → 试完删掉草稿和标签。
+11. （可选，用户有空时）Default.rdp 设成「总是使用 RD 网关」并选「使用这些 RD 网关服务器设置」，确认连接被拦下并提示；诊断页这一项应显示红色。
 
 ## 实连反馈与修复
 
@@ -648,6 +711,22 @@ M4 原生自测（数据目录在临时文件夹，预置一个损坏的代理�
 
 | 日期 | 决定 | 原因 | 放弃的方案 |
 |---|---|---|---|
+| 2026-10-07 | 不做安装包，只发免安装的 zip（你的决定） | 程序是一个 exe，数据放在 exe 旁边，天生免安装；安装包多出的几样（自动装 WebView2、开始菜单、卸载项）意义不大，装进 Program Files 还要多一次 UAC；少一套 NSIS 脚本要维护，用户也不用挑下哪个 | NSIS 安装包加便携 zip 两种都发（已做好并试装过，删掉了）；MSIX |
+| 2026-10-07 | 整个项目改用 GPL-3.0-or-later（用户决定） | Xray-core 链接了 GPL-3.0-or-later 的 sing、sing-shadowsocks（传输层也用，去不掉），发布的程序整体只能按 GPL 分发；整个项目用同一个许可证说法最简单；「或更新的版本」和 sing 一致，也是 FSF 推荐的写法 | 源代码保持 MIT、只说明发布的程序整体按 GPL 分发（建议过的方案）；GPL-3.0-only |
+| 2026-10-07 | 不另附「源代码加全部依赖」的压缩包（用户决定） | 第三方声明里每个组件都有确切版本的源代码下载地址，GitHub 会给每个标签附源代码 | 每次发布附 `go mod vendor` 和前端用到的 npm 包（每版多几十 MB） |
+| 2026-10-07 | 「关于」显示版权和 GPL 的「自由软件、不提供担保」声明，许可证全文在声明抽屉的末尾 | GPL 第 0 条说的「适当的法律声明」：版权、不担保、可以按 GPL 再分发、怎么看许可证 | 只写许可证名称 |
+| 2026-10-07 | 第三方声明在每次构建时生成，内嵌进 exe（放在 `frontend/dist` 里），不入库 | 声明跟着这次构建的实际依赖走；单个 exe 自带声明，「关于」里能看；入库的话 dependabot 的每个升级都要手工重新生成 | 入库并在 CI 里检查是否最新（dependabot 的 PR 会一直失败）；只在发布时生成（开发构建里看不到，单独拷走 exe 就没有声明） |
+| 2026-10-07 | Go 依赖按 `go list -deps` 实际链接的包，npm 依赖按打包器报告的、有代码进包的模块 | 列的就是程序里真有的东西；锁文件会多列 45 个不进包的包（TypeScript 等） | 读锁文件；读 `go.mod`（会列出只用于测试或别的平台的模块） |
+| 2026-10-07 | 许可证按原文措辞识别，自己写，不引入许可证识别库 | 依赖的许可证只有十来种；不想为构建工具给 `go.mod` 加依赖；规则和测试都在本仓库里 | `github.com/google/licensecheck`；只看 npm 的 `license` 字段（Go 模块没有） |
+| 2026-10-07 | copyleft 只允许逐个审查过的组件（现在是 sing、sing-shadowsocks、ratelimit），审查名单里的组件不在构建里也报错 | 新的 copyleft 依赖会改变程序能怎么分发，必须有人看过；过期的名单会被同名的新东西借用 | 允许所有 GPL 类许可证；只警告不失败 |
+| 2026-10-07 | 声明是纯文本 `THIRD_PARTY_NOTICES.txt` | 在「关于」的抽屉里、记事本里、发布页上都能直接读；许可证原文本来就是纯文本 | Markdown（ARCHITECTURE 原来的设想，记事本里满是符号；在程序里显示还得加 Markdown 渲染） |
+| 2026-10-07 | 关掉 Vite 的 modulepreload polyfill | WebView2 本来就支持 modulepreload；关掉后 Vite 没有代码进包，声明里不用带它 108 KB 的许可证文件 | 保留，把 Vite 列进声明 |
+| 2026-10-07 | 发布由推送版本标签触发，建草稿 Release，由你手动发布；标签必须和文件里的版本一致，工作流不改版本号 | 版本号只能由你定；发布前你能检查文件和说明 | 每次推送 main 都发布；工作流根据标签改写版本文件 |
+| 2026-10-07 | 发布的程序显示标签的版本（`-X main.version`），可以带预发布后缀 | 能先推 `v0.1.0-test.1` 这类标签试发布流程，不占用正式版本号；Windows 文件版本只能是数字，所以仍来自 `info.json` | 标签只能和文件版本完全相同（试流程就得用掉一个版本号） |
+| 2026-10-07 | （安装包已不做，作废）安装程序装完后用 `--prepare-folders self` 建好 `data`、`logs` 并给安装它的账户授权 | 安装程序本来就提权，省掉第一次启动时的 UAC；授权逻辑只有一份（程序里的提权助手，有测试）；装错账户时程序自己的流程兜底 | 在 NSIS 里调 Win32 取 SID 再调 icacls（NSIS 脚本难测）；不预先准备（第一次启动多一次 UAC）；给 Users 组写权限（别的用户能改你的数据） |
+| 2026-10-07 | （安装包已不做，作废）卸载默认保留 `data`、`logs`，问了才删 | 里面是你的连接和代理，重新安装还能用；静默卸载不能替你决定删数据 | 一律删除（模板原来 `RMDir /r $INSTDIR`，会连数据一起删掉） |
+| 2026-10-07 | （安装包已不做，作废）安装包不提供「运行程序」，只装给整台电脑 | 从提权的安装程序启动，程序就以管理员身份运行了（程序本身绝不提权）；按用户安装会装进 AppData | 用 explorer.exe 转启动（依赖 Windows 的行为细节）；保留按用户安装 |
+| 2026-10-07 | CI 另起一个 job 跑 `go test -race` | 本机没有 gcc，`-race` 从没跑过；GitHub 的 Windows 运行环境自带 MinGW gcc | 本机装 gcc（要你同意，也只在这台电脑上有用） |
 | 2026-10-06 | 「跟随系统代理」是和「直连」一样的内置条目，在「直连」下面（用户要求） | 用户要求；不用先建一个代理再指向系统设置 | 让用户自己建一个「系统代理」类型的代理 |
 | 2026-10-06 | 按 Windows 自己的规则决定：先自动配置（自动检测、设置脚本），再手动代理和例外列表，都没有就直连；自动配置交给 WinHTTP 运行 | 「跟随系统」就该和 Windows 自己的程序走同一条路；v2rayN 的 PAC 模式靠设置脚本；PAC 要有 JavaScript 引擎，WinHTTP 本来就有 | 只看手动代理（PAC 模式下会直连）；只读注册表里的 ProxyServer（看不到自动检测和脚本） |
 | 2026-10-06 | 每个会话在 route 步骤里决定一次，会话期间不变 | 和连接打开期间其他设置一样，会话用开始时的设置；一个会话只连一台计算机 | 每条 TCP 连接各自决定（引擎里要按连接管理出站，日志也说不清） |
@@ -761,7 +840,7 @@ M4 原生自测（数据目录在临时文件夹，预置一个损坏的代理�
 | 2026-10-02 | 分享链接自己解析 | libXray 拒绝 v2rayN 旧式的 vmess 链接，并且绑定的是 Xray 预发布版 | 依赖 libXray/share |
 | 2026-10-02 | 只保留 Windows 构建文件 | 程序只能在 Windows 上运行 | 保留模板里的全部平台 |
 | 2026-10-02 | 中英双语，首次启动选择语言 | 用户要求 | 自动跟随系统语言 |
-| 2026-10-02 | MIT 许可证 | 与 MPL-2.0 的依赖兼容 | GPL（如果用 sing-box 就只能选它） |
+| 2026-10-02 | MIT 许可证（2026-10-07 改为 GPL-3.0-or-later，见上：当时没查到 Xray 自己依赖 GPL 的 sing） | 与 MPL-2.0 的依赖兼容 | GPL（如果用 sing-box 就只能选它） |
 | 2026-10-02 | 预览版和自测使用独立的数据目录 | 不覆盖用户的设置，不用掉首次启动体验 | 共用真实数据目录 |
 | 2026-10-02 | 会话步骤顺序：preflight → route → listen → check → credential → launch | 隧道启动时就带上拨号器；地址冲突当场暴露；线路验证通过后才写入密码 | 先 check 再准备（check 本身也需要先拿到线路） |
 | 2026-10-02 | 停止请求先记下，等在途步骤结束再统一清理；只有 check 被主动取消 | 所有「停止与步骤赛跑」的情形都归结为同一条规则，用事件序列就能测试 | 中途打断各个步骤 |
@@ -786,6 +865,11 @@ M4 原生自测（数据目录在临时文件夹，预置一个损坏的代理�
 | 2026-10-02 | V2Ray 系协议在 M6 写好测试之前一律拒绝 | 代码路径虽然相同，但没测过的组合不放出去 | M3 就放开 |
 
 ## 已知问题
+
+- **Xray-core 链接了 GPL-3.0-or-later 的 sing、sing-shadowsocks**，REALITY 链接了 LGPL-3.0 的 ratelimit：项目因此改用 GPL-3.0-or-later（见 M9 进行情况）。以后 Xray 若不再依赖 sing，可以重新考虑许可证（要你决定）。
+- **CI 的新检查、`-race`、Release 工作流都还没运行过**：要推送后才会跑。
+- **浏览器预览的控制台里有一条 `CancelledRejectionError … context canceled`**：Wails 运行时在报告「已取消的调用后来又失败了」。开发版 React StrictMode 让本机代理卡片在加载时挂载、卸载一次，它的调用被取消；正式版里离开页面时如果还有没回答的探测，也会有一条。只在控制台里，不影响功能，M8 起就有。
+- **第三方声明靠原文措辞认许可证**：认得出许可证，认不出有人在许可证后面另加的条件（常见的几种限制使用的条款会被认出并拒绝）。新依赖要人看一眼声明里的原文。
 
 - **跟随系统代理用不了要求 Windows 登录认证（NTLM / Kerberos）的公司代理**：本程序的出站只会不带账号的 HTTP CONNECT 和 SOCKS5。这时连接会报代理认证失败，要在代理页另外加一个能用的代理。
 - **跟随系统代理的自动检测（WPAD）和设置脚本只用测试自己提供的脚本验证过**（`PROXY`、`SOCKS`、`SOCKS5`、`HTTPS`、`DIRECT` 各种写法和取不到脚本）：真实网络里的 WPAD、公司的 PAC 脚本、v2rayN 的 PAC 模式要靠实际使用。自动检测要等网络回答，第一次可能要一两秒，WinHTTP 之后会记住一段时间；等待期间可以随时取消。
@@ -839,4 +923,4 @@ M4 原生自测（数据目录在临时文件夹，预置一个损坏的代理�
 - Go 1.27.0：已装，`C:\Program Files\Go`。
 - wails3 v3.0.0-beta.27：已装，`%USERPROFILE%\go\bin`。
 - Node 24.14.0 / npm 11.9.0：已装。
-- NSIS：未装，M9 打包时再装。
+- NSIS 3.12：已装（2026-10-07，经你同意用 winget 安装），`C:\Program Files (x86)\NSIS`，不在 PATH 里。不做安装包之后用不上了，要不要卸载你定（「设置 → 应用」里卸载）。

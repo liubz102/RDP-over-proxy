@@ -35,11 +35,22 @@ RDP-over-proxy\
 
 ### 杀毒软件或 SmartScreen 报警
 
-程序没有代码签名，而且内嵌了代理核心，所以部分安全软件会误报。
+程序没有代码签名，而且内嵌了代理核心，所以部分安全软件会误报。SmartScreen 拦下时，点「更多信息」→「仍要运行」。
 
 - 请只从本项目的 GitHub Releases 下载。
-- 下载后用发布页提供的 SHA256 校验值核对文件。
-- 发布版本由 GitHub Actions 从公开源码构建。
+- 下载后用发布页的 `SHA256SUMS.txt` 核对文件（PowerShell：`Get-FileHash <文件>`）。
+- 发布版本由 GitHub Actions 从公开源码构建，并附带构建来源证明：装了 GitHub CLI 的话，`gh attestation verify <文件> --repo liubz102/RDP-over-proxy` 能确认文件是由本仓库的哪次构建生成的。
+
+### 不用了怎么删干净
+
+程序不需要安装，退出它（窗口左下角的「退出」）后删掉整个程序文件夹即可，`data`、`logs` 都在里面。文件夹外面只留下两样东西：
+
+- 远程桌面的密码在 Windows 凭据管理器里，名称是 `TERMSRV/127.x.y.z`（本程序存的在「普通凭据」下，mstsc 自己「记住我」存的在「Windows 凭据」下）；mstsc 还在注册表 `HKCU\Software\Microsoft\Terminal Server Client\Servers\127.x.y.z` 下记着用户名和证书信任。
+- 在本程序里删除连接会把这些一起清掉，所以想彻底清理的话，删文件夹之前先删除连接；已经删了文件夹的话，可以在「控制面板 → 凭据管理器 → Windows 凭据」里删除这些凭据。
+
+### 第三方组件的许可证在哪里
+
+「设置 → 关于 → 许可证全文和第三方组件」可以查看本程序的许可证（GPL-3.0-or-later）、程序里每个第三方组件的许可证和声明，以及它们源代码的下载地址。同样的内容也在程序旁边的 `THIRD_PARTY_NOTICES.txt` 里，发布页上也有一份；程序自己的许可证全文还在 `LICENSE.txt` 里。
 
 ### 双击后没看到窗口
 
@@ -195,11 +206,22 @@ The app's folder can't be written to: it's on a read-only drive, a disc or a rea
 
 ### Antivirus or SmartScreen warnings
 
-The program isn't code-signed and embeds a proxy core, so some security products flag it by mistake.
+The program isn't code-signed and embeds a proxy core, so some security products flag it by mistake. If SmartScreen stops it, choose "More info", then "Run anyway".
 
 - Download it only from this project's GitHub Releases.
-- Check the file against the SHA256 checksums published with each release.
-- Releases are built by GitHub Actions from the public source.
+- Check the file against `SHA256SUMS.txt` on the release page (PowerShell: `Get-FileHash <file>`).
+- Releases are built by GitHub Actions from the public source, with a build provenance attestation: with the GitHub CLI, `gh attestation verify <file> --repo liubz102/RDP-over-proxy` confirms which build of this repository made the file.
+
+### Removing it completely
+
+There's nothing to uninstall: quit the app (Quit, at the bottom left of its window) and delete its folder, which holds `data` and `logs` too. Only two things live outside that folder:
+
+- Remote Desktop passwords are in Windows Credential Manager, named `TERMSRV/127.x.y.z` (the app's under "Generic Credentials", the ones mstsc's own "Remember me" saved under "Windows Credentials"); mstsc also remembers the user name and certificate trust in the registry under `HKCU\Software\Microsoft\Terminal Server Client\Servers\127.x.y.z`.
+- Deleting a connection in the app removes all of these, so to leave nothing behind, delete the connections before deleting the folder; if the folder is already gone, remove the credentials in Control Panel → Credential Manager → Windows Credentials.
+
+### Where are the third-party licenses?
+
+Settings → About → Full license and third-party software shows the program's own license (GPL-3.0-or-later) and the license and notices of every third-party component in it, with where to download its source code. The same text is in `THIRD_PARTY_NOTICES.txt` next to the program, and on the release page; the program's own license is also in `LICENSE.txt`.
 
 ### Nothing appears when I start it
 

@@ -9,6 +9,8 @@
 
 让 Windows 的 mstsc 走代理。每个连接分配一个固定的本机回环地址 `127.x.y.z` 作为隧道入口，mstsc 用 `mstsc /v:` 连接它；隧道再经 SOCKS5、HTTP 或 V2Ray 系代理（内嵌 Xray-core）到达目标。只支持 Windows。
 
+许可证：GPL-3.0-or-later（2026-10-07 用户决定，原来是 MIT；原因见下面「已知的坑」里 Xray 和 sing 那条）。
+
 ## 技术栈与锁定版本
 
 | 组件 | 版本 | 备注 |
@@ -50,8 +52,12 @@
 | `tests/winx`、`tests/diag` | 除了纯逻辑，还有读本机 Windows 的测试（文件版本、WMI、`diag.Gather`），只读 |
 | `tests/testutil` | 测试共用：假 RDP 服务端；替身进程（`RunHelper` / `HelperCommand`，其中 `HelperTitledWindows` 有三个带标题的窗口，测窗口标题用；`HelperSocks` 扮演代理软件，配 `HelperCommandNamed` 以 `xray.exe` 等文件名运行）；`FreePort`。只能被测试引用 |
 | `tests/testutil/xraytest` | 测试用：进程内的 Xray 代理服务端，SOCKS / HTTP 和 V2Ray 系各协议、各传输、TLS / REALITY。按客户端设置起对应的服务端，`Model` 填上证书指纹和 REALITY 公钥。单独成包，只有需要的测试才链接 Xray |
+| `tools/notices` | 第三方声明：构建时生成 `frontend/dist/THIRD_PARTY_NOTICES.txt`（exe 内嵌，「设置 → 关于」里能看），同时检查许可证，认不出、没有、不允许的都让构建失败。库在包里（测试在 `tests/notices`），`main.go`（`//go:build ignore`）是构建运行的命令，许可证策略（允许的许可证、逐个审查过的 copyleft 组件）也在里面；`GPL-3.0.txt` 是 FSF 发布的原文，测试核对哈希 |
+| `tools/release` | 核对版本号：读出所有写着版本号的文件，检查是否一致、发布标签是否与之相符；只读不写（测试在 `tests/release`） |
+| `frontend/plugins` | Vite 插件 `bundledPackages`：报告真正打进包的 npm 包（`dist/.vite/bundled-packages.json`），给第三方声明用；`packageFolder.ts` 是纯函数 |
 | `frontend/src` | `app/`（外壳、主题、首次语言选择）、`features/`、`components/`、`stores/`、`locales/` |
-| `frontend/tests` | 前端测试（vitest），目录结构和 `frontend/src` 对应 |
+| `frontend/tests` | 前端测试（vitest），目录结构和 `frontend/src`、`frontend/plugins` 对应 |
+| `.github/workflows` | `ci.yml`（检查、构建、测试，另一个 job 跑 `-race`）；`release.yml`（推送版本标签后构建程序，打成免安装的 zip，建草稿 Release） |
 | `frontend/bindings` | `wails3 generate bindings` 生成，不要手改 |
 | `build/` | Wails 构建配置，只保留 Windows |
 | `build/icon` | 应用图标的源文件：`appicon.svg`（96px 及以上）和逐像素对齐重画的 `appicon-<尺寸>.svg`（16–64px）。`generate.go`（`//go:build ignore`）用 Edge 无头模式把它们画成 `build/appicon.png` 和 `build/windows/icon.ico`，生成结果入库 |
@@ -72,6 +78,10 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
   - Go 测试：`go test ./...`（测试都在 `tests/` 下）
   - Go 全量检查：`go vet ./...`。`main` 包嵌入了 `frontend/dist`，所以要先构建一次前端
   - 前端：`npm --prefix frontend run typecheck`、`npm --prefix frontend test`
+- **第三方声明**：构建时自动生成（在前端之后、exe 之前）。单独生成：先构建前端（`npm --prefix frontend run build`），再 `go run tools/notices/main.go`。
+- **版本号**：`go run tools/release/main.go` 列出所有写着版本号的地方并检查是否一致；`-tag v1.2.3` 核对发布标签。
+- **不做安装包**（用户决定，2026-10-07）：程序免安装，发布的是 zip。Wails 模板里的 NSIS、MSIX 文件和相关任务已删掉；`wails3 task common:update:build-assets` 会重新生成 `build/windows/nsis/wails_tools.nsh`，删掉即可（它和 `info.json` 一样会被覆盖，见下面的坑）。
+- **发布**：用户推送版本标签 `v<版本>`（或 `v<版本>-<预发布>`）后，Release 工作流建草稿 Release，用户检查后手动发布。推标签是用户的事。
 - **重新生成绑定**：`wails3 generate bindings -clean=true -ts -i`
 - **重新生成图标**：改完 `build/icon` 里的 SVG 后运行 `wails3 task common:generate:icons`（要有 Edge），生成的 `build/appicon.png`、`build/windows/icon.ico` 一起提交。构建不会自动生成。
 - **浏览器预览界面**
@@ -86,9 +96,10 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 ## 硬性规则（用户的全局规则 + 本项目约定）
 
 1. **git**：不执行任何改变 git 状态或履历的命令（init、commit、push、tag、stash、reset 等）。只读的 status、log、diff 可以用。
-2. **版本号**：不擅自修改。当前的 0.1.0 是用户定的，出现在以下位置：
+2. **版本号**：不擅自修改。当前的 0.1.0 是用户定的，出现在以下位置（`go run tools/release/main.go` 会列出来并检查是否一致）：
    - `build/config.yml`、`build/windows/info.json`、`build/windows/wails.exe.manifest`
-   - `frontend/package.json`、`main.go`
+   - `frontend/package.json`、`frontend/package-lock.json`、`main.go`
+   - 发布构建用 `-X main.version=<标签的版本>`（Taskfile 的 `VERSION`），这是用户推的标签决定的，不算改版本号。
 3. **时序逻辑必须事件驱动**：不写 sleep，不写固定次数重试，不设拍脑袋的超时。已登记的例外都要在代码里注释原因：
    - Xray `connIdle` 调到最大（M3）
    - Hysteria2 的 QUIC 保活心跳，每 10 秒（M6，`engine.quicKeepAlive`）：QUIC 静默 30 秒就断，NAT 也会忘掉空闲的 UDP 映射，空闲的连接上没有事件可等
@@ -187,3 +198,6 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 - **Vite 会把小于 4 KB 的资源内联成 `data:` 地址**：放进 `srcset` 时里面的逗号会被当成分隔符，浏览器挑错图。侧栏图标用 `?no-inline` 导入；它们在前端目录外（`build/icon`），开发服务器靠 `vite.config.ts` 的 `server.fs.allow` 才读得到。
 - **WinHTTP 的错误说明在 winhttp.dll 里**，Go 的 `Errno.Error()` 读不到，只会给出「winapi error #12180」：`winx` 给自动配置常见的几个错误码手写了说明。
 - **读到语言设置之前弹的框要中英双语**（`i18n.Both`，系统语言在前）：准备数据文件夹失败时 `settings.json` 可能根本还没法存在。
+- **Xray-core 链接了 GPL-3.0-or-later 的 `sagernet/sing`、`sing-shadowsocks`，去不掉**（它的传输层和 Shadowsocks 2022 都用，XTLS/Xray-core#3272），所以项目改成了 GPL-3.0-or-later；REALITY 链接了 LGPL-3.0 的 `juju/ratelimit`（带静态链接例外）。第三方声明的策略（`tools/notices/main.go`）只允许这几个逐个审查过的 copyleft 组件，新依赖带来别的 copyleft、认不出的许可证或没有许可证时构建失败：先看清楚再改策略，不要为了让构建通过而放宽。
+- **第三方声明的 npm 部分来自前端构建的报告**（`dist/.vite/bundled-packages.json`），所以生成声明要在前端构建之后。Vite 的 modulepreload polyfill 关掉了，不要打开：WebView2 用不上它，打开后 Vite 自己的代码进包，声明里就得带上 Vite 108 KB 的 LICENSE.md。
+- **浏览器预览的控制台里出现 `CancelledRejectionError … context canceled`**：这是 Wails 运行时报告「已取消的调用后来又失败了」（服务端对取消的调用回 422）。开发版的 React StrictMode 会先挂载再卸载一次组件，本机代理卡片的调用在页面加载时就会被取消一次，所以一打开就有一条。不是新问题，也不影响功能。

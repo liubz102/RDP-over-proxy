@@ -26,6 +26,7 @@ import { useNotify } from "../../components/Feedback";
 import { Page } from "../../components/Page";
 import { isLanguage, languages } from "../../i18n";
 import { useSettings } from "../../stores/settings";
+import { ThirdPartyNotices } from "./ThirdPartyNotices";
 
 const useStyles = makeStyles({
   card: {
@@ -146,6 +147,7 @@ export function SettingsPage() {
   const save = useSettings((s) => s.save);
   const saveError = useSettings((s) => s.saveError);
   const notify = useNotify();
+  const [thirdParty, setThirdParty] = useState(false);
   if (!settings) return null;
 
   const openFolder = async (name: FolderName) => {
@@ -281,7 +283,9 @@ export function SettingsPage() {
             {appInfo?.name} {appInfo?.version}
           </Body1>
           <Body1 className={styles.label}>{t("settings.licenseLabel")}</Body1>
-          <Body1>MIT</Body1>
+          <Body1>
+            GPL-3.0-or-later · <Link onClick={() => setThirdParty(true)}>{t("settings.thirdPartyView")}</Link>
+          </Body1>
           <Body1 className={styles.label}>{t("settings.homepage")}</Body1>
           <Link onClick={() => appInfo && void Browser.OpenURL(appInfo.repo)}>{appInfo?.repo}</Link>
           {appInfo?.xray && (
@@ -294,8 +298,10 @@ export function SettingsPage() {
             </>
           )}
         </div>
+        <Caption1 className={styles.hint}>{t("settings.licenseNotice")}</Caption1>
         <Caption1 className={styles.hint}>{t("settings.thirdParty")}</Caption1>
       </Section>
+      {thirdParty && <ThirdPartyNotices onClose={() => setThirdParty(false)} />}
     </Page>
   );
 }

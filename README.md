@@ -4,7 +4,7 @@
 
 让 Windows 自带的远程桌面（mstsc）走代理：支持 SOCKS5、HTTP，以及 VMess、VLESS、Trojan、Shadowsocks、Hysteria2。
 
-> **开发中**：当前处于 0.1.0 预览阶段。已经可以经 SOCKS5、HTTP 和 V2Ray 系代理连接远程桌面，也能导入 .rdp 文件、查看环境诊断；安装包等还在开发。进度见 [docs/PROGRESS.md](docs/PROGRESS.md)。
+> **开发中**：当前处于 0.1.0 预览阶段。已经可以经 SOCKS5、HTTP 和 V2Ray 系代理连接远程桌面，也能导入 .rdp 文件、查看环境诊断；发布流程已经就绪，还没有发布第一个版本。进度见 [docs/PROGRESS.md](docs/PROGRESS.md)。
 
 ## 为什么需要它
 
@@ -47,12 +47,18 @@ mstsc ──▶ 127.x.y.z:13389 ──▶ RDP over Proxy（本机隧道）──
 - ✓ 自动发现本机正在运行的 v2rayN、Clash 等代理软件，一键添加为代理
 - ✓ 代理可以选「跟随系统代理」：按 Windows 的代理设置连接（手动代理和例外列表、自动配置脚本），没有设置代理时直连
 - ✓ 在程序里查看日志，实时更新，可按级别筛选、搜索
-- 安装包
+- ✓ 免安装：一个 zip，解压就能用（见下面的「下载」）
 
 ## 系统要求
 
 - Windows 10 或 11（64 位）
 - Microsoft Edge WebView2 运行时：Windows 11 自带；大多数 Windows 10 已随 Edge 一起安装
+
+## 下载
+
+在 [Releases](https://github.com/liubz102/RDP-over-proxy/releases) 页面下载 `RDP-over-proxy-<版本>-windows-amd64.zip`（第一个版本发布之前，请按下面的「从源码构建」自己构建）。不需要安装：解压到一个你能写入的文件夹（例如 `D:\Tools`），运行里面的 `RDP-over-proxy.exe` 就行。不用了就退出程序、删掉这个文件夹（远程桌面的密码另外保存在 Windows 凭据管理器里，见[常见问题](docs/TROUBLESHOOTING.md)）。
+
+程序没有代码签名，SmartScreen 可能会拦下，点「更多信息」→「仍要运行」。下载后可以用发布页的 `SHA256SUMS.txt` 核对文件。
 
 ## 数据保存在哪里
 
@@ -93,9 +99,9 @@ wails3 dev        # 开发模式，支持热重载
 
 ## 许可证
 
-本项目使用 [MIT 许可证](LICENSE)。
+本项目使用 [GNU 通用公共许可证第 3 版](LICENSE)，或者（由你选择的）任何更新的版本（GPL-3.0-or-later）。
 
-代理协议由 [Xray-core](https://github.com/XTLS/Xray-core)（MPL-2.0）提供，以未经修改的库形式使用。第三方组件的许可证信息随发布版本一起提供。
+代理协议由 [Xray-core](https://github.com/XTLS/Xray-core)（MPL-2.0）提供，以未经修改的库形式使用；它依赖的 sing、sing-shadowsocks 是 GPL-3.0-or-later，这也是本项目采用 GPL 的原因。程序里每个第三方组件的许可证和源代码地址见「设置 → 关于 → 许可证全文和第三方组件」，发布版本里也附有 `THIRD_PARTY_NOTICES.txt`。
 
 ## 致谢
 

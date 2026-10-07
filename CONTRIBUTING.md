@@ -39,8 +39,24 @@ wails3 generate bindings -clean=true -ts -i  # 修改 Go 服务后重新生成�
 - **版本号**：请不要在 PR 里修改版本号，由维护者统一决定。
 - **Wails 版本**：Go module `github.com/wailsapp/wails/v3` 和 npm 包 `@wailsio/runtime` 必须是同一个版本，升级时一起改。
 
+### 依赖和许可证
+
+构建时会生成第三方声明（`tools/notices`）：exe 里链接的每个 Go 模块、前端打包进去的每个 npm 包，连同它们的许可证和源代码地址，程序的「设置 → 关于」里能看到。遇到下面的情况构建会失败：
+
+- 组件没有许可证文件，或者它的许可证文件认不出来；
+- 许可证不在允许的列表里（MIT、BSD、Apache-2.0、ISC、MPL-2.0 等）。GPL、LGPL 这类 copyleft 许可证只允许 `tools/notices/main.go` 里逐个审查过的组件。
+
+新增依赖前请先看它的许可证；必须用 copyleft 组件的话，请在 PR 里说明理由。
+
+### 发布（维护者）
+
+1. 版本号写在好几个文件里。`go run tools/release/main.go` 列出全部位置，并检查它们是否一致（CI 也会检查）。
+2. 推送标签 `v<版本>`，或者 `v<版本>-<预发布>`（例如 `v0.2.0-rc.1`）。标签必须和文件里的版本一致。
+3. Release 工作流构建程序，打成免安装的 zip，附上 `THIRD_PARTY_NOTICES.txt`、`SHA256SUMS.txt` 和构建来源证明，建一个草稿 Release。检查无误后再手动发布。
+
 ### 提交 PR 之前
 
+- 本项目使用 GPL-3.0-or-later，提交的贡献也按这个许可证授权。
 - `go vet ./...`、`go test ./...`、`npm --prefix frontend run typecheck` 和 `npm --prefix frontend test` 都要通过。
 - 涉及界面的改动，请附上中文和英文界面的截图。
 
@@ -83,7 +99,23 @@ The app keeps its data in the `data` and `logs` folders next to the exe. While d
 - **Versions.** Please don't change version numbers in pull requests; the maintainer decides them.
 - **Wails versions.** The Go module `github.com/wailsapp/wails/v3` and the npm package `@wailsio/runtime` must stay on the same version and be upgraded together.
 
+### Dependencies and licenses
+
+The build writes the third-party notices (`tools/notices`): every Go module linked into the exe and every npm package bundled into the frontend, with its license and where its source is; the app shows them under Settings → About. The build fails when:
+
+- a component has no license file, or a license file the tool doesn't recognize;
+- a license isn't on the allowed list (MIT, BSD, Apache-2.0, ISC, MPL-2.0 and the like). Copyleft licenses such as the GPL and LGPL are allowed only for the components reviewed one by one in `tools/notices/main.go`.
+
+Check a dependency's license before adding it; if a copyleft component is really needed, explain why in the pull request.
+
+### Releases (maintainer)
+
+1. The version is written in several files. `go run tools/release/main.go` lists every place and checks that they agree (the CI checks it too).
+2. Push a tag `v<version>`, or `v<version>-<pre-release>` (for example `v0.2.0-rc.1`). The tag must match the version in the files.
+3. The Release workflow builds the program, zips it (there is no installer), adds `THIRD_PARTY_NOTICES.txt`, `SHA256SUMS.txt` and a build provenance attestation, and creates a draft release. Publish it by hand once it looks right.
+
 ### Before opening a pull request
 
+- The project is GPL-3.0-or-later, and contributions are licensed under it too.
 - Make sure `go vet ./...`, `go test ./...`, `npm --prefix frontend run typecheck` and `npm --prefix frontend test` all pass.
 - For UI changes, attach screenshots of both the Chinese and the English UI.

@@ -153,6 +153,15 @@ tasks:
     cmds:
       - wails3 generate bindings -f '{{.BUILD_FLAGS}}' -clean=true{{if eq .OBFUSCATED "true"}} -obfuscated{{end}} -ts -i
 
+  # After the frontend, whose bundler says which npm packages the bundle holds,
+  # and before the exe, which embeds frontend/dist. It stops the build when a
+  # dependency's license is unknown or not allowed (see tools/notices). It runs
+  # every time: a new Go module changes the notices without the frontend.
+  generate:notices:
+    summary: Writes the third-party notices to frontend/dist/THIRD_PARTY_NOTICES.txt
+    cmds:
+      - go run tools/notices/main.go -goarch {{.ARCH | default ARCH}}
+
   # Run by hand after changing a drawing, then check in the results; the build
   # only embeds them. It needs Microsoft Edge (see build/icon/generate.go).
   # Not `wails3 generate icons`: that scales one PNG down to every size and
@@ -219,6 +228,7 @@ tasks:
       - sh: '{{if eq .OBFUSCATED "true"}}command -v garble >/dev/null 2>&1{{else}}true{{end}}'
         msg: "garble is required for obfuscated builds. Install it with: go install mvdan.cc/garble@v0.16.0 (requires Go 1.24+). See https://github.com/burrowers/garble/releases for version/toolchain compatibility."
     cmds:
+      - task: generate:notices
       - '{{if eq .OBFUSCATED "true"}}garble {{.GARBLE_ARGS}} build{{else}}go build{{end}} {{.BUILD_FLAGS}} -o "{{.BIN_DIR}}/{{.APP_NAME}}-server{{exeExt}}"'
     vars:
       BUILD_FLAGS: '-tags server{{if eq .DEV "true"}}{{if eq .OBFUSCATED "true"}},wails_obfuscated{{end}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -buildvcs=false -gcflags=all="-l"{{else}},production{{if eq .OBFUSCATED "true"}},wails_obfuscated{{end}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s"{{end}}'
