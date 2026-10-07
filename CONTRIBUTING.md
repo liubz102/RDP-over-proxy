@@ -54,6 +54,15 @@ wails3 generate bindings -clean=true -ts -i  # 修改 Go 服务后重新生成�
 2. 推送标签 `v<版本>`，或者 `v<版本>-<预发布>`（例如 `v0.2.0-rc.1`）。标签必须和文件里的版本一致。
 3. Release 工作流构建程序，打成免安装的 zip，附上 `THIRD_PARTY_NOTICES.txt`、`SHA256SUMS.txt` 和构建来源证明，建一个草稿 Release。检查无误后再手动发布。
 
+在本机打包用同一条命令（工作流也是运行它）：
+
+```powershell
+wails3 task release                # 按文件里的版本命名
+wails3 task release TAG=v0.2.0     # 先核对标签，再按标签命名
+```
+
+它依次检查版本号、`npm ci`、前端类型检查和测试、构建程序（构建到 `release\<版本>\build`，不碰 `bin\`）、`go vet`、Go 测试，最后在 `release\<版本>\` 里写出 zip、`THIRD_PARTY_NOTICES.txt` 和 `SHA256SUMS.txt`。工作区有没提交的改动时会提醒。
+
 ### 提交 PR 之前
 
 - 本项目使用 GPL-3.0-or-later，提交的贡献也按这个许可证授权。
@@ -113,6 +122,15 @@ Check a dependency's license before adding it; if a copyleft component is really
 1. The version is written in several files. `go run tools/release/main.go` lists every place and checks that they agree (the CI checks it too).
 2. Push a tag `v<version>`, or `v<version>-<pre-release>` (for example `v0.2.0-rc.1`). The tag must match the version in the files.
 3. The Release workflow builds the program, zips it (there is no installer), adds `THIRD_PARTY_NOTICES.txt`, `SHA256SUMS.txt` and a build provenance attestation, and creates a draft release. Publish it by hand once it looks right.
+
+To make a release locally, run the same command the workflow runs:
+
+```powershell
+wails3 task release                # named by the version in the files
+wails3 task release TAG=v0.2.0     # checks the tag first and names the release by it
+```
+
+It checks the version, runs `npm ci`, the frontend's type check and tests, builds the program (into `release\<version>\build`, never `bin\`), runs `go vet` and the Go tests, and writes the zip, `THIRD_PARTY_NOTICES.txt` and `SHA256SUMS.txt` into `release\<version>\`. It warns when the working tree has uncommitted changes.
 
 ### Before opening a pull request
 

@@ -416,6 +416,10 @@ V2Ray 系协议全部可用：VMess、VLESS（含 REALITY、Vision、VLESS Encry
 - 发布的文件：免安装的 zip（里面是 `RDP-over-proxy` 文件夹：exe、`LICENSE.txt`、`THIRD_PARTY_NOTICES.txt`）；单独一份 `THIRD_PARTY_NOTICES.txt`；`SHA256SUMS.txt`（`sha256sum -c` 能读的格式）。说明里写了怎么用、怎么验证。
 - 版本：程序显示的版本用 `-X main.version=<标签的版本>` 写进去（Taskfile 新增的 `VERSION` 变量，不传时不变），Windows 的文件版本仍来自 `info.json`。预发布标签时程序显示 `0.2.0-rc.1`，文件版本是 `0.2.0`。
 
+**本机一键打包**（2026-10-08，你问自己怎么发版本）
+- `wails3 task release`（或 `wails3 task release TAG=v0.2.0`，先核对标签再按它命名）：核对版本号 → `npm ci` → 前端类型检查和测试 → 构建到 `release\<版本>uild`（不碰 `bin\`，你正在用的那份可能在运行）→ `go vet`、Go 测试 → 在 `release\<版本>\` 写出 zip、`THIRD_PARTY_NOTICES.txt`、`SHA256SUMS.txt`。工作区有没提交的改动时提醒一句。
+- 打包写成了 Go（`release.Pack`，`tools/release/main.go -pack`），有测试；GitHub 的 Release 工作流改为直接运行这个任务，所以本机和 GitHub 打出来的包是同一套做法。`/release/` 加进了 `.gitignore`（只忽略仓库根的）。
+
 **不做安装包**（你的决定，2026-10-07）
 - 先按计划做了 NSIS 安装包（装进 Program Files、装完用提权助手的新参数 `--prepare-folders self` 建好数据文件夹、卸载时问要不要删数据、程序运行时不覆盖、中英文提示），编译通过，也用不要管理员权限的测试版试装、试卸载过（验证记录里有）。
 - 你看过后决定不要：程序本来就是一个 exe、数据放在旁边，免安装更方便。安装包能多做的几样（自动装 WebView2、开始菜单和卸载项）对它意义不大，装进 Program Files 反而要多一次 UAC。
@@ -541,6 +545,7 @@ V2Ray 系协议全部可用：VMess、VLESS（含 REALITY、Vision、VLESS Encry
 | 2026-10-07 | M9 改为 GPL-3.0-or-later 之后：`gofmt`、`go vet ./...`（含 `-tags server`）、`go mod tidy -diff`、版本号核对、`go test ./...` 全量；前端 `tsc`、`vitest` | 全部通过（tests/notices 新增「本程序自己的许可证」一项；前端 16 个文件 109 项）。`LICENSE` 和 FSF 的原文逐字节相同 |
 | 2026-10-07 | M9 改为 GPL 之后的浏览器预览（`data\preview`，1040×680，中文） | 「关于」：「开源许可  GPL-3.0-or-later · 许可证全文和第三方组件」，下面是版权和「自由软件、不提供任何担保」的声明、Xray-core 那句；点链接打开「许可证和第三方组件」抽屉，开头是版权行和 GPL 的中英文声明 |
 | 2026-10-07 | 删掉安装包之后：`gofmt`、`go vet ./...`（含 `-tags server`）、`go mod tidy -diff`、版本号核对（10 处一致）、`go test ./...` 全量；前端 `tsc`、`vitest`；桌面版构建到草稿目录 | 全部通过；前端 16 个文件 109 项；构建照常生成声明，exe 36.97 MB；`wails3 task --list` 里已没有打包任务 |
+| 2026-10-08 | 本机一键打包：`wails3 task release`；tests/release 新增 `TestPack` | 通过，约 2 分钟。`release\0.1.0\` 里是 zip（14.3 MB，内含 `RDP-over-proxy\` 文件夹：exe、LICENSE.txt、THIRD_PARTY_NOTICES.txt）、声明、SHA256SUMS.txt，`sha256sum -c` 核对通过；`bin\` 里的 exe 没动；`release\` 不出现在 git 状态里 |
 | 2026-10-07 | M9：CI 的新检查、`-race`、Release 工作流 | **还没运行过**：要推送后才会跑 |
 
 M8 浏览器预览（2026-10-06，没有点「连接」，没有测速）：

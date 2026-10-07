@@ -82,6 +82,7 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 - **版本号**：`go run tools/release/main.go` 列出所有写着版本号的地方并检查是否一致；`-tag v1.2.3` 核对发布标签。
 - **不做安装包**（用户决定，2026-10-07）：程序免安装，发布的是 zip。Wails 模板里的 NSIS、MSIX 文件和相关任务已删掉；`wails3 task common:update:build-assets` 会重新生成 `build/windows/nsis/wails_tools.nsh`，删掉即可（它和 `info.json` 一样会被覆盖，见下面的坑）。
 - **发布**：用户推送版本标签 `v<版本>`（或 `v<版本>-<预发布>`）后，Release 工作流建草稿 Release，用户检查后手动发布。推标签是用户的事。
+- **本机打包**：`wails3 task release [TAG=v1.2.3]`（工作流跑的也是它）：检查、测试、构建到 `release\<版本>\build`（不碰 `bin\`），再由 `go run tools/release/main.go -pack` 写出 `release\<版本>\` 里的 zip、声明和 `SHA256SUMS.txt`。`/release/` 被 git 忽略（只忽略仓库根的，`tools/release` 不受影响）。约 2 分钟，会先 `npm ci` 重装前端依赖。
 - **重新生成绑定**：`wails3 generate bindings -clean=true -ts -i`
 - **重新生成图标**：改完 `build/icon` 里的 SVG 后运行 `wails3 task common:generate:icons`（要有 Edge），生成的 `build/appicon.png`、`build/windows/icon.ico` 一起提交。构建不会自动生成。
 - **浏览器预览界面**

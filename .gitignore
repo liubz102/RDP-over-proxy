@@ -1,5 +1,7 @@
 # Build output
 bin/
+# Releases made by `wails3 task release` (not tools/release)
+/release/
 build/bin/
 *.exe
 *.syso
