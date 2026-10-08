@@ -29,6 +29,22 @@ mstsc ──▶ 127.x.y.z:13389 ──▶ RDP over Proxy（本机隧道）──
 
 每个连接在本机分配一个固定的回环地址 `127.x.y.z`。mstsc 连接这个地址，隧道再通过你选择的代理把流量送到目标电脑。代理协议由内嵌的 [Xray-core](https://github.com/XTLS/Xray-core) 实现，不需要另外运行 v2ray 或 Xray。
 
+## 界面预览
+
+连接列表：每个连接选一个代理，点「连接」就启动隧道并打开远程桌面。
+
+<img src="docs/images/connections.png" alt="连接列表" width="760">
+
+代理列表：多个连接可以共用一个代理，换节点只需改一处。
+
+<img src="docs/images/proxies.png" alt="代理列表" width="760">
+
+添加代理：粘贴 v2rayN 等软件导出的分享链接，设置自动填好。
+
+<img src="docs/images/proxy-dialog.png" alt="添加代理" width="760">
+
+> 截图里的服务器都是示例（`example.com`、保留的文档地址），不是真实的主机。
+
 ## 功能
 
 已完成（✓）和规划中：

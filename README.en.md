@@ -28,6 +28,22 @@ mstsc ──▶ 127.x.y.z:13389 ──▶ RDP over Proxy (local tunnel) ──�
 
 Each connection gets a fixed loopback address `127.x.y.z` on your PC. mstsc connects to that address, and the tunnel carries the traffic through the proxy you chose. The proxy protocols come from the embedded [Xray-core](https://github.com/XTLS/Xray-core); you don't need to run v2ray or Xray separately.
 
+## Screenshots
+
+Connections: pick a proxy for each connection, then press Connect to start the tunnel and open Remote Desktop.
+
+<img src="docs/images/connections.en.png" alt="Connections" width="760">
+
+Proxies: connections can share a proxy, so switching servers is done in one place.
+
+<img src="docs/images/proxies.en.png" alt="Proxies" width="760">
+
+Add proxy: paste a share link exported from v2rayN or similar and the settings fill themselves in.
+
+<img src="docs/images/proxy-dialog.en.png" alt="Add proxy" width="760">
+
+> The servers in these screenshots are examples (`example.com` and reserved documentation addresses), not real hosts.
+
 ## Features
 
 Done (✓) and planned:

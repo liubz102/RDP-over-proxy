@@ -62,6 +62,7 @@
 | `frontend/bindings` | `wails3 generate bindings` 生成，不要手改 |
 | `build/` | Wails 构建配置，只保留 Windows |
 | `build/icon` | 应用图标的源文件：`appicon.svg`（96px 及以上）和逐像素对齐重画的 `appicon-<尺寸>.svg`（16–64px）。`generate.go`（`//go:build ignore`）用 Edge 无头模式把它们画成 `build/appicon.png` 和 `build/windows/icon.ico`，生成结果入库 |
+| `docs/images` | README 用的界面截图（中文 `*.png`、英文 `*.en.png`），用示例数据在预览版上拍的，不含真实主机 |
 | `legacy/` | 旧脚本原型。已被 git 忽略，新版功能对等且用户确认后才删除 |
 
 ## 常用命令（PowerShell）
