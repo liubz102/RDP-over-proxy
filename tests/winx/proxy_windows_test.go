@@ -61,29 +61,40 @@ func TestProxyForURL(t *testing.T) {
 		return entries
 	}
 
+	// The checks do not depend on each other, so a mismatch is told and the
+	// next one still runs: where another Windows differs from the one this
+	// was written on, one run shows every difference.
+
 	// Every entry, in the script's order, with how each proxy is spoken to.
 	want := []ProxyEntry{{Scheme: "http", Host: "192.0.2.1", Port: 3128}, {Direct: true}}
 	if got := ask("pc.example.com"); !slices.Equal(got, want) {
-		t.Fatalf("pc.example.com = %+v, want %+v", got, want)
+		t.Errorf("pc.example.com = %+v, want %+v", got, want)
 	}
-	// Windows reads "SOCKS5 host:port", which browsers know, as a SOCKS
-	// server called "5 host"; sysproxy reads it back.
-	want = []ProxyEntry{{Scheme: "socks", Host: "5 192.0.2.2", Port: 1080}, {Scheme: "socks", Host: "192.0.2.2", Port: 1081}, {Direct: true}}
-	if got := ask("socks.example.com"); !slices.Equal(got, want) {
-		t.Fatalf("socks.example.com = %+v, want %+v", got, want)
+	// "SOCKS5 host:port" is how browsers name a SOCKS5 server; Windows' own
+	// word is SOCKS. What it makes of the other word depends on its version:
+	// Windows 10 reads a SOCKS server called "5 host" (sysproxy reads it
+	// back), Windows Server 2025 leaves the entry out. What follows it
+	// arrives either way.
+	got := ask("socks.example.com")
+	if len(got) > 0 && got[0] == (ProxyEntry{Scheme: "socks", Host: "5 192.0.2.2", Port: 1080}) {
+		got = got[1:]
+	}
+	want = []ProxyEntry{{Scheme: "socks", Host: "192.0.2.2", Port: 1081}, {Direct: true}}
+	if !slices.Equal(got, want) {
+		t.Errorf("socks.example.com, without its SOCKS5 entry = %+v, want %+v", got, want)
 	}
 	want = []ProxyEntry{{Scheme: "https", Host: "192.0.2.3", Port: 3129}, {Scheme: "http", Host: "192.0.2.3", Port: 3128}}
 	if got := ask("tls.example.com"); !slices.Equal(got, want) {
-		t.Fatalf("tls.example.com = %+v, want %+v", got, want)
+		t.Errorf("tls.example.com = %+v, want %+v", got, want)
 	}
 	if got := ask("other.example.com"); !slices.Equal(got, []ProxyEntry{{Direct: true}}) {
-		t.Fatalf("other.example.com = %+v, want direct", got)
+		t.Errorf("other.example.com = %+v, want direct", got)
 	}
 
 	_, err := ProxyForURL(ctx, "https://pc.example.com:3389/", false, srv.URL+"/missing")
 	var errno windows.Errno
 	if !errors.As(err, &errno) || errno != 12167 {
-		t.Fatalf("a script that cannot be had: %v; want WinHTTP error 12167", err)
+		t.Errorf("a script that cannot be had: %v; want WinHTTP error 12167", err)
 	}
 	t.Logf("a script that cannot be had: %v", err)
 	if _, err := ProxyForURL(ctx, "https://pc.example.com:3389/", false, ""); err == nil {

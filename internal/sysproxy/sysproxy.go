@@ -212,7 +212,10 @@ func configServer(e Entry) (Server, bool) {
 	case "socks":
 		kind = model.KindSocks
 		// Setup scripts written for browsers name "SOCKS5 host:port", which
-		// Windows reads as a SOCKS server called "5 host".
+		// Windows 10 reads as a SOCKS server called "5 host". Windows Server
+		// 2025 leaves such an entry out, so there is nothing to read back
+		// there; a script that also names "SOCKS host:port" still gets
+		// through.
 		host = strings.TrimPrefix(host, "5 ")
 	default:
 		return Server{}, false

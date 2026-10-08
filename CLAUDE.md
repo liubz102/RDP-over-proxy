@@ -145,6 +145,7 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 - **Windows 上计时可能读到 0**：单调时钟的精度比本机回环往返还粗，测试里不要断言耗时大于 0。
 - **测试在被测包之外，`go vet` 要求跨包的结构体字面量写字段名**：`model.Target{Host: "pc.example.com", Port: 3389}`，不能写成 `model.Target{"pc.example.com", 3389}`，CI 的 `go vet ./...` 会报错。
 - **本机跑不了 `-race`**：没有 gcc。
+- **`-race` 会连带打开编译器的 `checkptr`，Xray-core 过不了它**（2026-10-08，CI 第一次跑 `race` job 时发现）：VLESS Vision 和 REALITY 用「`uintptr` 加字段偏移再转回指针」的写法去读 TLS 连接里的缓冲（`proxy/vless/outbound/outbound.go`、`inbound.go`、`transport/internet/reality`），`checkptr` 会让整个测试进程 `fatal error: checkptr: pointer arithmetic result points to invalid allocation`。所以 CI 的 `race` job 带了 `"-gcflags=github.com/xtls/...=-d=checkptr=0"`，只对 Xray 一家关掉，我们自己的代码和别的依赖照常检查；在有 gcc 的机器上本地跑 `-race` 要带同样的参数。本机没有 gcc 时，可以用 `go test -gcflags=all=-d=checkptr=1 "-gcflags=github.com/xtls/...=-d=checkptr=0" -count=1 ./tests/...` 模拟 `-race` 带来的这部分检查（不含数据竞争检测）；不带第二个参数时 `tests/engine` 会在同一处崩掉。
 - **Windows 上 `Wait` 之后再 `os.Process.Kill`，返回的是 `EINVAL`，不是 `ErrProcessDone`**：`mstsc.Process` 因此改用自己持有的句柄调 `TerminateProcess`。
 - **`windows.NewCallback` 创建的回调释放不掉，数量也有上限**：只能在包级变量里创建一次（见 `winx` 的 `enumCallback`、`winEventCallback`），不要在函数里每次新建。
 - **跨进程的 `SetWindowText` 不给对方发 `WM_SETTEXT`**（2026-10-06 实验）：它只改 Windows 存的文字，对方的窗口过程收不到，盯着对方进程的 WinEvent 钩子也收不到名称变化事件。要像对方自己改标题那样，就直接 `SendMessage(WM_SETTEXT)`（`winx.SetTitle`）。读标题用 `InternalGetWindowText`（`winx.Title`）：`GetWindowText` 读别的进程的窗口时，没有标题栏（比如全屏）就返回空。
@@ -194,7 +195,7 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 - **浏览器预览的窗格不可见时 `requestAnimationFrame` 不触发**：日志抽屉按帧合并新行，窗格没画出来时新行不会出现，截一次图（逼它画一帧）再看。
 - **「跟随系统代理」在取线路前才变成具体的代理**：会话的 route 步骤（`session.Options.Resolve`）、检查线路、测速各自先 `systemRoute`，引擎从来见不到 `kind: system`（见到会报不支持）。新增要取线路的地方也要先这样做。读不出 Windows 的代理设置时报错，不当作「没设置代理」去直连。
 - **自动代理配置可能要等很久**（脚本地址连不上时约 21 秒），所以一路传 `ctx`：会话的 route 步骤和「检查线路」一样在自己的 goroutine 里跑，停止时发 `CancelRoute`；`winx.ProxyForURL` 在 `ctx` 结束时关掉 resolver 句柄来取消。不要在 actor 里同步等它，会卡住取消和退出。
-- **旧的 `WinHttpGetProxyForUrl` 会丢掉 PAC 里的 SOCKS 项**（`SOCKS 127.0.0.1:1080; DIRECT` 读成直连），所以用 `WinHttpGetProxyForUrlEx`：它按顺序给出每一项和协议。WinHTTP 不认识 `SOCKS5` 关键字，`SOCKS5 h:p` 会读成主机名为 `5 h` 的 SOCKS 项，`sysproxy` 把它读回来；`HTTPS` 项（要用 TLS 连代理）跳过。
+- **旧的 `WinHttpGetProxyForUrl` 会丢掉 PAC 里的 SOCKS 项**（`SOCKS 127.0.0.1:1080; DIRECT` 读成直连），所以用 `WinHttpGetProxyForUrlEx`：它按顺序给出每一项和协议。WinHTTP 不认识 `SOCKS5` 关键字，怎么处理要看 Windows 版本：Windows 10 把 `SOCKS5 h:p` 读成主机名为 `5 h` 的 SOCKS 项，`sysproxy` 把它读回来；Windows Server 2025（build 26100，CI 实测）直接把这一项丢掉。所以测试（`tests/winx`）不能写死前者，PAC 只写 `SOCKS5 h:p; DIRECT` 的话新版 Windows 上会读成直连（常见写法 `SOCKS5 h:p; SOCKS h:p; DIRECT` 不受影响）；`HTTPS` 项（要用 TLS 连代理）跳过。**读真实 Windows 的测试不要把某个版本的行为写死**：CI 的运行机和本机的 Windows 版本不同。
 - **自动配置失败的原因带代码**（`sysproxy.scriptUnavailable` 等，`Decision.ConfigCode`），界面按代码翻译，不要把 WinHTTP 的英文原文直接塞进中文句子。
 - **加进日志遮盖名单的名字要先过 `Core.mask`**：它滤掉 `localhost`、`proxy` 这类常用词和回环地址，否则日志里所有含这个词的地方（`RDP-over-proxy`、`proxy.config`）都会被遮掉。
 - **Vite 会把小于 4 KB 的资源内联成 `data:` 地址**：放进 `srcset` 时里面的逗号会被当成分隔符，浏览器挑错图。侧栏图标用 `?no-inline` 导入；它们在前端目录外（`build/icon`），开发服务器靠 `vite.config.ts` 的 `server.fs.allow` 才读得到。

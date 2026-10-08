@@ -1,6 +1,6 @@
 # 开发进度
 
-最后更新：2026-10-07（M9：第三方声明工具和「关于」里的查看入口、CI 加 `-race` 等检查、Release 工作流、版本号核对工具；项目许可证改为 GPL-3.0-or-later（你的决定：Xray-core 链接了 GPL 的 sing，去不掉）；不做安装包，只发免安装的 zip（你的决定，做好的 NSIS 安装包已删掉）。M7、M8 待用户验收）
+最后更新：2026-10-08（修了第一次推送后 CI 一直红的原因：`race` job 被 Xray 的 `checkptr` 崩掉、`TestProxyForURL` 把 Windows 10 的行为写死了，见 M9 进行情况；修改还没推送，CI 还没有重新跑过）。此前，2026-10-07（M9：第三方声明工具和「关于」里的查看入口、CI 加 `-race` 等检查、Release 工作流、版本号核对工具；项目许可证改为 GPL-3.0-or-later（你的决定：Xray-core 链接了 GPL 的 sing，去不掉）；不做安装包，只发免安装的 zip（你的决定，做好的 NSIS 安装包已删掉）。M7、M8 待用户验收）
 
 ## 里程碑
 
@@ -15,7 +15,7 @@
 | M6 | v2ray 系协议：分享链接、各协议表单、自定义 JSON、测速 | ✅ 完成（经进程内的真实 Xray 服务端逐个连通） | ✅ 2026-10-03 实连（读入配置并连接） |
 | M7 | 导入与诊断：.rdp 导入、「调整默认设置」、环境报告、测试面板 | ✅ 完成 | 待用户验收 |
 | M8 | 打磨：视觉、图标、空状态、日志查看、关于与第三方声明 | 进行中：图标已完成（用户选定）；数据改放到程序所在的文件夹（用户要求）；远程桌面窗口标题加上连接名（用户反馈）；空状态里的本机代理检测、日志查看、关于、无障碍已完成，待用户过目；跟随系统代理、侧栏换成应用图标、空状态的按钮回到右上角（用户要求） | |
-| M9 | 发布工程：notices 工具、完整 CI、release 工作流、~~NSIS 安装包~~（改为只发 zip）、README 定稿 | 进行中：第三方声明（含许可证检查）和查看入口、CI、Release 工作流、版本号核对已完成；不做安装包（你的决定）；CI 的新检查和 Release 工作流要推送后才会运行；README 的截图等界面定稿；项目许可证已改为 GPL-3.0-or-later | |
+| M9 | 发布工程：notices 工具、完整 CI、release 工作流、~~NSIS 安装包~~（改为只发 zip）、README 定稿 | 进行中：第三方声明（含许可证检查）和查看入口、CI、Release 工作流、版本号核对已完成；不做安装包（你的决定）；CI 的新检查第一次推送后跑过，暴露的问题已修（2026-10-08，见下），修改推送后要再看一次；Release 工作流要推送标签后才会运行；README 的截图等界面定稿；项目许可证已改为 GPL-3.0-or-later | |
 
 ## M0 完成情况
 
@@ -407,6 +407,17 @@ V2Ray 系协议全部可用：VMess、VLESS（含 REALITY、Vision、VLESS Encry
 - 新增 `race` job：`CGO_ENABLED=1 go test -race ./tests/...`，用运行环境自带的 MinGW gcc（本机没有 gcc，所以 `-race` 一直没跑过，见已知问题）。
 - 这些都要推送后才会运行。
 
+**第一次推送后 CI 一直红的原因和修复**（2026-10-08，你发现 GitHub 一直报错）
+- 现象：2026-10-07 推送的 4 次提交（打包流程、打包流程完善、打包脚本、V1.0.0 打包）和 dependabot 的 `setup-node` 升级 PR，CI 的 `build`、`race` 两个 job 都是红的。`gofmt`、`go mod tidy -diff`、版本号检查、前端检查、构建（含许可证检查）一直是绿的。10-04 的最后一次绿灯只有 `build` 一个 job；`race` job 是 `fa27ab1` 才加的，`TestProxyForURL`（`ce39731`，10-06 提交）也是这次推送才第一次上 CI，所以问题到第一次推送才暴露。
+- **第一次推送（`fa27ab1`）缺文件**：`tools/release/main.go` 用了 `release.Pack`、`release.Files`，而 `tools/release/pack.go` 在下一次提交（`1f9e4ee`）才入库，所以报 `undefined: release.Pack`。你的下一次提交已经补上，之后的运行里没有这个错误。
+- **`tests/winx` 的 `TestProxyForURL` 失败（`build` 和 `race` 两个 job 都有，每次推送都有）**：这个测试把本机 Windows 10 的行为写死了——PAC 里的 `SOCKS5 h:p` 被读成主机名 `5 h` 的 SOCKS 项。CI 的运行机是 Windows Server 2025（10.0.26100），那里 WinHTTP 把这一项整个丢掉，只剩后面的 `SOCKS` 项和 `DIRECT`，断言就失败了。这个测试之前从没在别的 Windows 版本上跑过（`跟随系统代理` 是同一批推送里才第一次上 CI）。
+- **`race` job 里 `tests/engine` 崩掉**：`-race` 会连带打开编译器的 `checkptr`（检查 `unsafe` 指针运算），Xray-core 过不了——VLESS Vision 用「`uintptr` 加字段偏移再转回指针」的写法去读 TLS 连接里的缓冲（`proxy/vless/outbound/outbound.go:288`；`inbound.go`、`transport/internet/reality` 里也有同样的写法），于是整个测试进程 `fatal error: checkptr: pointer arithmetic result points to invalid allocation`，不是数据竞争。本机用 `go test -gcflags=all=-d=checkptr=1 ./tests/engine` 复现了同样的崩溃栈。
+- 修复：
+  - `ci.yml` 的 `race` job 改为 `go test -race "-gcflags=github.com/xtls/...=-d=checkptr=0" -count=1 ./tests/...`：只对 Xray 一家（`github.com/xtls/...`）关掉 `checkptr`，我们自己的代码和别的依赖照常检查，数据竞争检测仍然对全部代码有效（编译器：显式给了 `-d=checkptr=0`，`-race` 就不会再改回去）。
+  - `TestProxyForURL`：PAC 里 `SOCKS5` 那一项可有可无（有就必须是 `5 h`，没有就算没有），后面的 `SOCKS` 项和 `DIRECT` 必须照常送达；各项检查互不依赖（`Fatalf` 改成 `Errorf`），在别的 Windows 上有差别时一次运行就能看全。`sysproxy` 的代码不用改（Windows 10 上还是要把 `5 h` 读回来），只更正了注释。
+- **产品上的影响**（没改，因为 Windows 自己已经把这一项丢了，本程序看不到）：Windows Server 2025 / 同代的 Windows 11 上，只写 `SOCKS5 h:p; DIRECT` 的 PAC 会被读成直连；常见写法 `SOCKS5 h:p; SOCKS h:p; DIRECT`（GFWList 一类）不受影响。Windows 11 上的行为只有 Server 2025 的 CI 结果为证，没有在真机上看过。
+- 验证（本机）：只对 xtls 关 `checkptr`、其余全开的情况下 `go test ./tests/...` 全部通过（`tests/engine` 38 秒）；不加排除参数时 `tests/engine` 在同一处崩掉（对照）；改动用 CI 里一样的 PowerShell 写法跑过；`gofmt`、`go vet` 通过。**没有验证的**：`-race` 的数据竞争检测本身（本机没有 gcc，`race` job 之前一直死在 `tests/engine` 的崩溃上，所以 `tests/engine` 在 `-race` 下有没有数据竞争至今不知道）；`TestProxyForURL` 里 `HTTPS` 项和「取不到脚本」两项在 Server 2025 上的结果（原来的 `Fatalf` 在 `SOCKS5` 那里就停了，没有跑到它们）。这两件事要推送后看 CI。
+
 **版本号核对**（`tools/release`）
 - 版本号写在 6 个文件的 10 个地方（`build/config.yml`、`info.json` 四处、manifest、`package.json`、`package-lock.json` 两处、`main.go`）。`go run tools/release/main.go` 列出全部并检查是否一致；`-tag v1.2.3` 再核对发布标签：标签必须是 `v<文件里的版本>`，可以带预发布后缀（`v0.2.0-rc.1`）。它从不改版本号。（删掉安装包之前还有 NSIS 的 `wails_tools.nsh`，是 11 处。）
 - 测试里有一条直接检查本仓库的文件是否一致（不关心是多少），所以只改了一部分文件的话 CI 会失败，并列出每个版本写在哪里。
@@ -555,7 +566,9 @@ V2Ray 系协议全部可用：VMess、VLESS（含 REALITY、Vision、VLESS Encry
 | 2026-10-07 | 删掉安装包之后：`gofmt`、`go vet ./...`（含 `-tags server`）、`go mod tidy -diff`、版本号核对（10 处一致）、`go test ./...` 全量；前端 `tsc`、`vitest`；桌面版构建到草稿目录 | 全部通过；前端 16 个文件 109 项；构建照常生成声明，exe 36.97 MB；`wails3 task --list` 里已没有打包任务 |
 | 2026-10-08 | 版本号只写一处之后：`wails3 task release`（经 `build-release.bat -NoPause` 运行），`go vet`、Go 全量测试在其中；tests/release 改为 5 项（`TestOnePlace`、`TestVersion`、`TestCheck`、`TestStamp`、`TestPack`） | 全部通过。exe 的文件版本、产品版本 0.1.0，链接参数里 `-X main.version=0.1.0`；`build-release.bat -Tag v9.9.9` 立即报「版本号不对」并退出 1，中文显示正常；bat 是纯 ASCII + CRLF（字节数减字符数为 0），ps1 是 UTF-8 带 BOM + CRLF。双击时的「按回车关闭」和打开文件夹没有实测（自测用 `-NoPause` 跳过） |
 | 2026-10-08 | 本机一键打包：`wails3 task release`；tests/release 新增 `TestPack` | 通过，约 2 分钟。`release\0.1.0\` 里是 zip（14.3 MB，内含 `RDP-over-proxy\` 文件夹：exe、LICENSE.txt、THIRD_PARTY_NOTICES.txt）、声明、SHA256SUMS.txt，`sha256sum -c` 核对通过；`bin\` 里的 exe 没动；`release\` 不出现在 git 状态里 |
-| 2026-10-07 | M9：CI 的新检查、`-race`、Release 工作流 | **还没运行过**：要推送后才会跑 |
+| 2026-10-08 | 第一次推送后 CI 的失败（GitHub Actions，Windows Server 2025）：`gh run view --log-failed` 读了 4 次推送和 1 个 dependabot PR 的日志 | `gofmt`、`go mod tidy -diff`、版本号检查、前端检查、构建一直通过；失败的只有三处：`release.Pack` 未定义（第一次推送缺 `pack.go`，已被下一次提交补上）、`tests/winx` 的 `TestProxyForURL`、`race` job 里 `tests/engine` 的 `checkptr` 崩溃（上面的「第一次推送后 CI 一直红」） |
+| 2026-10-08 | 修复后在本机：`checkptr` 全开（`-gcflags=all=-d=checkptr=1`）并对 `github.com/xtls/...` 关闭，`go test -count=1 ./tests/...` 全量；同样的参数不加排除时跑 `tests/engine`（对照）；CI 里的 PowerShell 写法；`gofmt -l .`、`go vet ./tests/... ./internal/...`；`go test ./tests/winx ./tests/sysproxy` | 全量通过（`tests/engine` 32–38 秒）；对照组在 `proxy/vless/outbound/outbound.go:288` 崩掉，和 CI 的崩溃栈一样；PowerShell 5.1 里引号和参数传递没问题（CI 用的 pwsh 7 没装，写法是普通的无空格参数）；`gofmt`、`go vet` 通过。本机 Windows 10 上 `TestProxyForURL` 走「有 `5 h` 项」的分支，「项被丢掉」的分支只靠 CI 的 Server 2025 看。**`-race` 本身没跑**（没有 gcc） |
+| 2026-10-07 | M9：Release 工作流 | **还没运行过**：要推送版本标签后才会跑（它跑的 `wails3 task release` 里也有 `go test ./...`，所以原来的 `TestProxyForURL` 也会让它失败，现在一并修了） |
 
 M8 浏览器预览（2026-10-06，没有点「连接」，没有测速）：
 - 连接页和代理页的空状态下出现「这台电脑上正在运行的代理」：v2rayN · 127.0.0.1:10808 · SOCKS5。这是你机器上正在运行的 v2rayN（内核 wv2ray.exe 监听 `[::]:10808`）；同一进程的另一个端口 127.0.0.1:2023 没有按 SOCKS5 应答，没有列出。探测给这两个端口各发了一个 SOCKS5 问候，v2rayN 的日志里可能有一条读不到请求的记录。
@@ -642,7 +655,7 @@ M4 原生自测（数据目录在临时文件夹，预置一个损坏的代理�
    - （有读屏软件的话）连接列表的状态、诊断页的图标是否读得出来。
 7. **M8** 其余部分：README 截图（等界面定稿）；计划里的 Win11 Mica 背景（你的电脑是 Win10，看不到效果，做不做待你定）。
 8. **过目许可证的改动**（2026-10-07）：`LICENSE`、README 的「许可证」一节、「关于」里的版权和声明（「设置 → 关于」）。
-9. **推送后看 CI**：新加的 `gofmt`、`go mod tidy -diff`、版本号检查和 `-race` job 都是第一次跑。`-race` 本机从没跑过，可能暴露数据竞争，也可能让测试脚手架的兜底超时在变慢后触发；结果出来再处理。
+9. **推送后看 CI**（2026-10-08 更新）：第一次推送已经跑过一遍，`gofmt`、`go mod tidy -diff`、版本号检查、前端检查、构建都通过；失败的两处（`race` job 的 Xray `checkptr` 崩溃、`TestProxyForURL` 在 Server 2025 上的差异）已修，**修改还没推送**，推送后再看一次 CI。重点看：①`race` job 现在能不能跑完 `tests/engine`——它之前一直死在崩溃上，所以 `-race` 下有没有数据竞争（也可能让测试脚手架的兜底超时在变慢后触发）至今不知道；②`TestProxyForURL` 在 Server 2025 上 `HTTPS` 项和「取不到脚本」两项的结果（之前的 `Fatalf` 在 `SOCKS5` 那里就停了，没跑到）。有新的差别时，这个测试现在会把每一项都报出来。
 10. **试一次发布流程**：推一个预发布标签（例如 `v0.1.0-test.1`，推标签是你的事）→ Release 工作流建草稿 → 下载 zip 解压试用 → 试完删掉草稿和标签。
 11. （可选，用户有空时）Default.rdp 设成「总是使用 RD 网关」并选「使用这些 RD 网关服务器设置」，确认连接被拦下并提示；诊断页这一项应显示红色。
 
@@ -742,6 +755,8 @@ M4 原生自测（数据目录在临时文件夹，预置一个损坏的代理�
 | 2026-10-07 | （安装包已不做，作废）安装程序装完后用 `--prepare-folders self` 建好 `data`、`logs` 并给安装它的账户授权 | 安装程序本来就提权，省掉第一次启动时的 UAC；授权逻辑只有一份（程序里的提权助手，有测试）；装错账户时程序自己的流程兜底 | 在 NSIS 里调 Win32 取 SID 再调 icacls（NSIS 脚本难测）；不预先准备（第一次启动多一次 UAC）；给 Users 组写权限（别的用户能改你的数据） |
 | 2026-10-07 | （安装包已不做，作废）卸载默认保留 `data`、`logs`，问了才删 | 里面是你的连接和代理，重新安装还能用；静默卸载不能替你决定删数据 | 一律删除（模板原来 `RMDir /r $INSTDIR`，会连数据一起删掉） |
 | 2026-10-07 | （安装包已不做，作废）安装包不提供「运行程序」，只装给整台电脑 | 从提权的安装程序启动，程序就以管理员身份运行了（程序本身绝不提权）；按用户安装会装进 AppData | 用 explorer.exe 转启动（依赖 Windows 的行为细节）；保留按用户安装 |
+| 2026-10-08 | `race` job 只对 `github.com/xtls/...` 关掉 `checkptr`（`-gcflags=github.com/xtls/...=-d=checkptr=0`），其余包照常检查 | `-race` 连带打开的 `checkptr` 让 Xray 的 VLESS Vision 代码 fatal，那是上游的写法，改不了；本机把 `checkptr` 对其余所有包（标准库、我们自己的代码、别的依赖）全开，整套测试都通过，所以只有 Xray 需要例外；这是 Go 1.14 发行说明给出的办法，数据竞争检测不受影响 | 对所有包关掉（`-gcflags=all=-d=checkptr=0`，我们自己的 `unsafe` 调用 Windows 的代码也不查了）；跳过 VLESS Vision 的测试（少了覆盖，而且崩溃是整个进程，不是某个用例）；升级 Xray（锁定的 v1.260327.0 已经是最后一个稳定的 module tag，更新的都是预发布；预发布里这段写法有没有改，没查） |
+| 2026-10-08 | `TestProxyForURL` 里 `SOCKS5` 那一项可有可无，其余项必须照常送达；各项检查互不依赖 | 同一个 API 在 Windows 10 和 Server 2025 上对非标准的 `SOCKS5` 关键字的处理不同，测试不该把某个版本的行为写死；`Fatalf` 会让后面的检查跑不到，在别的 Windows 上有差别时要一次看全 | 只在 Windows 10 上跑这个测试（CI 上少了覆盖）；删掉 `SOCKS5` 那一行（Windows 10 上的行为就没有测试了） |
 | 2026-10-07 | CI 另起一个 job 跑 `go test -race` | 本机没有 gcc，`-race` 从没跑过；GitHub 的 Windows 运行环境自带 MinGW gcc | 本机装 gcc（要你同意，也只在这台电脑上有用） |
 | 2026-10-06 | 「跟随系统代理」是和「直连」一样的内置条目，在「直连」下面（用户要求） | 用户要求；不用先建一个代理再指向系统设置 | 让用户自己建一个「系统代理」类型的代理 |
 | 2026-10-06 | 按 Windows 自己的规则决定：先自动配置（自动检测、设置脚本），再手动代理和例外列表，都没有就直连；自动配置交给 WinHTTP 运行 | 「跟随系统」就该和 Windows 自己的程序走同一条路；v2rayN 的 PAC 模式靠设置脚本；PAC 要有 JavaScript 引擎，WinHTTP 本来就有 | 只看手动代理（PAC 模式下会直连）；只读注册表里的 ProxyServer（看不到自动检测和脚本） |
@@ -883,13 +898,14 @@ M4 原生自测（数据目录在临时文件夹，预置一个损坏的代理�
 ## 已知问题
 
 - **Xray-core 链接了 GPL-3.0-or-later 的 sing、sing-shadowsocks**，REALITY 链接了 LGPL-3.0 的 ratelimit：项目因此改用 GPL-3.0-or-later（见 M9 进行情况）。以后 Xray 若不再依赖 sing，可以重新考虑许可证（要你决定）。
-- **CI 的新检查、`-race`、Release 工作流都还没运行过**：要推送后才会跑。
+- **Release 工作流还没运行过**：要推送版本标签后才会跑。CI 的新检查第一次推送后跑过，失败的两处已修（见 M9 进行情况），修改推送后要再看一次；`-race` 能不能跑完、有没有数据竞争至今不知道。
 - **浏览器预览的控制台里有一条 `CancelledRejectionError … context canceled`**：Wails 运行时在报告「已取消的调用后来又失败了」。开发版 React StrictMode 让本机代理卡片在加载时挂载、卸载一次，它的调用被取消；正式版里离开页面时如果还有没回答的探测，也会有一条。只在控制台里，不影响功能，M8 起就有。
 - **第三方声明靠原文措辞认许可证**：认得出许可证，认不出有人在许可证后面另加的条件（常见的几种限制使用的条款会被认出并拒绝）。新依赖要人看一眼声明里的原文。
 
 - **跟随系统代理用不了要求 Windows 登录认证（NTLM / Kerberos）的公司代理**：本程序的出站只会不带账号的 HTTP CONNECT 和 SOCKS5。这时连接会报代理认证失败，要在代理页另外加一个能用的代理。
 - **跟随系统代理的自动检测（WPAD）和设置脚本只用测试自己提供的脚本验证过**（`PROXY`、`SOCKS`、`SOCKS5`、`HTTPS`、`DIRECT` 各种写法和取不到脚本）：真实网络里的 WPAD、公司的 PAC 脚本、v2rayN 的 PAC 模式要靠实际使用。自动检测要等网络回答，第一次可能要一两秒，WinHTTP 之后会记住一段时间；等待期间可以随时取消。
 - **PAC 里的 `SOCKS4` 项会被跳过**：WinHTTP 把它读成主机名 `4 …`，而本程序只会说 SOCKS5，纯 SOCKS4 的服务端本来也连不上。
+- **新版 Windows 上，只写 `SOCKS5 h:p` 的 PAC 会被读成直连**（2026-10-08，CI 在 Windows Server 2025 上的结果）：WinHTTP 把浏览器的 `SOCKS5` 项整个丢掉，本程序看不到它，只能用后面的项；`SOCKS5 h:p; SOCKS h:p; DIRECT` 这种常见写法照常工作，Windows 10 上两种都行（`5 h` 读回来）。Windows 11 的行为没有在真机上看过。要真正解决只能自己运行 PAC 脚本，太重，没做；遇到时在代理页另建一个代理。
 - **改了系统代理，正在运行的会话不跟着变**：每个会话开始时决定一次（决策记录）；断开重连后按新的设置走。
 
 - **本机代理检测只认得列出的软件和系统代理**：别的软件开的本地端口要手动添加。没有应答的端口（HTTP 代理、控制 API）的探测会一直等到卡片消失（或下一轮检测、退出）才取消，每个只占一个本机连接。已知代理软件只开了 HTTP 端口、又被设成系统代理时也不会列出（它自己的端口不按 SOCKS5 应答，系统代理又因为是已知软件的端口而跳过）。
@@ -919,7 +935,7 @@ M4 原生自测（数据目录在临时文件夹，预置一个损坏的代理�
 - **代理端口不通时，要等 Xray 内部重试约 1.5 秒才会报错**：这是 Xray 自己的行为，不是本程序的超时。
 - **标题栏颜色**：只跟随系统主题，不随应用内的主题设置变化。Wails 运行时能否修改标题栏主题，还待查。
 - **托盘右键菜单**：在 Wails v3 beta 上可能弹不出来（#6161），目前用左键打开窗口代替。
-- **`-race`**：本机没有 gcc，无法运行数据竞争检测。打算在 M9 完善 CI 时，在 GitHub 的 Windows runner（自带 MinGW）上加跑。
+- **`-race`**：本机没有 gcc，无法运行数据竞争检测。M9 在 CI 里加了 `race` job（GitHub 的 Windows runner 自带 MinGW）；它第一次跑就被 Xray 的 `checkptr` 崩掉，现在对 `github.com/xtls/...` 关掉了 `checkptr`（见 M9 进行情况），数据竞争检测本身的结果要推送后才能看到。
 - **.rdp 属性重复时取哪一个**：目前取最后一个，这是推测，没有对照 mstsc 实测。只影响手工编辑过的文件。
 - **RD 网关**：M4 已定为「可能走只警告、一定走才拦截」。mstsc 用 `/v:` 启动时是否采用 Default.rdp 里的网关设置，没有查到官方说法（显示设置确定会采用），M5 实测。
 - **真实 mstsc 的行为**：

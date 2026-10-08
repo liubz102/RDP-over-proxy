@@ -157,7 +157,8 @@ func TestDecide(t *testing.T) {
 			}, "pc.example.com:3389", Decision{Server: pac, By: ByConfig}},
 		{"the script names a SOCKS proxy", Settings{Script: script}, answers(proxy("socks", "192.0.2.2", 1080), direct),
 			"pc.example.com:3389", Decision{Server: pacSocks, By: ByConfig}},
-		// Windows reads SOCKS5, which browsers know, as a server "5 host".
+		// Windows 10 reads SOCKS5, which browsers know, as a server "5 host"
+		// (Windows Server 2025 leaves the entry out; see tests/winx).
 		{"the script names a SOCKS5 proxy", Settings{Script: script}, answers(proxy("socks", "5 192.0.2.2", 1080), direct),
 			"pc.example.com:3389", Decision{Server: pacSocks, By: ByConfig}},
 		// The first way the app can take counts.

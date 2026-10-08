@@ -80,9 +80,17 @@ jobs:
 
       # The tests only: they do not need the frontend, which the main package
       # embeds.
+      #
+      # -race also turns on the compiler's pointer checks (checkptr), and
+      # Xray-core does not pass them: its VLESS Vision code (and REALITY's)
+      # finds fields inside the TLS connection by adding their offsets to a
+      # uintptr, which stops the whole test program with a fatal error. So
+      # the checks are off for Xray's packages (github.com/xtls/...) and stay
+      # on for everything else, this program included. The race detector
+      # itself watches all of it.
       - name: Tests with the race detector
         env:
           CGO_ENABLED: "1"
         run: |
           gcc --version
-          go test -race -count=1 ./tests/...
+          go test -race "-gcflags=github.com/xtls/...=-d=checkptr=0" -count=1 ./tests/...
