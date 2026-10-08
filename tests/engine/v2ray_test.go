@@ -71,6 +71,15 @@ func TestRoutesThroughTheV2RayFamily(t *testing.T) {
 	srv := testutil.NewRDPServer(t, testutil.RDPOptions{Answer: testutil.AnswerConfirm, Selected: probe.ProtocolHybridEx})
 	e := startEngine(t, engine.Options{})
 	for i, o := range v2rayCases() {
+		// Xray's XHTTP client has a data race of its own: splithttp's
+		// WaitReadCloser.Read looks at its ReadCloser while Set stores it,
+		// with nothing between them (client.go in Xray-core v1.260327.0).
+		// The race detector fails the test for it, so under -race these
+		// cases wait; the plain test run does them.
+		if raceDetector && o.Options.Network == model.NetworkXHTTP {
+			t.Logf("%s: skipped under the race detector (a race in Xray's XHTTP client)", describe(o))
+			continue
+		}
 		px := xraytest.Start(t, o)
 		p := px.Model("v"+strconv.Itoa(i), o)
 		if err := p.Validate(); err != nil {
