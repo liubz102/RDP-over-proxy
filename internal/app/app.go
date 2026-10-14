@@ -137,6 +137,7 @@ func Run(opts Options) error {
 		CheckProxy:       eng.Check,
 		Vault:            vault(),
 		Servers:          servers(),
+		History:          history(),
 		Launch:           launchMstsc,
 		Defaults:         readDefaults,
 		Diagnose:         diagnose(opts.Version, dirs.Logs),
@@ -284,9 +285,13 @@ func (s *shell) createTray(icon []byte, current model.Settings) {
 }
 
 // settingsChanged applies saved settings to the Go side: the tray labels
-// follow the language, the log its level.
+// follow the language, the log its level, and Remote Desktop's memory of
+// recent computers is cleaned up as they now say.
 func (s *shell) settingsChanged(v model.Settings) {
 	s.logger.SetLevel(v.LogLevel)
+	if s.core != nil {
+		s.core.ForgetHistory() // at once when cleaning has just been turned on
+	}
 	if s.menu == nil {
 		return
 	}

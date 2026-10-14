@@ -48,6 +48,8 @@ RDP-over-proxy\
 - 远程桌面的密码在 Windows 凭据管理器里，名称是 `TERMSRV/127.x.y.z`（本程序存的在「普通凭据」下，mstsc 自己「记住我」存的在「Windows 凭据」下）；mstsc 还在注册表 `HKCU\Software\Microsoft\Terminal Server Client\Servers\127.x.y.z` 下记着用户名和证书信任。
 - 在本程序里删除连接会把这些一起清掉，所以想彻底清理的话，删文件夹之前先删除连接；已经删了文件夹的话，可以在「控制面板 → 凭据管理器 → Windows 凭据」里删除这些凭据。
 
+原版远程桌面「计算机」列表里的入口地址，断开连接时已经清掉了（见下面的「原版远程桌面「计算机」列表里的 127.x.y.z」）。
+
 ### 第三方组件的许可证在哪里
 
 「设置 → 关于 → 许可证全文和第三方组件」可以查看本程序的许可证（GPL-3.0-or-later）、程序里每个第三方组件的许可证和声明，以及它们源代码的下载地址。同样的内容也在程序旁边的 `THIRD_PARTY_NOTICES.txt` 里，发布页上也有一份；程序自己的许可证全文还在 `LICENSE.txt` 里。
@@ -72,6 +74,19 @@ RDP-over-proxy\
 标题最前面是连接的名称，例如「办公室 - 127.x.y.z:13389 - 远程桌面连接」。名称后面的 `127.x.y.z:端口` 是 mstsc 实际连接的地址，也就是本机的隧道入口：mstsc 不知道代理的存在，它只知道这个地址。每个连接的回环地址是固定的，mstsc 记住的密码和证书信任不会在不同电脑之间混用。
 
 名称是本程序加上去的（mstsc 用 `/v:` 启动时标题里只有地址），mstsc 自己改回标题时会马上补上。如果标题里没有名称，看这个连接的会话日志里有没有「showName」失败的警告。
+
+### 原版远程桌面「计算机」列表里的 127.x.y.z
+
+mstsc 会把连过的地址记进「计算机」下拉列表（最多 10 个，满了就挤掉最旧的一个），退出时还把它写进「文档」里的隐藏文件 `Default.rdp`，下次打开原版远程桌面时预填。经本程序连接时，记下的是本机的隧道入口 `127.x.y.z:13389`，离开本程序就连不上。
+
+所以每次断开连接、每次启动本程序时，本程序会：
+
+- 把这些地址从下拉列表里删掉，被它们挤出列表的记录放回去（只限本程序这次运行期间在列表里见过的，之前就被挤掉的找不回来）；
+- `Default.rdp` 预填的地址是它们时清空，下次打开原版远程桌面要自己选计算机。`Default.rdp` 的其他设置不动。
+
+「设置 → 连接 → 远程桌面的历史记录」里可以选：不自动清理；只清理本程序的地址（127.1.1.1–127.254.254.254，默认）；清理所有 127.x.x.x（包括 SSH 端口转发等常用的 127.0.0.1）。改了设置马上清理一次。
+
+本程序连接期间如果又打开了原版远程桌面，它可能把列表里的入口地址再写回去，下一次断开或启动本程序时会再清理。任务栏上「远程桌面连接」的跳转列表（右键菜单里的最近项）不清理，要删的话在那一项上右键选「从列表中删除」。mstsc 在注册表 `Servers\127.x.y.z` 下记的用户名和证书信任也不清理：本程序连接时要用，列表里也不显示。
 
 ### 先看「诊断」页
 
@@ -219,6 +234,8 @@ There's nothing to uninstall: quit the app (Quit, at the bottom left of its wind
 - Remote Desktop passwords are in Windows Credential Manager, named `TERMSRV/127.x.y.z` (the app's under "Generic Credentials", the ones mstsc's own "Remember me" saved under "Windows Credentials"); mstsc also remembers the user name and certificate trust in the registry under `HKCU\Software\Microsoft\Terminal Server Client\Servers\127.x.y.z`.
 - Deleting a connection in the app removes all of these, so to leave nothing behind, delete the connections before deleting the folder; if the folder is already gone, remove the credentials in Control Panel → Credential Manager → Windows Credentials.
 
+The entrances in Remote Desktop's own Computer list are already gone once each connection ends (see "127.x.y.z in Remote Desktop's own Computer list" below).
+
 ### Where are the third-party licenses?
 
 Settings → About → Full license and third-party software shows the program's own license (GPL-3.0-or-later) and the license and notices of every third-party component in it, with where to download its source code. The same text is in `THIRD_PARTY_NOTICES.txt` next to the program, and on the release page; the program's own license is also in `LICENSE.txt`.
@@ -243,6 +260,19 @@ If the settings file is ever unreadable, the app renames it to `settings.json.co
 The title starts with the connection's name, as in "Office - 127.x.y.z:13389 - Remote Desktop Connection". The `127.x.y.z:port` after the name is the address mstsc actually connects to, the local tunnel entrance: mstsc knows nothing of the proxy, only this address. Each connection's loopback address never changes, so the passwords and certificate trust mstsc remembers stay separate for each computer.
 
 The app adds the name (started with `/v:`, mstsc puts only the address in the title) and adds it again right away whenever mstsc sets its title back. If the name is missing, look for a warning about "showName" in that connection's session log.
+
+### 127.x.y.z in Remote Desktop's own Computer list
+
+mstsc adds every address it connects to to its Computer list (ten at most; when it's full, the oldest goes), and when it exits it writes the address into the hidden file `Default.rdp` in Documents, which fills in the box the next time you open Remote Desktop Connection. Through this app, the address it remembers is the local tunnel entrance `127.x.y.z:13389`, which reaches nothing without the app.
+
+So whenever a connection ends, and whenever the app starts, the app:
+
+- removes those addresses from the list and brings back the entries they pushed out (the ones it saw in the list while it was running this time; entries pushed out before can't be brought back);
+- empties the address `Default.rdp` fills in if it's one of them, so the next time you open Remote Desktop Connection you choose the computer yourself. Nothing else in `Default.rdp` changes.
+
+In Settings → Connections → "Remote Desktop's recent computers" you can choose: don't clean up; remove this app's addresses (127.1.1.1–127.254.254.254, the default); remove every 127.x.x.x (127.0.0.1 too, which SSH port forwarding and the like often use). Changing the setting cleans up at once.
+
+If you open Remote Desktop Connection yourself while the app is connected, it may write an entrance back into the list; the next time a connection ends or the app starts, it goes again. The jump list of Remote Desktop Connection on the taskbar (the recent items in its right-click menu) is left alone: right-click an entry there and choose "Remove from this list". The user names and certificate trust mstsc keeps in the registry under `Servers\127.x.y.z` stay too: the app uses them when it connects, and the list doesn't show them.
 
 ### Start with the Diagnostics page
 

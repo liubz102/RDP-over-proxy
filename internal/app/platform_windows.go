@@ -24,6 +24,10 @@ func vault() api.Vault { return secret.Vault{} }
 
 func servers() api.Servers { return mstsc.Servers{Key: mstsc.ServersKey} }
 
+func history() api.History {
+	return &mstsc.History{Key: mstsc.HistoryKey, RDPFile: mstsc.DefaultRDPPath}
+}
+
 func launchMstsc(args []string) (session.Process, error) {
 	p, err := mstsc.Launch(args)
 	if err != nil {

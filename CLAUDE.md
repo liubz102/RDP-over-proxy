@@ -32,7 +32,7 @@
 | `internal/model` | 数据结构（Settings、Proxy、Profile、Target）与校验，纯逻辑。内置的两个代理条目：直连（`direct`）和跟随系统代理（`system`），都不落盘。Proxy / Profile 的校验返回 `FieldErrors`（字段 + 代码）。V2Ray 系的设置在 `ProxyOptions`（`options.go`），`Normalize` 只留下这种代理用得上的项并补默认值 |
 | `internal/loopback` | 由 profile ID 派生 `127.a.b.c` 回环地址，冲突时顺延 |
 | `internal/rdpfile` | 只读解析 .rdp：导入草稿、RD 网关判定、服务器身份验证和「始终要求凭据」 |
-| `internal/mstsc` | mstsc 启动参数（`Args`，纯函数）；启动 / 等待 / 关闭 / 结束 / 聚焦，窗口标题前加连接名（`ShowName`，格式见纯函数 `Title`）（`launch_windows.go`）；`Servers` 注册表记忆（UsernameHint）；Default.rdp 和网关策略（`DecideGateway`、`DecideDefaults` 纯函数 + `ReadDefaults`）；`EditDefaults`（`mstsc /edit Default.rdp`） |
+| `internal/mstsc` | mstsc 启动参数（`Args`，纯函数）；启动 / 等待 / 关闭 / 结束 / 聚焦，窗口标题前加连接名（`ShowName`，格式见纯函数 `Title`）（`launch_windows.go`）；`Servers` 注册表记忆（UsernameHint）；Default.rdp 和网关策略（`DecideGateway`、`DecideDefaults` 纯函数 + `ReadDefaults`）；`EditDefaults`（`mstsc /edit Default.rdp`）；`History`（`history_windows.go`）：按设置清理 mstsc 的历史记录里的入口地址，即「计算机」下拉列表（`HistoryKey` 的 `MRU0`–`MRU9`，被它们挤掉的放回去）和 Default.rdp 的 `full address`，`Prune`、`ClearAddress` 是纯函数（`history.go`） |
 | `internal/probe` | X.224 CR/CC 编解码、线路检查 `Check` |
 | `internal/route` | `Dialer` / `Provider` 接口、直连 |
 | `internal/engine` | 内嵌的 Xray 实例，也是应用实际使用的 `route.Provider`：outbound 引用计数、强制 tag 派发、错误原因回传、日志桥接；各类代理的出站生成（`outbound.go`）和保存前的 `Check` |
@@ -118,6 +118,7 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
    - 自测不要点提权说明框的「确定」（会弹 UAC），也不要往 Program Files 放东西：提权说明框和错误框可以用测试脚本读窗口文字后结束进程来验证；`--prepare-folders <自己的 SID>` 可以不提权直接在临时文件夹里跑。
    - 不碰用户真实的凭据和 mstsc 注册表：凭据测试只用 `TERMSRV/rdp-over-proxy-test-<随机>.invalid`，注册表测试只用 `HKCU\Software\RDP-over-proxy-test`，测试结束都要清掉。
    - 自测时不要往凭据管理器存密码，也不要调用 `Connect`（会启动 mstsc）。
+   - 程序默认会清理真实的 mstsc 历史记录（见「已知的坑」），预览版和复制出来自测的 exe 也一样：启动前先在它的 `settings.json` 里写 `"cleanHistory": "keep"`。
 6. **隐私**：仓库和日志里不出现个人主机名、IP、凭据。测试数据只用 `example.com` 和 `192.0.2.x`。
 7. **`wails3 init`**：绝不加 `-git`，它会执行 git init 和 add。
 8. **先征得同意**：安装软件、移动用户的文件、碰真实凭据之前，先问用户。
@@ -147,6 +148,7 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 - **测试在被测包之外，`go vet` 要求跨包的结构体字面量写字段名**：`model.Target{Host: "pc.example.com", Port: 3389}`，不能写成 `model.Target{"pc.example.com", 3389}`，CI 的 `go vet ./...` 会报错。
 - **本机跑不了 `-race`**：没有 gcc。
 - **`-race` 会连带打开编译器的 `checkptr`，Xray-core 过不了它**（2026-10-08，CI 第一次跑 `race` job 时发现）：VLESS Vision 和 REALITY 用「`uintptr` 加字段偏移再转回指针」的写法去读 TLS 连接里的缓冲（`proxy/vless/outbound/outbound.go`、`inbound.go`、`transport/internet/reality`），`checkptr` 会让整个测试进程 `fatal error: checkptr: pointer arithmetic result points to invalid allocation`。所以 CI 的 `race` job 带了 `"-gcflags=github.com/xtls/...=-d=checkptr=0"`，只对 Xray 一家关掉，我们自己的代码和别的依赖照常检查；在有 gcc 的机器上本地跑 `-race` 要带同样的参数。本机没有 gcc 时，可以用 `go test -gcflags=all=-d=checkptr=1 "-gcflags=github.com/xtls/...=-d=checkptr=0" -count=1 ./tests/...` 模拟 `-race` 带来的这部分检查（不含数据竞争检测）；不带第二个参数时 `tests/engine` 会在同一处崩掉。另外，Xray 的 XHTTP 客户端（`splithttp.WaitReadCloser`）自带数据竞争，所以 `TestRoutesThroughTheV2RayFamily` 在 `-race` 下跳过两个 XHTTP 用例（`tests/engine/raceon_test.go`、`raceoff_test.go` 的 `raceDetector`），普通测试照常跑；`-race` 报出栈里没有我们代码的竞争时，照这个办法处理。
+- **mstsc 连接时把地址放进「计算机」下拉列表的第一格，退出时把它写进 Default.rdp 的 `full address`**（2026-10-14，按注册表键和文件的修改时间判断）：列表在 `HKCU\Software\Microsoft\Terminal Server Client\Default` 的 `MRU0`–`MRU9`，满 10 个就挤掉最后一个。所以 `Core.ForgetHistory` 只在会话结束（mstsc 已退出）、启动、保存设置时清理，**不监听注册表**：mstsc 一个值一个值地写列表，中途插进去改会把它搅乱。别的 mstsc 进程随时可能写，所以写完再读，直到读出来是干净的（`Prune` 也去掉重复项）；Default.rdp 用只许别人读的句柄读、改、写，其他字节、编码和隐藏属性都不变。`Servers` 下的用户名提示和证书信任不清理（本程序要用，列表里也不显示），任务栏跳转列表也不清理。
 - **Windows 上 `Wait` 之后再 `os.Process.Kill`，返回的是 `EINVAL`，不是 `ErrProcessDone`**：`mstsc.Process` 因此改用自己持有的句柄调 `TerminateProcess`。
 - **`windows.NewCallback` 创建的回调释放不掉，数量也有上限**：只能在包级变量里创建一次（见 `winx` 的 `enumCallback`、`winEventCallback`），不要在函数里每次新建。
 - **跨进程的 `SetWindowText` 不给对方发 `WM_SETTEXT`**（2026-10-06 实验）：它只改 Windows 存的文字，对方的窗口过程收不到，盯着对方进程的 WinEvent 钩子也收不到名称变化事件。要像对方自己改标题那样，就直接 `SendMessage(WM_SETTEXT)`（`winx.SetTitle`）。读标题用 `InternalGetWindowText`（`winx.Title`）：`GetWindowText` 读别的进程的窗口时，没有标题栏（比如全屏）就返回空。

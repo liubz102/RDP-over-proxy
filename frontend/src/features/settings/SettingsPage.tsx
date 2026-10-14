@@ -226,6 +226,14 @@ export function SettingsPage() {
           onChange={(_, d) => void save({ checkRouteBeforeConnect: d.checked })}
         />
         <Caption1 className={styles.hint}>{t("settings.checkFirstHint")}</Caption1>
+        <Field label={t("settings.cleanHistory")}>
+          <RadioGroup value={settings.cleanHistory} onChange={(_, data) => void save({ cleanHistory: data.value })}>
+            <Radio value="keep" label={t("settings.cleanHistoryKeep")} />
+            <Radio value="app" label={t("settings.cleanHistoryApp")} />
+            <Radio value="loopback" label={t("settings.cleanHistoryLoopback")} />
+          </RadioGroup>
+        </Field>
+        <Caption1 className={styles.hint}>{t("settings.cleanHistoryHint")}</Caption1>
       </Section>
 
       <Section title={t("settings.advanced")}>

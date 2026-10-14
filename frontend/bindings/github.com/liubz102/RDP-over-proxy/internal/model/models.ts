@@ -270,6 +270,12 @@ export interface Settings {
     "checkRouteBeforeConnect": boolean;
     "testUrl": string;
     "logLevel": string;
+
+    /**
+     * CleanHistory is what goes from Remote Desktop's memory of recent
+     * computers: "keep" (nothing), "app" or "loopback" (see HistoryApp).
+     */
+    "cleanHistory": string;
 }
 
 /**

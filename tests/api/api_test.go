@@ -248,6 +248,7 @@ type harness struct {
 	settings *store.SettingsStore
 	vault    *fakeVault
 	servers  *fakeServers
+	history  *fakeHistory
 	routes   *anyRoute
 	events   *events
 	launched chan *fakeProcess
@@ -295,6 +296,7 @@ func newHarnessIn(t *testing.T, dir string) (*harness, []store.Problem) {
 		settings: settings,
 		vault:    newFakeVault(),
 		servers:  &fakeServers{hints: map[string]string{}},
+		history:  &fakeHistory{},
 		routes:   &anyRoute{},
 		events:   &events{changed: make(chan struct{}, 1)},
 		launched: make(chan *fakeProcess, 4),
@@ -314,6 +316,7 @@ func newHarnessIn(t *testing.T, dir string) (*harness, []store.Problem) {
 		},
 		Vault:   h.vault,
 		Servers: h.servers,
+		History: h.history,
 		Launch: func(args []string) (session.Process, error) {
 			p := &fakeProcess{pid: 5000 + int(pids.Add(1)), args: args, exit: make(chan int, 1)}
 			h.launched <- p

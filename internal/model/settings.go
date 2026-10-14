@@ -5,7 +5,10 @@ package model
 
 import (
 	"fmt"
+	"net/netip"
 	"slices"
+
+	"github.com/liubz102/RDP-over-proxy/internal/loopback"
 )
 
 // SettingsSchema is the data-format number written into settings.json. It is a
@@ -50,6 +53,43 @@ const (
 	LogError = "error"
 )
 
+// What the app removes from Remote Desktop's memory of recent computers (the
+// list of its Computer box, and the address Default.rdp opens with) when a
+// connection ends and when the app starts. The tunnel entrances it leaves
+// there reach nothing once the app is not running.
+const (
+	// HistoryKeep removes nothing.
+	HistoryKeep = "keep"
+	// HistoryApp removes the addresses this app gives connections:
+	// 127.1.1.1 to 127.254.254.254, with any port.
+	HistoryApp = "app"
+	// HistoryLoopback removes every 127.x.x.x, 127.0.0.1 included.
+	HistoryLoopback = "loopback"
+)
+
+// HistoryMatch returns what mode removes: whether an address as Remote
+// Desktop keeps it ("host" or "host:port") goes. It returns nil for
+// HistoryKeep and for a mode it does not know.
+func HistoryMatch(mode string) func(entry string) bool {
+	var match func(netip.Addr) bool
+	switch mode {
+	case HistoryApp:
+		match = loopback.Valid
+	case HistoryLoopback:
+		match = func(a netip.Addr) bool { return a.Is4() && a.IsLoopback() }
+	default:
+		return nil
+	}
+	return func(entry string) bool {
+		t, err := ParseTarget(entry, DefaultRDPPort)
+		if err != nil {
+			return false
+		}
+		a, err := netip.ParseAddr(t.Host)
+		return err == nil && match(a)
+	}
+}
+
 // Settings are the user's application preferences (settings.json).
 type Settings struct {
 	Schema int `json:"schema"`
@@ -62,6 +102,9 @@ type Settings struct {
 	CheckRouteBeforeConnect bool   `json:"checkRouteBeforeConnect"`
 	TestURL                 string `json:"testUrl"`
 	LogLevel                string `json:"logLevel"`
+	// CleanHistory is what goes from Remote Desktop's memory of recent
+	// computers: "keep" (nothing), "app" or "loopback" (see HistoryApp).
+	CleanHistory string `json:"cleanHistory"`
 }
 
 // DefaultSettings returns the settings used before the user changes anything.
@@ -75,6 +118,7 @@ func DefaultSettings() Settings {
 		CheckRouteBeforeConnect: true,
 		TestURL:                 DefaultTestURL,
 		LogLevel:                LogInfo,
+		CleanHistory:            HistoryApp,
 	}
 }
 
@@ -98,6 +142,9 @@ func (s Settings) Normalize() Settings {
 	}
 	if !slices.Contains([]string{LogDebug, LogInfo, LogWarn, LogError}, s.LogLevel) {
 		s.LogLevel = d.LogLevel
+	}
+	if !slices.Contains([]string{HistoryKeep, HistoryApp, HistoryLoopback}, s.CleanHistory) {
+		s.CleanHistory = d.CleanHistory
 	}
 	return s
 }

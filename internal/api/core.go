@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/netip"
 	"slices"
 	"strings"
@@ -125,6 +126,12 @@ type Servers interface {
 	Forget(server string) error
 }
 
+// History is Remote Desktop's memory of recent computers (mstsc.History).
+// Forget removes every address drop matches from it.
+type History interface {
+	Forget(drop func(entry string) bool) (mstsc.Forgotten, error)
+}
+
 // Deps are the parts of the app the services use. The app passes the real
 // ones; tests pass stand-ins.
 type Deps struct {
@@ -137,7 +144,10 @@ type Deps struct {
 	CheckProxy func(model.Proxy) error
 	Vault      Vault
 	Servers    Servers
-	Launch     func(args []string) (session.Process, error)
+	// History is cleaned as Settings.CleanHistory says (see
+	// Core.ForgetHistory). Optional.
+	History History
+	Launch  func(args []string) (session.Process, error)
 	// Defaults reads what Default.rdp and Group Policy decide for every
 	// connection (mstsc.ReadDefaults). Optional.
 	Defaults func() (mstsc.Defaults, error)
@@ -201,6 +211,11 @@ type Core struct {
 	// system is what is known of Windows' proxy setting (watchSystemProxy).
 	system systemWatch
 
+	// historyMu runs one ForgetHistory at a time; historyErr is the failure
+	// last logged, so each is logged once (empty: it worked).
+	historyMu  sync.Mutex
+	historyErr string
+
 	// look is the current look for proxies on this computer
 	// (ProxyService.LocalProxies). A new look, and Quit, end the probes of
 	// the one before (see ProxyService.ProbeLocal).
@@ -261,6 +276,51 @@ func (c *Core) Start(problems []store.Problem) {
 		}
 	}
 	c.refreshRedactor()
+	c.ForgetHistory() // what earlier sessions, and the old script, left
+}
+
+// ForgetHistory removes tunnel entrances from Remote Desktop's memory of
+// recent computers, as Settings.CleanHistory says (model.HistoryMatch): from
+// the list of its Computer box, putting back what they pushed out, and from
+// the address Default.rdp opens with. mstsc writes them as it connects and
+// as it exits, so it runs when a session ends, once mstsc has exited; it
+// also runs when the app starts and when the settings are saved.
+func (c *Core) ForgetHistory() {
+	if c.d.History == nil || c.d.Settings == nil {
+		return
+	}
+	drop := model.HistoryMatch(c.d.Settings.Get().CleanHistory)
+	if drop == nil {
+		return
+	}
+	c.historyMu.Lock()
+	defer c.historyMu.Unlock()
+	f, err := c.d.History.Forget(drop)
+	// The entries put back are counted only: they name the user's own
+	// computers, which the log's redactor does not know.
+	if len(f.Dropped) > 0 {
+		back := ""
+		if f.Restored > 0 {
+			back = fmt.Sprintf(", and put back %d entries they had pushed out", f.Restored)
+		}
+		c.d.Log.Infof("removed %s from Remote Desktop's list of computers%s", strings.Join(f.Dropped, ", "), back)
+	}
+	if f.AddressCleared {
+		c.d.Log.Infof("emptied the address Remote Desktop opens with (Default.rdp)")
+	}
+	msg := ""
+	if err != nil {
+		msg = err.Error()
+	}
+	if msg == c.historyErr {
+		return
+	}
+	if err != nil {
+		c.d.Log.Warnf("clean up Remote Desktop's memory of recent computers: %v", err)
+	} else {
+		c.d.Log.Infof("cleaning up Remote Desktop's memory of recent computers works again")
+	}
+	c.historyErr = msg
 }
 
 // Running counts the sessions that have not ended.
@@ -502,6 +562,9 @@ func jsonNames(text string) []string {
 
 // sessionChanged receives every state of every session.
 func (c *Core) sessionChanged(profileID string, s session.State) {
+	if s.Step == session.StepDone {
+		c.ForgetHistory() // mstsc has exited: what it remembers is written
+	}
 	c.d.Emit(EventSessionsChanged, sessionView(profileID, s))
 	if s.Step == session.StepDone {
 		c.dataChanged() // mstsc may have remembered a password meanwhile

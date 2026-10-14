@@ -1,6 +1,7 @@
 package model_test
 
 import (
+	"strings"
 	"testing"
 
 	. "github.com/liubz102/RDP-over-proxy/internal/model"
@@ -17,7 +18,7 @@ func TestDefaultSettingsAreValid(t *testing.T) {
 }
 
 func TestNormalizeReplacesInvalidValues(t *testing.T) {
-	got := Settings{Language: LangEn, Theme: "purple", CheckRouteBeforeConnect: false}.Normalize()
+	got := Settings{Language: LangEn, Theme: "purple", CheckRouteBeforeConnect: false, CleanHistory: "sometimes"}.Normalize()
 	want := DefaultSettings()
 	want.Language = LangEn
 	// Booleans are taken as given: Normalize cannot tell "missing" from
@@ -31,7 +32,7 @@ func TestNormalizeReplacesInvalidValues(t *testing.T) {
 
 func TestNormalizeKeepsValidChoices(t *testing.T) {
 	in := Settings{Language: LangZhCN, Theme: ThemeDark, CloseBehavior: CloseQuit, LocalPort: 23389,
-		TestURL: "https://example.com/204", LogLevel: LogDebug}
+		TestURL: "https://example.com/204", LogLevel: LogDebug, CleanHistory: HistoryLoopback}
 	got := in.Normalize()
 	in.Schema = SettingsSchema
 	if got != in {
@@ -61,6 +62,49 @@ func TestValidateRejectsBadValues(t *testing.T) {
 	for name, s := range cases {
 		if err := s.Validate(); err == nil {
 			t.Errorf("%s: Validate() = nil, want an error", name)
+		}
+	}
+}
+
+func TestHistoryMatch(t *testing.T) {
+	if DefaultSettings().CleanHistory != HistoryApp {
+		t.Errorf("default CleanHistory = %q, want %q", DefaultSettings().CleanHistory, HistoryApp)
+	}
+	for _, mode := range []string{HistoryKeep, "", "sometimes"} {
+		if HistoryMatch(mode) != nil {
+			t.Errorf("HistoryMatch(%q) removes something", mode)
+		}
+	}
+	app, all := HistoryMatch(HistoryApp), HistoryMatch(HistoryLoopback)
+	cases := []struct {
+		entry    string
+		app, all bool
+	}{
+		{"127.1.2.3", true, true},
+		{"127.1.2.3:13389", true, true},
+		{"127.254.254.254", true, true},
+		{"127.20.161.131:13389", true, true},
+		{"127.0.0.1", false, true},
+		{"127.0.0.1:3390", false, true},
+		{"127.255.1.1", false, true},
+		{"127.1.1.0", false, true},
+		{"pc.example.com", false, false},
+		{"pc.example.com:3390", false, false},
+		{"192.0.2.1:3389", false, false},
+		{"localhost", false, false},
+		{"localhost:3390", false, false},
+		{"[::1]:3389", false, false},
+		{"::1", false, false},
+		{"", false, false},
+		{"127.1.2.3:99999", false, false},
+		{strings.Repeat("x", 300), false, false},
+	}
+	for _, c := range cases {
+		if got := app(c.entry); got != c.app {
+			t.Errorf("app range removes %q = %v, want %v", c.entry, got, c.app)
+		}
+		if got := all(c.entry); got != c.all {
+			t.Errorf("all of 127/8 removes %q = %v, want %v", c.entry, got, c.all)
 		}
 	}
 }
