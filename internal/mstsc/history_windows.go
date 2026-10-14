@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -15,12 +16,15 @@ import (
 
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
+
+	"github.com/liubz102/RDP-over-proxy/internal/winx"
 )
 
 // History is mstsc's memory of recent computers: the list of its Computer box
-// (HistoryKey), which it writes as it connects, and the address Default.rdp
-// opens with, which it writes as it exits. Neither is written by a session
-// once its mstsc has exited, which is when the app calls Forget.
+// (HistoryKey) and its jump list (JumpListAppID), which it adds to as it
+// connects, and the address Default.rdp opens with, which it writes as it
+// exits. None is written by a session once its mstsc has exited, which is
+// when the app calls Forget.
 type History struct {
 	// Key is the list's registry key under HKEY_CURRENT_USER. The app uses
 	// HistoryKey; tests use one of their own.
@@ -28,6 +32,9 @@ type History struct {
 	// RDPFile finds Default.rdp. The app uses DefaultRDPPath; tests use a
 	// file of their own. Nil leaves Default.rdp alone.
 	RDPFile func() (string, error)
+	// AppID names the jump list. The app uses JumpListAppID; empty leaves
+	// the jump list alone, as tests do.
+	AppID string
 
 	mu sync.Mutex
 	// known is the list as Forget last left it, for putting back what
@@ -43,12 +50,15 @@ type Forgotten struct {
 	Restored int
 	// AddressCleared: Default.rdp no longer opens with an address.
 	AddressCleared bool
+	// JumpList counts the entries removed from the jump list.
+	JumpList int
 }
 
 // Forget removes every address drop matches from the list (see Prune) and
-// empties Default.rdp's address if drop matches it. A missing list or file
-// is not an error. An error never names Default.rdp's path, which goes into
-// the log file and can name a file server or a company.
+// from the jump list (see JumpEntryGoes), and empties Default.rdp's address
+// if drop matches it. A missing list or file is not an error. An error never
+// names Default.rdp's path, which goes into the log file and can name a file
+// server or a company.
 //
 // Other mstsc processes may write the list meanwhile: Forget writes, reads
 // the list again and goes on until what it reads is clean. Default.rdp is
@@ -61,7 +71,24 @@ func (h *History) Forget(drop func(entry string) bool) (Forgotten, error) {
 	var f Forgotten
 	listErr := h.pruneList(drop, &f)
 	fileErr := h.clearFile(drop, &f)
-	return f, errors.Join(listErr, fileErr)
+	jumpErr := h.pruneJumpList(drop, &f)
+	return f, errors.Join(listErr, fileErr, jumpErr)
+}
+
+// pruneJumpList removes the jump list's shortcuts to mstsc that connect to
+// an address drop matches.
+func (h *History) pruneJumpList(drop func(entry string) bool, f *Forgotten) error {
+	if h.AppID == "" {
+		return nil
+	}
+	n, err := winx.PruneJumpList(h.AppID, func(l winx.JumpLink) bool {
+		return strings.EqualFold(filepath.Base(l.Path), "mstsc.exe") && JumpEntryGoes(l.Args, os.ReadFile, drop)
+	})
+	f.JumpList = n
+	if err != nil {
+		return fmt.Errorf("Remote Desktop's jump list: %w", err)
+	}
+	return nil
 }
 
 func (h *History) pruneList(drop func(entry string) bool, f *Forgotten) error {

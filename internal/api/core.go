@@ -281,10 +281,11 @@ func (c *Core) Start(problems []store.Problem) {
 
 // ForgetHistory removes tunnel entrances from Remote Desktop's memory of
 // recent computers, as Settings.CleanHistory says (model.HistoryMatch): from
-// the list of its Computer box, putting back what they pushed out, and from
-// the address Default.rdp opens with. mstsc writes them as it connects and
-// as it exits, so it runs when a session ends, once mstsc has exited; it
-// also runs when the app starts and when the settings are saved.
+// the list of its Computer box, putting back what they pushed out, from its
+// jump list, and from the address Default.rdp opens with. mstsc writes them
+// as it connects and as it exits, so it runs when a session ends, once mstsc
+// has exited; it also runs when the app starts and when the settings are
+// saved.
 func (c *Core) ForgetHistory() {
 	if c.d.History == nil || c.d.Settings == nil {
 		return
@@ -307,6 +308,10 @@ func (c *Core) ForgetHistory() {
 	}
 	if f.AddressCleared {
 		c.d.Log.Infof("emptied the address Remote Desktop opens with (Default.rdp)")
+	}
+	// Counted only: an entry may name an .rdp file.
+	if f.JumpList > 0 {
+		c.d.Log.Infof("removed %d entries from Remote Desktop's jump list", f.JumpList)
 	}
 	msg := ""
 	if err != nil {

@@ -15,10 +15,12 @@ import (
 )
 
 // fakeHistory stands in for Remote Desktop's memory of recent computers: a
-// list that Forget prunes, and the number of calls.
+// list that Forget prunes, and the number of calls. jump is how many jump
+// list entries each call says it removed.
 type fakeHistory struct {
 	mu    sync.Mutex
 	list  []string
+	jump  int
 	calls int
 	err   error
 }
@@ -37,6 +39,7 @@ func (f *fakeHistory) Forget(drop func(entry string) bool) (mstsc.Forgotten, err
 		}
 	}
 	f.list = kept
+	out.JumpList = f.jump
 	return out, f.err
 }
 
@@ -78,6 +81,9 @@ func TestHistoryIsCleanedWhenASessionEnds(t *testing.T) {
 	running := h.events.session(p.ID, func(v SessionView) bool { return v.Phase == "running" })
 	// mstsc remembers the entrance as it connects.
 	h.history.set([]string{running.Addr, "pc.example.com:3390"}, nil)
+	h.history.mu.Lock()
+	h.history.jump = 1
+	h.history.mu.Unlock()
 	if err := h.sessions.Disconnect(p.ID, false); err != nil {
 		t.Fatal(err)
 	}
@@ -87,6 +93,9 @@ func TestHistoryIsCleanedWhenASessionEnds(t *testing.T) {
 	}
 	if !logged(h.log, logging.LevelInfo, "removed "+running.Addr+" from Remote Desktop's list") {
 		t.Fatalf("the removal was not logged: %+v", h.log.Recent())
+	}
+	if !logged(h.log, logging.LevelInfo, "removed 1 entries from Remote Desktop's jump list") {
+		t.Fatalf("the jump list was not logged: %+v", h.log.Recent())
 	}
 }
 

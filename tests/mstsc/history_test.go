@@ -3,11 +3,13 @@ package mstsc_test
 import (
 	"bytes"
 	"encoding/binary"
+	"os"
 	"slices"
 	"strings"
 	"testing"
 	"unicode/utf16"
 
+	"github.com/liubz102/RDP-over-proxy/internal/model"
 	"github.com/liubz102/RDP-over-proxy/internal/mstsc"
 )
 
@@ -137,5 +139,68 @@ func TestClearAddressKeepsOtherBytes(t *testing.T) {
 	want = append(want, rdp("\r\n")[2:]...)
 	if !changed || !bytes.Equal(got, want) {
 		t.Fatalf("ClearAddress = % x, %v; want % x", got, changed, want)
+	}
+}
+
+func TestJumpTarget(t *testing.T) {
+	cases := []struct{ args, address, file string }{
+		{`/v:"127.104.1.1:13389"`, "127.104.1.1:13389", ""},
+		{`/v:pc.example.com /admin`, "pc.example.com", ""},
+		{`/V:"192.0.2.1"`, "192.0.2.1", ""},
+		{`"C:\Users\someone\Documents\Office PC.rdp"`, "", `C:\Users\someone\Documents\Office PC.rdp`},
+		{`"C:\a.rdp" /v:"127.1.2.3"`, "127.1.2.3", ""},
+		{`/edit "C:\a.RDP"`, "", `C:\a.RDP`},
+		{``, "", ""},
+		{`/public`, "", ""},
+	}
+	for _, c := range cases {
+		address, file := mstsc.JumpTarget(c.args)
+		if address != c.address || file != c.file {
+			t.Errorf("JumpTarget(%q) = %q, %q; want %q, %q", c.args, address, file, c.address, c.file)
+		}
+	}
+}
+
+func TestJumpEntryGoes(t *testing.T) {
+	files := map[string][]byte{
+		`C:\rdp\tunnel.rdp`: rdp("full address:s:127.1.2.3:13389\r\n"),
+		`C:\rdp\office.rdp`: rdp("full address:s:pc.example.com\r\n"),
+		// Named like an entrance, but it says where it goes.
+		`C:\rdp\127.9.9.9.rdp`: rdp("full address:s:192.0.2.1\r\n"),
+		`C:\rdp\broken.rdp`:    rdp("username:s:alice\r\n"),
+	}
+	read := func(path string) ([]byte, error) {
+		if path == `C:\locked\127.1.1.1.rdp` {
+			return nil, os.ErrPermission
+		}
+		if b, ok := files[path]; ok {
+			return b, nil
+		}
+		return nil, os.ErrNotExist
+	}
+	cases := []struct {
+		args string
+		want bool
+	}{
+		{`/v:"127.104.1.1:13389"`, true},
+		{`/v:"pc.example.com:3390"`, false},
+		{`/v:"127.0.0.1:3390"`, false}, // not in this app's range
+		{`"C:\rdp\tunnel.rdp"`, true},
+		{`"C:\rdp\office.rdp"`, false},
+		{`"C:\rdp\127.9.9.9.rdp"`, false},
+		{`"C:\rdp\broken.rdp"`, false},
+		// Gone: the old script's names say where they went.
+		{`"c:\temp\rdp-proxy\127.20.161.131.rdp"`, true},
+		{`"c:\temp\rdp-proxy\127.20.161.131\Office（走代理）.rdp"`, true},
+		{`"c:\temp\rdp-proxy\Office.rdp"`, false},
+		// Not readable for another reason: it stays.
+		{`"C:\locked\127.1.1.1.rdp"`, false},
+		{``, false},
+	}
+	drop := model.HistoryMatch(model.HistoryApp)
+	for _, c := range cases {
+		if got := mstsc.JumpEntryGoes(c.args, read, drop); got != c.want {
+			t.Errorf("JumpEntryGoes(%q) = %v, want %v", c.args, got, c.want)
+		}
 	}
 }

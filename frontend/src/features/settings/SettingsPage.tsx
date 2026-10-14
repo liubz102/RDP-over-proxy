@@ -38,6 +38,11 @@ const useStyles = makeStyles({
   hint: {
     color: tokens.colorNeutralForeground3,
   },
+  // A hint whose sentences each start a line.
+  lines: {
+    color: tokens.colorNeutralForeground3,
+    whiteSpace: "pre-line",
+  },
   dropdown: {
     minWidth: "240px",
   },
@@ -226,14 +231,19 @@ export function SettingsPage() {
           onChange={(_, d) => void save({ checkRouteBeforeConnect: d.checked })}
         />
         <Caption1 className={styles.hint}>{t("settings.checkFirstHint")}</Caption1>
-        <Field label={t("settings.cleanHistory")}>
-          <RadioGroup value={settings.cleanHistory} onChange={(_, data) => void save({ cleanHistory: data.value })}>
-            <Radio value="keep" label={t("settings.cleanHistoryKeep")} />
-            <Radio value="app" label={t("settings.cleanHistoryApp")} />
-            <Radio value="loopback" label={t("settings.cleanHistoryLoopback")} />
-          </RadioGroup>
-        </Field>
-        <Caption1 className={styles.hint}>{t("settings.cleanHistoryHint")}</Caption1>
+      </Section>
+
+      <Section title={t("settings.cleanHistory")}>
+        <RadioGroup
+          aria-label={t("settings.cleanHistory")}
+          value={settings.cleanHistory}
+          onChange={(_, data) => void save({ cleanHistory: data.value })}
+        >
+          <Radio value="keep" label={t("settings.cleanHistoryKeep")} />
+          <Radio value="app" label={t("settings.cleanHistoryApp")} />
+          <Radio value="loopback" label={t("settings.cleanHistoryLoopback")} />
+        </RadioGroup>
+        <Caption1 className={styles.lines}>{t("settings.cleanHistoryHint")}</Caption1>
       </Section>
 
       <Section title={t("settings.advanced")}>

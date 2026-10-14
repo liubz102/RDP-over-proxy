@@ -56,7 +56,7 @@ Done (✓) and planned:
 - ✓ Route check before connecting: sends an RDP handshake to the target through the proxy and reports the latency and the security protocols the target accepts
 - ✓ Step-by-step route check: tests the proxy on its own and the remote computer through it, and says which part fails
 - ✓ One-click connect; the tunnel closes when the Remote Desktop window does
-- ✓ Once a connection ends, the app's entrances (127.x.y.z) leave Remote Desktop's own Computer list and the entries they pushed out come back (can be turned off in Settings)
+- ✓ Once a connection ends, the app's entrances (127.x.y.z) leave Remote Desktop's own Computer list and its taskbar jump list, and the entries they pushed out come back (can be turned off in Settings)
 - ✓ Import connections from `.rdp` files
 - ✓ Diagnostics page: the versions of Windows and Remote Desktop, the default Remote Desktop settings that affect connections, whether saved passwords can be used; copy the diagnostics without server names
 - ✓ Everything the app keeps is in its own folder; nothing goes into your user profile

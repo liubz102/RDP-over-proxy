@@ -344,7 +344,7 @@
     "cleanHistoryKeep": "Don't clean up",
     "cleanHistoryApp": "Remove this app's addresses (127.1.1.1–127.254.254.254)",
     "cleanHistoryLoopback": "Remove every 127.x.x.x address (127.0.0.1 too)",
-    "cleanHistoryHint": "Remote Desktop adds every address it connects to to its Computer list and fills in the last one next time. This app's entrances reach nothing without the app, and they take up room in the list. When a connection ends and when the app starts, they are removed from the list, the entries they pushed out come back, and the filled-in address is cleared if it is one of them. The taskbar's jump list is left alone: right-click an entry there and choose \"Remove from this list\".",
+    "cleanHistoryHint": "Remote Desktop records the local 127 addresses it has connected to in its Computer list, and fills in the last one the next time it opens.\nChoose here whether the local addresses in the list are cleaned up automatically each time a connection ends or this app starts.\nWith automatic cleanup, a filled-in computer that is a local address is cleared.",
     "advanced": "Advanced",
     "testUrl": "Test URL",
     "testUrlHint": "Fetched through a proxy when you test it on the Proxies page.",

@@ -2,9 +2,13 @@ package mstsc
 
 import (
 	"encoding/binary"
+	"errors"
+	"io/fs"
 	"slices"
 	"strings"
 	"unicode/utf16"
+
+	"github.com/liubz102/RDP-over-proxy/internal/rdpfile"
 )
 
 // HistoryKey is where mstsc keeps its list of recent computers, under
@@ -12,6 +16,12 @@ import (
 // box of Remote Desktop Connection lists. mstsc adds the address it connects
 // to, tunnel entrances included, as it connects.
 const HistoryKey = `Software\Microsoft\Terminal Server Client\Default`
+
+// JumpListAppID is Remote Desktop Connection's app ID. Its jump list, the
+// recent computers its taskbar button and Start menu entry offer, is kept
+// under it: shortcuts that start mstsc on a computer (/v:) or an .rdp file,
+// added as mstsc connects.
+const JumpListAppID = "Microsoft.Windows.RemoteDesktop"
 
 // HistorySize is how many computers mstsc's list holds. A new one goes
 // first and, when the list is full, the last one goes.
@@ -113,4 +123,78 @@ func clearedLine(line string, drop func(entry string) bool) (string, bool) {
 		return "", false
 	}
 	return line[:len(line)-len(rest)+len(typ)+1], true
+}
+
+// JumpTarget reads where an entry of mstsc's jump list connects to, from the
+// arguments it starts mstsc with: the computer /v: names, or else the .rdp
+// file it opens.
+func JumpTarget(args string) (address, rdpFile string) {
+	for _, arg := range splitArgs(args) {
+		switch lower := strings.ToLower(arg); {
+		case strings.HasPrefix(lower, "/v:"):
+			return arg[len("/v:"):], ""
+		case strings.HasSuffix(lower, ".rdp") && rdpFile == "":
+			rdpFile = arg
+		}
+	}
+	return "", rdpFile
+}
+
+// splitArgs splits a command line's arguments at spaces outside double
+// quotes, and drops the quotes. mstsc's jump list quotes the computer and
+// the file; neither holds a quote.
+func splitArgs(s string) []string {
+	var args []string
+	var arg strings.Builder
+	quoted, started := false, false
+	for _, r := range s {
+		switch {
+		case r == '"':
+			quoted, started = !quoted, true
+		case r == ' ' && !quoted:
+			if started {
+				args = append(args, arg.String())
+				arg.Reset()
+				started = false
+			}
+		default:
+			arg.WriteRune(r)
+			started = true
+		}
+	}
+	if started {
+		args = append(args, arg.String())
+	}
+	return args
+}
+
+// JumpEntryGoes reports whether drop removes an entry of mstsc's jump list
+// that starts it with args. For an .rdp file, read reads it and what it
+// connects to decides. A file that is gone connects nowhere any more; its
+// name, or its folder's, still decides when it is an address (the app's old
+// script named them after the tunnel entrance). A file that cannot be read
+// for another reason stays.
+func JumpEntryGoes(args string, read func(path string) ([]byte, error), drop func(entry string) bool) bool {
+	address, file := JumpTarget(args)
+	if address != "" {
+		return drop(address)
+	}
+	if file == "" {
+		return false
+	}
+	data, err := read(file)
+	if err == nil {
+		t, err := rdpfile.Parse(data).Target()
+		return err == nil && drop(t.String())
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		return false
+	}
+	parts := strings.FieldsFunc(file, func(r rune) bool { return r == '\\' || r == '/' })
+	if len(parts) == 0 {
+		return false
+	}
+	name := parts[len(parts)-1]
+	name = name[:len(name)-len(".rdp")]
+	return drop(name) || len(parts) > 1 && drop(parts[len(parts)-2])
 }

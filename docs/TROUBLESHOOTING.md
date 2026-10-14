@@ -77,16 +77,17 @@ RDP-over-proxy\
 
 ### 原版远程桌面「计算机」列表里的 127.x.y.z
 
-mstsc 会把连过的地址记进「计算机」下拉列表（最多 10 个，满了就挤掉最旧的一个），退出时还把它写进「文档」里的隐藏文件 `Default.rdp`，下次打开原版远程桌面时预填。经本程序连接时，记下的是本机的隧道入口 `127.x.y.z:13389`，离开本程序就连不上。
+mstsc 会把连过的地址记进「计算机」下拉列表（最多 10 个，满了就挤掉最旧的一个）和任务栏上「远程桌面连接」的跳转列表（右键菜单里的最近项），退出时还把它写进「文档」里的隐藏文件 `Default.rdp`，下次打开原版远程桌面时预填。经本程序连接时，记下的是本机的隧道入口 `127.x.y.z:13389`，离开本程序就连不上。
 
 所以每次断开连接、每次启动本程序时，本程序会：
 
 - 把这些地址从下拉列表里删掉，被它们挤出列表的记录放回去（只限本程序这次运行期间在列表里见过的，之前就被挤掉的找不回来）；
+- 把连到这些地址的项从跳转列表里删掉，包括旧脚本留下的 .rdp 文件项；
 - `Default.rdp` 预填的地址是它们时清空，下次打开原版远程桌面要自己选计算机。`Default.rdp` 的其他设置不动。
 
-「设置 → 连接 → 远程桌面的历史记录」里可以选：不自动清理；只清理本程序的地址（127.1.1.1–127.254.254.254，默认）；清理所有 127.x.x.x（包括 SSH 端口转发等常用的 127.0.0.1）。改了设置马上清理一次。
+「设置 → 远程桌面的历史记录」里可以选：不自动清理；只清理本程序的地址（127.1.1.1–127.254.254.254，默认）；清理所有 127.x.x.x（包括 SSH 端口转发等常用的 127.0.0.1）。改了设置马上清理一次。
 
-本程序连接期间如果又打开了原版远程桌面，它可能把列表里的入口地址再写回去，下一次断开或启动本程序时会再清理。任务栏上「远程桌面连接」的跳转列表（右键菜单里的最近项）不清理，要删的话在那一项上右键选「从列表中删除」。mstsc 在注册表 `Servers\127.x.y.z` 下记的用户名和证书信任也不清理：本程序连接时要用，列表里也不显示。
+本程序连接期间如果又打开了原版远程桌面，它可能把列表里的入口地址再写回去，下一次断开或启动本程序时会再清理。mstsc 在注册表 `Servers\127.x.y.z` 下记的用户名和证书信任也不清理：本程序连接时要用，列表里也不显示。
 
 ### 先看「诊断」页
 
@@ -263,16 +264,17 @@ The app adds the name (started with `/v:`, mstsc puts only the address in the ti
 
 ### 127.x.y.z in Remote Desktop's own Computer list
 
-mstsc adds every address it connects to to its Computer list (ten at most; when it's full, the oldest goes), and when it exits it writes the address into the hidden file `Default.rdp` in Documents, which fills in the box the next time you open Remote Desktop Connection. Through this app, the address it remembers is the local tunnel entrance `127.x.y.z:13389`, which reaches nothing without the app.
+mstsc adds every address it connects to to its Computer list (ten at most; when it's full, the oldest goes), and to the jump list of Remote Desktop Connection on the taskbar (the recent items in its right-click menu); when it exits it writes the address into the hidden file `Default.rdp` in Documents, which fills in the box the next time you open Remote Desktop Connection. Through this app, the address it remembers is the local tunnel entrance `127.x.y.z:13389`, which reaches nothing without the app.
 
 So whenever a connection ends, and whenever the app starts, the app:
 
 - removes those addresses from the list and brings back the entries they pushed out (the ones it saw in the list while it was running this time; entries pushed out before can't be brought back);
+- removes the jump list's entries that connect to them, the `.rdp` files the old script left included;
 - empties the address `Default.rdp` fills in if it's one of them, so the next time you open Remote Desktop Connection you choose the computer yourself. Nothing else in `Default.rdp` changes.
 
-In Settings → Connections → "Remote Desktop's recent computers" you can choose: don't clean up; remove this app's addresses (127.1.1.1–127.254.254.254, the default); remove every 127.x.x.x (127.0.0.1 too, which SSH port forwarding and the like often use). Changing the setting cleans up at once.
+In Settings → "Remote Desktop's recent computers" you can choose: don't clean up; remove this app's addresses (127.1.1.1–127.254.254.254, the default); remove every 127.x.x.x (127.0.0.1 too, which SSH port forwarding and the like often use). Changing the setting cleans up at once.
 
-If you open Remote Desktop Connection yourself while the app is connected, it may write an entrance back into the list; the next time a connection ends or the app starts, it goes again. The jump list of Remote Desktop Connection on the taskbar (the recent items in its right-click menu) is left alone: right-click an entry there and choose "Remove from this list". The user names and certificate trust mstsc keeps in the registry under `Servers\127.x.y.z` stay too: the app uses them when it connects, and the list doesn't show them.
+If you open Remote Desktop Connection yourself while the app is connected, it may write an entrance back into the list; the next time a connection ends or the app starts, it goes again. The user names and certificate trust mstsc keeps in the registry under `Servers\127.x.y.z` stay too: the app uses them when it connects, and the list doesn't show them.
 
 ### Start with the Diagnostics page
 
