@@ -102,6 +102,12 @@ func Run(opts Options) error {
 			// The WebView2 profile goes with everything else the app keeps,
 			// not into Wails' default under %APPDATA%.
 			WebviewUserDataPath: filepath.Join(dirs.Data, "WebView2"),
+			// Wails' own quit when the last window closes only ends the
+			// message loop: its shutdown, which takes the tray icon away,
+			// never runs, and the icon stays in the notification area until
+			// the mouse passes over it. Closing the window quits through
+			// App.Quit instead (createWindow).
+			DisableQuitOnLastWindowClosed: true,
 		},
 		Logger:         slog.New(logging.SlogHandler(logger, logging.SourceUI)),
 		SingleInstance: singleInstance(dirs.Data, sh.showWindow),
@@ -258,13 +264,16 @@ func (s *shell) createWindow(current model.Settings) {
 		if s.quitting.Load() {
 			return
 		}
+		e.Cancel()
 		// While a remote desktop uses a tunnel, closing the window must not
 		// quit: that would cut the session.
 		if s.settings.Get().CloseBehavior == model.CloseToTray || s.core.Running() > 0 {
 			s.window.Hide()
-			e.Cancel()
+			return
 		}
-		// Otherwise the window closes; it is the only one, so the app quits.
+		// Otherwise the app quits the way the tray's Quit does; its shutdown
+		// closes the window.
+		s.quit()
 	})
 }
 

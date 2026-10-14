@@ -136,6 +136,7 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 - **Fluent 的 `Text` 系组件自带 `text-align`**：要居中得传 `align="center"`。
 - **托盘菜单改文字后要重新 `tray.SetMenu(menu)`**：`Menu.Update()` 刷不到托盘的弹出菜单。
 - **托盘右键菜单在 Wails v3 beta 上可能弹不出来**（#6161）：所以左键点击打开主窗口，所有功能都在窗口里。
+- **Wails 在最后一个窗口关闭时只发 `PostQuitMessage`，不走 `App.Quit` 的退出流程**（beta.27，`unregisterWindow`）：托盘图标收不到 `NIM_DELETE`，进程退出后留在托盘里，鼠标指上去才消失（2026-10-14 用户反馈）。所以开了 `DisableQuitOnLastWindowClosed`，关闭窗口的钩子一律取消关闭，要退出就调 `shell.quit`（`App.Quit`）。不要再让窗口自己关掉来退出。查托盘图标还在不在可以用 `Shell_NotifyIconGetRect`：图标在溢出区时返回 `S_FALSE`（1）也算在。
 - **Wails server 模式不支持单实例**，会直接报错，这也是 `internal/app` 要用构建标签区分的原因。
 - **不要用 `wails3 generate icons`**：它把一张 PNG 缩放成各个尺寸，会盖掉逐像素对齐的 16–64px 小图（缩出来的边框落在半像素上，发虚），也没有 20、24、40 这几个尺寸。图标只用 `wails3 task common:generate:icons` 生成，构建也不再自动重建 `icon.ico`。改 `appicon.svg` 时，`appicon-<尺寸>.svg` 要跟着手工改。
 - **托盘图标传的是 `icon.ico`，不要换回 PNG**：Wails 从 ico 里挑最接近系统小图标尺寸（100%–200% 缩放下是 16、20、24、32）的那张；给它一张大 PNG 时由 Windows 现场缩小，很糊。
