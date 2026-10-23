@@ -89,7 +89,7 @@ RDP-over-proxy\
 
 Put the app in a folder you can write to (such as `D:\Tools\RDP-over-proxy`). In a place that needs administrator rights, such as `C:\Program Files`, the app explains on its first start and asks for administrator rights once, only to create those two folders.
 
-Proxy passwords are encrypted with Windows in these files, so only the same Windows user on the same PC can read them. Remote Desktop passwords are kept in Windows Credential Manager, because Remote Desktop Connection reads them only from there.
+Proxy passwords are encrypted in these files, so opening a file doesn't show them; the whole folder can be copied to another PC and keeps working there, which makes backing up and restoring easy. Remote Desktop passwords are kept in Windows Credential Manager, because Remote Desktop Connection reads them only from there, so after moving to another PC you enter each one again the first time you connect.
 
 ## Building from source
 

@@ -104,7 +104,7 @@ export interface Proxy {
     /**
      * Secret is what signs in: the password of a SOCKS5, HTTP, Shadowsocks,
      * Trojan or Hysteria2 proxy, or the user ID of a VMess or VLESS one. The
-     * store seals it with DPAPI before it writes the file.
+     * store seals it with the app's own key before it writes the file.
      */
     "secret": string;
 

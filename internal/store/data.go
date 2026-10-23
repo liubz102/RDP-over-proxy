@@ -25,11 +25,14 @@ const (
 	ProfilesDir = "profiles"
 )
 
-// Sealer protects secrets in files. The app uses DPAPI (package secret);
+// Sealer protects secrets in files. The app uses its own key (secret.Fixed);
 // tests use a stand-in.
 type Sealer interface {
 	Seal(plain string) (string, error)
 	Open(sealed string) (string, error)
+	// Current reports whether sealed is empty or sealed the way Seal does it
+	// now. Files with values sealed another way are sealed again on loading.
+	Current(sealed string) bool
 }
 
 // Errors from Data.
@@ -66,10 +69,15 @@ const (
 	// ProblemNewer: the file was written by a newer version of the app. It
 	// was left untouched and left out.
 	ProblemNewer = "store.newerSchema"
-	// ProblemSecretLost: the proxy's secrets could not be decrypted (the
-	// file came from another Windows user or computer). It was loaded
-	// without them.
+	// ProblemSecretLost: the proxy's secrets could not be decrypted (an
+	// earlier version sealed them for another Windows user or computer, or
+	// the file was changed). It was loaded without them.
 	ProblemSecretLost = "store.secretLost"
+	// ProblemResealFailed: the proxy's secrets were sealed the way earlier
+	// versions did, for this Windows user only, and the file could not be
+	// written with them sealed the current way. It was loaded all the same;
+	// the next start tries again.
+	ProblemResealFailed = "store.resealFailed"
 	// ProblemLoopbackMoved: the profile's loopback address was missing,
 	// malformed or already another profile's, so it was given a new one.
 	ProblemLoopbackMoved = "store.loopbackMoved"
@@ -226,21 +234,48 @@ func (d *Data) decodeProxy(id, rel string, data []byte) (*model.Proxy, []Problem
 		errOptions = json.Unmarshal([]byte(options), &p.Options)
 	}
 	p.Secret, p.Outbound = secret, outbound
+	stale := false
 	if err := errors.Join(errSecret, errOutbound, errOptions); err != nil {
 		// None of what was sealed is used: what a failed opening returns
 		// is no secret, and the rest belongs with it.
 		p.Secret, p.Outbound, p.Options = "", "", model.ProxyOptions{}
 		problems = append(problems, Problem{File: rel, Code: ProblemSecretLost, Err: err})
 		d.lost[id] = true
+	} else {
+		stale = !d.sealer.Current(f.Secret) || !d.sealer.Current(f.Outbound) || !d.sealer.Current(f.Options)
 	}
 	p = p.Normalize()
 	if model.BuiltInKind(p.Kind) {
 		return nil, nil // only the built-in entries are direct or follow the system
 	}
+	if stale {
+		// Sealed the way earlier versions did, for this Windows user only:
+		// sealed again, they move with the file to another computer.
+		if err := d.reseal(id, rel, f, secret, outbound, options); err != nil {
+			problems = append(problems, Problem{File: rel, Code: ProblemResealFailed, Err: err})
+		}
+	}
 	if err := p.Validate(); err != nil {
 		problems = append(problems, Problem{File: rel, Code: ProblemInvalid, Err: err})
 	}
 	return &p, problems
+}
+
+// reseal writes the proxy's file again as it was read, with its secret,
+// outbound and options (the opened values) sealed the current way.
+func (d *Data) reseal(id, rel string, f proxyFile, secret, outbound, options string) error {
+	f.ID = id
+	var err error
+	if f.Secret, err = d.sealer.Seal(secret); err != nil {
+		return err
+	}
+	if f.Outbound, err = d.sealer.Seal(outbound); err != nil {
+		return err
+	}
+	if f.Options, err = d.sealer.Seal(options); err != nil {
+		return err
+	}
+	return writeFile(filepath.Join(d.dir, rel), f)
 }
 
 func (d *Data) decodeProfile(id, rel string, data []byte) (*model.Profile, *Problem) {
@@ -313,10 +348,10 @@ func (d *Data) Proxies() []model.Proxy {
 
 // SecretsLost reports whether the proxy's sealed values (its secret, the
 // V2Ray family's settings, a custom outbound) could not be opened when it
-// was loaded, because they came from another Windows user or computer. What
-// is left are defaults, which are no way to reach the server: the user's
-// ID would go out without the TLS it was meant to travel in. It stays so
-// until the proxy is saved again.
+// was loaded: an earlier version sealed them for another Windows user or
+// computer, or the file was changed. What is left are defaults, which are
+// no way to reach the server: the user's ID would go out without the TLS it
+// was meant to travel in. It stays so until the proxy is saved again.
 func (d *Data) SecretsLost(id string) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()

@@ -18,7 +18,9 @@ import (
 // The parts of Windows the app keeps its data in and starts mstsc with.
 // Both the desktop build and the browser-preview build use them.
 
-func sealer() store.Sealer { return secret.DPAPI{} }
+// sealer seals with the app's own key, and still opens what earlier
+// versions sealed with DPAPI, so those files are sealed again on loading.
+func sealer() store.Sealer { return secret.Fixed{Legacy: secret.DPAPI{}} }
 
 func vault() api.Vault { return secret.Vault{} }
 

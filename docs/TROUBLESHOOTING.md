@@ -162,9 +162,13 @@ Hyper-V、WSL、Docker 等会保留一些端口范围，程序不能在这些端
 
 检测只读取端口和进程列表，再向这些本机端口发一个 SOCKS5 问候、读它选的认证方式，不发任何连接请求；代理软件的日志里可能会看到一条读不到请求的记录，这是正常的。如果你在代理软件里配了端口转发（例如 dokodemo-door 把本机端口转到某台电脑），这 4 个字节会被转给那台电脑，它只会当成一次无效的连接。只有在还没有自己的代理时才会检测。
 
-### 换了电脑或 Windows 用户后，代理的密码没了
+### 把程序拷到别的电脑，或者换了 Windows 用户
 
-代理的密码（以及 VMess、VLESS 的用户 ID 和传输、TLS 等设置）在文件里是用 Windows 的 DPAPI 按当前用户加密的，只有同一个 Windows 用户才能解开。把程序文件夹复制到别的电脑，或者换一个 Windows 用户运行，代理和连接都还在，但这些内容需要重新填写（重新粘贴分享链接最快）。代理页会在这类代理旁标出「需要重新填写」，重新保存之前不会用它连接：留下的只是默认设置，照着默认设置连接的话，用户 ID 可能不经加密就发出去。程序启动时会记下是哪些文件（写在日志里，界面完成后也会在窗口里提示）。
+代理的密码（以及 VMess、VLESS 的用户 ID 和传输、TLS 等设置）在文件里是用程序内置的密钥加密的，哪台电脑、哪个 Windows 用户都能解开，所以整个程序文件夹（或者它的 `data` 文件夹）可以直接拷到别的电脑继续用。远程桌面的密码不在文件里，而在 Windows 凭据管理器里，换电脑后第一次连接时程序会请你再输入一次。
+
+旧版本是用 Windows 的 DPAPI 按当前用户加密的，只有原来那台电脑上的同一个 Windows 用户才能解开。新版启动时会把这样的文件自动改成新的加密方式，所以从旧版换过来时：
+- 先在原来的电脑上用新版运行一次，再把文件夹拷过去，就什么都不用重填。
+- 已经拷过去、解不开的代理，需要重新填写（重新粘贴分享链接最快）。代理页会在这类代理旁标出「需要重新填写」，重新保存之前不会用它连接：留下的只是默认设置，照着默认设置连接的话，用户 ID 可能不经加密就发出去。程序启动时会记下是哪些文件（写在日志里，也会在窗口里提示）。文件被手工改坏时也是这样。
 
 如果某个文件损坏、无法读取，程序会把它改名为 `.corrupt` 保留下来，其余的照常载入。
 
@@ -349,9 +353,13 @@ The offer ("Proxies running on this computer") appears only while you have no pr
 
 Looking only reads the list of ports and processes, then sends those local ports a SOCKS5 greeting and reads the sign-in method they pick; no connection request follows. The proxy program's own log may show a line about a request it couldn't read; that is expected. If the program forwards a local port (a dokodemo-door to some computer, say), those four bytes go on to that computer, which sees nothing but an invalid connection. The app looks only while you have no proxy of your own.
 
-### Proxy passwords are gone after moving to another PC or Windows user
+### Moving the app to another PC or Windows user
 
-Proxy passwords (and the user IDs and transport and TLS settings of VMess and VLESS proxies) are encrypted in their files with Windows DPAPI for the current user, and only the same Windows user can decrypt them. If you copy the app's folder to another PC, or run it as another Windows user, the proxies and connections are all there, but these have to be entered again (pasting the share links again is quickest). The Proxies page marks such proxies "Needs re-entering", and they aren't used until saved again: what's left are default settings, and connecting with them could send a user ID without the encryption it was meant to travel in. The app notes which files are affected when it starts (in the log, and in the window once the connection pages are done).
+Proxy passwords (and the user IDs and transport and TLS settings of VMess and VLESS proxies) are encrypted in their files with a key built into the app, which decrypts them on any PC and for any Windows user. So you can copy the whole app folder (or its `data` folder) to another PC and keep using it. Remote Desktop passwords aren't in the files but in Windows Credential Manager; after moving, the app asks for each one again the first time you connect.
+
+Older versions encrypted them with Windows DPAPI for the current user, which only the same Windows user on the same PC can decrypt. The new version re-encrypts such files the new way when it starts, so when you upgrade:
+- Run the new version once on the old PC before you copy the folder, and nothing needs entering again.
+- Proxies already copied that can't be decrypted have to be entered again (pasting the share links again is quickest). The Proxies page marks them "Needs re-entering", and they aren't used until saved again: what's left are default settings, and connecting with them could send a user ID without the encryption it was meant to travel in. The app notes which files are affected when it starts (in the log, and in the window). A file damaged by hand-editing ends up the same way.
 
 If a file is damaged and can't be read, the app renames it to `.corrupt` and keeps it; everything else loads as usual.
 

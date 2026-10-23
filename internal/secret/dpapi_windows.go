@@ -12,17 +12,11 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-// sealedPrefix marks a DPAPI-sealed value in a file.
-const sealedPrefix = "dpapi:"
-
-// entropy ties sealed values to this app: DPAPI only opens them when given
-// the same bytes. It is no secret (the source is public); it only keeps a
-// value sealed by this app from opening as some other app's.
-var entropy = []byte("RDP-over-proxy/secret/v1")
-
 // DPAPI seals values for the current Windows user (CryptProtectData without
 // CRYPTPROTECT_LOCAL_MACHINE). Only the same user, on the same computer or
-// with a roaming profile, can open them.
+// with a roaming profile, can open them. Earlier versions sealed the secrets
+// in files this way; now it only opens them (Fixed.Legacy). The entropy is
+// label: DPAPI opens a value only when given the same bytes.
 type DPAPI struct{}
 
 // Seal returns plain sealed as "dpapi:<base64>". An empty value stays empty.
@@ -34,7 +28,7 @@ func (DPAPI) Seal(plain string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("DPAPI: %w", err)
 	}
-	return sealedPrefix + base64.StdEncoding.EncodeToString(out), nil
+	return dpapiPrefix + base64.StdEncoding.EncodeToString(out), nil
 }
 
 // Open reverses Seal. An empty value opens to an empty one.
@@ -42,7 +36,7 @@ func (DPAPI) Open(sealed string) (string, error) {
 	if sealed == "" {
 		return "", nil
 	}
-	text, ok := strings.CutPrefix(sealed, sealedPrefix)
+	text, ok := strings.CutPrefix(sealed, dpapiPrefix)
 	if !ok {
 		return "", fmt.Errorf("%w: the value is not sealed", ErrUnreadable)
 	}
@@ -63,7 +57,7 @@ func protect(data []byte, seal bool) ([]byte, error) {
 		return nil, errors.New("nothing to process")
 	}
 	in := windows.DataBlob{Size: uint32(len(data)), Data: &data[0]}
-	ent := windows.DataBlob{Size: uint32(len(entropy)), Data: &entropy[0]}
+	ent := windows.DataBlob{Size: uint32(len(label)), Data: &label[0]}
 	var out windows.DataBlob
 	var err error
 	if seal {

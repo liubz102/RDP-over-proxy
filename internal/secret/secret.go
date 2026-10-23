@@ -1,6 +1,7 @@
 // Package secret keeps secrets out of plain sight: proxy passwords, the
-// V2Ray family's settings and custom Xray outbounds are sealed with DPAPI
-// before they are written to a file, and the Remote Desktop password lives in
+// V2Ray family's settings and custom Xray outbounds are sealed with the app's
+// own key before they are written to a file (Fixed), so they move with the
+// files to another computer, and the Remote Desktop password lives in
 // Windows Credential Manager, where mstsc reads it.
 package secret
 
@@ -13,9 +14,10 @@ const MaxPasswordLen = 256
 
 // Errors.
 var (
-	// ErrUnreadable: a sealed value cannot be opened, typically because the
-	// file was copied from another Windows user or computer.
-	ErrUnreadable = errcode.New("secret.unreadable", "the saved secret cannot be decrypted by this Windows user")
+	// ErrUnreadable: a sealed value cannot be opened: an earlier version
+	// sealed it with DPAPI for another Windows user or computer, or the file
+	// was changed.
+	ErrUnreadable = errcode.New("secret.unreadable", "the saved secret cannot be decrypted")
 	// ErrVault labels failures to read or change Credential Manager.
 	ErrVault = errcode.New("credential.failed", "Windows Credential Manager refused the change")
 )

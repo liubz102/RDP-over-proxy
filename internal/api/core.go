@@ -101,8 +101,9 @@ const (
 // NoticeCodes lists every notice code, for checking that the UI translates
 // each one.
 var NoticeCodes = []string{
-	store.ProblemUnreadable, store.ProblemNewer, store.ProblemSecretLost, store.ProblemLoopbackMoved,
-	store.ProblemInvalid, store.ProblemReadFailed, NoticeSettingsRecovered, NoticeLogUnavailable,
+	store.ProblemUnreadable, store.ProblemNewer, store.ProblemSecretLost, store.ProblemResealFailed,
+	store.ProblemLoopbackMoved, store.ProblemInvalid, store.ProblemReadFailed,
+	NoticeSettingsRecovered, NoticeLogUnavailable,
 	NoticeSaveFailed, NoticeDeleteFailed, NoticeForgetFailed,
 }
 

@@ -173,8 +173,10 @@ func (r *anyRoute) last() model.Proxy {
 	return r.asked[len(r.asked)-1]
 }
 
-// sealer stands in for DPAPI.
+// sealer stands in for secret.Fixed.
 type sealer struct{}
+
+func (sealer) Current(string) bool { return true }
 
 func (sealer) Seal(s string) (string, error) {
 	if s == "" {

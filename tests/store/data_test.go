@@ -11,14 +11,17 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/liubz102/RDP-over-proxy/internal/errcode"
 	"github.com/liubz102/RDP-over-proxy/internal/loopback"
 	"github.com/liubz102/RDP-over-proxy/internal/model"
 )
 
-// fakeSealer stands in for DPAPI: "sealed:" plus base64, so the plain text
-// never appears in a file.
+// fakeSealer stands in for secret.Fixed: "sealed:" plus base64, so the plain
+// text never appears in a file. "old:" plus base64 stands for what earlier
+// versions sealed with DPAPI for this user: it opens, but is no longer
+// current.
 type fakeSealer struct{}
 
 func (fakeSealer) Seal(s string) (string, error) {
@@ -34,11 +37,18 @@ func (fakeSealer) Open(s string) (string, error) {
 	}
 	text, ok := strings.CutPrefix(s, "sealed:")
 	if !ok {
-		return "", errors.New("not sealed by this user")
+		if text, ok = strings.CutPrefix(s, "old:"); !ok {
+			return "", errors.New("not sealed by this user")
+		}
 	}
 	b, err := base64.StdEncoding.DecodeString(text)
 	return string(b), err
 }
+
+func (fakeSealer) Current(s string) bool { return s == "" || strings.HasPrefix(s, "sealed:") }
+
+// old seals s the way fakeSealer's earlier version did.
+func old(s string) string { return "old:" + base64.StdEncoding.EncodeToString([]byte(s)) }
 
 func open(t *testing.T, dir string) (*Data, []Problem) {
 	t.Helper()
@@ -173,6 +183,75 @@ func TestSecretsOfAnotherUserAreLost(t *testing.T) {
 	}
 	if d.SecretsLost(p.ID) {
 		t.Fatal("still marked after saving")
+	}
+}
+
+func TestOldSealingIsSealedAgain(t *testing.T) {
+	dir := t.TempDir()
+	const id = "0123456789abcdef"
+	file := filepath.Join(dir, ProxiesDir, id+".json")
+	options := `{"network":"ws","path":"/secret-path","security":"tls","sni":"cdn.example.com"}`
+	write(t, dir, "proxies/"+id+".json", `{"schema":1,"name":"Node","kind":"vless","server":"proxy.example.com","port":443,`+
+		`"secret":"`+old("b831381d-6324-4d53-ad4f-8cda48b30811")+`","options":"`+old(options)+`"}`)
+	d, problems := open(t, dir)
+	if len(problems) != 0 {
+		t.Fatalf("problems: %v", problems)
+	}
+	p, ok := d.Proxy(id)
+	if !ok || p.Secret != "b831381d-6324-4d53-ad4f-8cda48b30811" || p.Options.Path != "/secret-path" || d.SecretsLost(id) {
+		t.Fatalf("loaded %+v", p)
+	}
+	raw, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"secret": "sealed:`, `"options": "sealed:`, `"outbound": ""`, `"name": "Node"`, `"server": "proxy.example.com"`} {
+		if !strings.Contains(string(raw), want) {
+			t.Fatalf("the file lacks %s:\n%s", want, raw)
+		}
+	}
+	if strings.Contains(string(raw), "old:") || strings.Contains(string(raw), "secret-path") {
+		t.Fatalf("the file was not sealed again:\n%s", raw)
+	}
+
+	// Sealed the current way, it is left alone from now on.
+	past := time.Date(2020, 1, 2, 3, 4, 5, 0, time.UTC)
+	if err := os.Chtimes(file, past, past); err != nil {
+		t.Fatal(err)
+	}
+	again, problems := open(t, dir)
+	if len(problems) != 0 {
+		t.Fatalf("problems on loading again: %v", problems)
+	}
+	if got, _ := again.Proxy(id); got != p {
+		t.Fatalf("loaded again %+v, want %+v", got, p)
+	}
+	if info, err := os.Stat(file); err != nil || !info.ModTime().Equal(past) {
+		t.Fatalf("the file was written again: %v, %v", info.ModTime(), err)
+	}
+}
+
+func TestSealingAgainCanFail(t *testing.T) {
+	dir := t.TempDir()
+	const id = "0123456789abcdef"
+	file := filepath.Join(dir, ProxiesDir, id+".json")
+	text := `{"schema":1,"name":"Office","kind":"socks","server":"192.0.2.10","port":1080,"username":"alice","secret":"` + old("pw") + `"}`
+	write(t, dir, "proxies/"+id+".json", text)
+	// A read-only file cannot be replaced.
+	if err := os.Chmod(file, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(file, 0o600) })
+	d, problems := open(t, dir)
+	if len(problems) != 1 || problems[0].Code != ProblemResealFailed || problems[0].Err == nil {
+		t.Fatalf("problems = %v", problems)
+	}
+	// It works all the same, and the file is as it was.
+	if p, ok := d.Proxy(id); !ok || p.Secret != "pw" || d.SecretsLost(id) {
+		t.Fatalf("loaded %+v", p)
+	}
+	if raw, _ := os.ReadFile(file); string(raw) != text {
+		t.Fatalf("the file changed:\n%s", raw)
 	}
 }
 

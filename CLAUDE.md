@@ -27,7 +27,7 @@
 | 路径 | 内容 |
 |---|---|
 | `main.go` | 入口；嵌入 `frontend/dist` 和 `build/windows/icon.ico`（托盘图标）；`version` 默认值 |
-| `internal/app` | Wails 应用、窗口、托盘、单实例、关闭缩到托盘、启动与退出顺序。`desktop_windows.go` 和 `server.go` 用构建标签区分桌面版与 server 版；`platform_windows.go` 提供两版共用的 Windows 部件（DPAPI、凭据、mstsc）；`folders_windows.go`（桌面版）：启动时先准备 exe 旁的 `data`、`logs`，只有管理员能写时经 UAC 让提权的自己（`--prepare-folders <SID>`）建好并授权，其他问题弹中英双语的说明 |
+| `internal/app` | Wails 应用、窗口、托盘、单实例、关闭缩到托盘、启动与退出顺序。`desktop_windows.go` 和 `server.go` 用构建标签区分桌面版与 server 版；`platform_windows.go` 提供两版共用的 Windows 部件（加密代理密钥的 `secret.Fixed`、凭据、mstsc）；`folders_windows.go`（桌面版）：启动时先准备 exe 旁的 `data`、`logs`，只有管理员能写时经 UAC 让提权的自己（`--prepare-folders <SID>`）建好并授权，其他问题弹中英双语的说明 |
 | `internal/api` | 暴露给前端的服务（Settings、Profile、Proxy、Session、App）和它们共用的 `Core`；视图类型、事件、错误 JSON（`MarshalError`） |
 | `internal/model` | 数据结构（Settings、Proxy、Profile、Target）与校验，纯逻辑。内置的两个代理条目：直连（`direct`）和跟随系统代理（`system`），都不落盘。Proxy / Profile 的校验返回 `FieldErrors`（字段 + 代码）。V2Ray 系的设置在 `ProxyOptions`（`options.go`），`Normalize` 只留下这种代理用得上的项并补默认值 |
 | `internal/loopback` | 由 profile ID 派生 `127.a.b.c` 回环地址，冲突时顺延 |
@@ -40,7 +40,7 @@
 | `internal/tunnel` | 回环入口：接受连接、经线路拨目标、双向拷贝、计数、报告 |
 | `internal/session` | 会话：纯 reducer（`session.go`、`reduce.go`），外壳是 actor（`actor.go`）和 `Manager`（`manager.go`） |
 | `internal/errcode` | 错误码：`New` / `Weak` / `Wrap`，`Of` 取最有用的代码；`Declare` / `All` 供翻译完整性测试 |
-| `internal/secret` | DPAPI 加密（`DPAPI`）；凭据管理器里 `TERMSRV/<回环地址>` 的密码（`Vault`） |
+| `internal/secret` | 代理文件里密钥的加密（`Fixed`，程序内置的固定密钥，AES-256-GCM，文件里是 `aes:<base64>`；`Legacy` 用 `DPAPI` 打开旧版本存的 `dpapi:`）；凭据管理器里 `TERMSRV/<回环地址>` 的密码（`Vault`） |
 | `internal/logging` | 日志文件（按大小轮转）、环形缓冲、脱敏、连续重复折叠、给 Wails 用的 slog 适配；每行编号（`Line.Seq`），`Logger.Watch` 按顺序把行交给日志查看器 |
 | `internal/store` | 原子写 JSON；数据文件夹：exe 旁的 `data`、`logs`（`DefaultDirs`，`RDP_OVER_PROXY_HOME` 代替 exe 所在文件夹），`Dirs.Prepare` 建好并试写；设置；代理和连接的文件存储（`Data`） |
 | `internal/i18n` | Go 侧文案（托盘、原生对话框）、系统语言检测；`Both`：语言设置还读不到时用的中英双语文案 |
@@ -189,7 +189,7 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 - **WMI 可能很久不回答（仓库损坏时）**：所以诊断报告不等 Credential Guard，它在后台只查一次，查完发 `diag:changed` 带着新报告；不设超时。
 - **Wails 运行时的 debug 日志带着服务调用的参数（也就是密码）**：`Binding call complete`、`Runtime call` 都会记 `args`。`logging.SlogHandler` 因此不收 Wails 的 debug、info 记录（任何级别），也不收服务方法返回的预期错误，载荷属性写成 `<omitted>`。改它时别放开。
 - **数据全部在 exe 所在的文件夹（用户要求，2026-10-06）**：`data\`（设置、代理、连接、WebView2 缓存）和 `logs\` 并列在 exe 旁边，`logs` 不在 `data` 里面。不要往 `%APPDATA%`、`%LOCALAPPDATA%` 写任何东西；WebView2 的 `WebviewUserDataPath` 也指向 `data\WebView2`，不用 Wails 的默认值（`%APPDATA%\<exe 名>`）。凭据管理器里的密码和 mstsc 的注册表记忆不得不在外面，因为 mstsc 只从那里读。
-- **程序本身绝不提权运行**：标准用户借管理员账户过 UAC 时，提权的进程是那个管理员，DPAPI 加密的密码和凭据管理器里的密码都会落到错的账户下。只有 `--prepare-folders` 这个助手提权，它只建 `data`、`logs` 并给原账户加「修改」权限，然后退出。
+- **程序本身绝不提权运行**：标准用户借管理员账户过 UAC 时，提权的进程是那个管理员，凭据管理器里的密码会落到错的账户下。只有 `--prepare-folders` 这个助手提权，它只建 `data`、`logs` 并给原账户加「修改」权限，然后退出。
 - **UAC 提权的进程不继承调用者的环境变量，也看不到调用者映射的网络驱动器**：所以助手自己从 exe 位置算出文件夹，不读 `RDP_OVER_PROXY_HOME`；设了这个变量、或者 exe 在网络共享上（`winx.OnLocalDisk` 为假）时不提议提权，直接报错。
 - **提权进程在 Program Files 里建的文件夹继承「Users：只读」**：只建文件夹不够，要 `winx.AllowModify` 给原账户加可继承的「修改」权限，以后普通权限启动才写得进去。`AllowModify` 只接受用户账户的 SID，拒绝 Everyone、Users 这类组：提权进程照命令行办事，不能被人借去给所有人开写权限。
 - **Go 的 `syscall.Errno.Error()` 向 Windows 要的是英文说明**：中文的提示里要用 `winx.ErrorText(err, "zh-CN")`，系统没有该语言的文本时它退回英文。
@@ -206,6 +206,7 @@ $env:Path = 'C:\Program Files\Go\bin;' + "$env:USERPROFILE\go\bin;" + $env:Path
 - **Vite 会把小于 4 KB 的资源内联成 `data:` 地址**：放进 `srcset` 时里面的逗号会被当成分隔符，浏览器挑错图。侧栏图标用 `?no-inline` 导入；它们在前端目录外（`build/icon`），开发服务器靠 `vite.config.ts` 的 `server.fs.allow` 才读得到。
 - **WinHTTP 的错误说明在 winhttp.dll 里**，Go 的 `Errno.Error()` 读不到，只会给出「winapi error #12180」：`winx` 给自动配置常见的几个错误码手写了说明。
 - **读到语言设置之前弹的框要中英双语**（`i18n.Both`，系统语言在前）：准备数据文件夹失败时 `settings.json` 可能根本还没法存在。
+- **代理文件里的密钥用程序内置的固定密钥加密（用户决定，2026-10-23）**：`secret.Fixed`（AES-256-GCM），为的是配置文件能拷到别的电脑、方便备份恢复；用户接受密钥在公开源码里、只能防止「打开文件看到明文」的代价。**密钥永远不许改**：改了以后所有已有文件都解不开，`tests/secret` 的固定样本（Node.js 加密的）会失败，那时要改回去，不要改样本。旧版本用 DPAPI（按 Windows 用户）加密的 `dpapi:` 值：本机能打开的，`store.OpenData` 载入时自动改写成 `aes:` 并写回文件（失败报 `store.resealFailed`，下次启动再试）；打不开的（别的电脑或用户）照旧是 `store.secretLost`。远程桌面的密码不受影响，仍只在凭据管理器里。
 - **Xray-core 链接了 GPL-3.0-or-later 的 `sagernet/sing`、`sing-shadowsocks`，去不掉**（它的传输层和 Shadowsocks 2022 都用，XTLS/Xray-core#3272），所以项目改成了 GPL-3.0-or-later；REALITY 链接了 LGPL-3.0 的 `juju/ratelimit`（带静态链接例外）。第三方声明的策略（`tools/notices/main.go`）只允许这几个逐个审查过的 copyleft 组件，新依赖带来别的 copyleft、认不出的许可证或没有许可证时构建失败：先看清楚再改策略，不要为了让构建通过而放宽。
 - **第三方声明的 npm 部分来自前端构建的报告**（`dist/.vite/bundled-packages.json`），所以生成声明要在前端构建之后。Vite 的 modulepreload polyfill 关掉了，不要打开：WebView2 用不上它，打开后 Vite 自己的代码进包，声明里就得带上 Vite 108 KB 的 LICENSE.md。
 - **浏览器预览的控制台里出现 `CancelledRejectionError … context canceled`**：这是 Wails 运行时报告「已取消的调用后来又失败了」（服务端对取消的调用回 422）。开发版的 React StrictMode 会先挂载再卸载一次组件，本机代理卡片的调用在页面加载时就会被取消一次，所以一打开就有一条。不是新问题，也不影响功能。

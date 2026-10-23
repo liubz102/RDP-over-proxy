@@ -84,7 +84,7 @@ type Proxy struct {
 	Username string `json:"username"`
 	// Secret is what signs in: the password of a SOCKS5, HTTP, Shadowsocks,
 	// Trojan or Hysteria2 proxy, or the user ID of a VMess or VLESS one. The
-	// store seals it with DPAPI before it writes the file.
+	// store seals it with the app's own key before it writes the file.
 	Secret string `json:"secret"`
 	// Options are the settings of the V2Ray-family kinds (IsV2Ray) besides
 	// the server, the port and the secret. They include obfuscation keys and

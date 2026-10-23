@@ -51,6 +51,24 @@ func TestOpenRejectsWhatItCannotOpen(t *testing.T) {
 	}
 }
 
+func TestFixedOpensDPAPI(t *testing.T) {
+	old, err := DPAPI{}.Seal("s3cret")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f := Fixed{Legacy: DPAPI{}}
+	if got, err := f.Open(old); err != nil || got != "s3cret" {
+		t.Fatalf("Open = %q, %v", got, err)
+	}
+	if f.Current(old) {
+		t.Fatal("a DPAPI value counts as sealed the current way")
+	}
+	// Without DPAPI, as on another computer, it does not open.
+	if _, err := (Fixed{}).Open(old); !errors.Is(err, ErrUnreadable) {
+		t.Fatalf("Open without Legacy = %v", err)
+	}
+}
+
 // testVault returns a server name that no real connection can have: the
 // .invalid top-level domain is reserved (RFC 2606) and never resolves, so
 // mstsc never looks up these credentials and the user's own are untouched.

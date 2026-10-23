@@ -262,7 +262,7 @@
       "outboundHint": "One complete outbound object with a protocol; its tag is ignored.",
       "customServerHint": "Optional, only shown in the list; connections go where the JSON says.",
       "test": "Test",
-      "secretsLost": "This proxy's password and settings can't be decrypted (they come from another computer or Windows user), so what you see below are defaults, not its settings. Paste the share link again, or enter all the settings again, before saving."
+      "secretsLost": "This proxy's password and settings can't be decrypted (an older version saved them on another computer or for another Windows user, or the file was changed), so what you see below are defaults, not its settings. Paste the share link again, or enter all the settings again, before saving."
     },
     "copyLink": "Copy share link",
     "linkCopied": "Share link copied. It contains the password; share it only with people you trust.",
@@ -281,7 +281,7 @@
       "reality": "REALITY"
     },
     "secretsLost": "Needs re-entering",
-    "secretsLostHint": "Its password and settings can't be decrypted (they come from another computer or Windows user). It isn't used until saved again.",
+    "secretsLostHint": "Its password and settings can't be decrypted (an older version saved them on another computer or for another Windows user, or the file was changed). It isn't used until saved again.",
     "local": {
       "title": "Proxies running on this computer",
       "body": "These proxy programs are running on this computer. Add one as a proxy, and new connections go through it.",
@@ -532,7 +532,7 @@
       "connected": "These connections are connected through this proxy: {{profiles}}. Disconnect them to change or delete it.",
       "config": "Xray doesn't accept these settings.",
       "tls": "The proxy server's certificate didn't pass: it may not be the pinned certificate, or may not match the server name; with REALITY, the public key may be wrong.",
-      "secretsLost": "This proxy's password and settings can't be decrypted (they come from another computer or Windows user), so it can't be used for now. Edit it: paste the share link again, or enter everything again, and save."
+      "secretsLost": "This proxy's password and settings can't be decrypted (an older version saved them on another computer or for another Windows user, or the file was changed), so it can't be used for now. Edit it: paste the share link again, or enter everything again, and save."
     },
     "app": {
       "quitting": "The app is quitting."
@@ -556,7 +556,7 @@
       "writeFailed": "The file couldn't be saved."
     },
     "secret": {
-      "unreadable": "A saved password can't be decrypted by this Windows user."
+      "unreadable": "A saved password can't be decrypted."
     },
     "credential": {
       "failed": "Windows Credential Manager refused the change."
@@ -591,7 +591,8 @@
     "store": {
       "unreadable": "{{file}} couldn't be read. It was renamed to .corrupt and left out.",
       "newerSchema": "{{file}} was saved by a newer version of the app and was left out.",
-      "secretLost": "The password and proxy settings in {{file}} can't be decrypted; the file may come from another Windows user or computer. Edit the proxy: paste the share link again, or enter everything again, and save.",
+      "secretLost": "The password and proxy settings in {{file}} can't be decrypted: an older version may have saved them on another computer or for another Windows user, or the file was changed. Edit the proxy: paste the share link again, or enter everything again, and save.",
+      "resealFailed": "The password and proxy settings in {{file}} are still encrypted the way older versions did it, which only this Windows user on this PC can decrypt. The app tried to save them again so they can be copied to another PC, but couldn't write the file (the log says why). It tries again at the next start; the proxy works as before.",
       "loopbackMoved": "{{file}} got a new loopback address because its old one was missing or used by another connection.",
       "invalid": "{{file}} has values that need fixing.",
       "readFailed": "{{file}} couldn't be opened, perhaps because another program is using it. It was left out and is unchanged."
