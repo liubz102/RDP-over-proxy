@@ -43,7 +43,7 @@ const (
 const DefaultLocalPort = 13389
 
 // DefaultTestURL is fetched through a proxy to measure its latency.
-const DefaultTestURL = "https://www.bing.com"
+const DefaultTestURL = "http://www.msftconnecttest.com/connecttest.txt"
 
 // Log levels.
 const (
